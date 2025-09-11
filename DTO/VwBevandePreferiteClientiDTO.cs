@@ -1,0 +1,25 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DTO
+{
+    public class VwBevandePreferiteClientiDTO
+    {
+        public int PreferitoId { get; set; }
+        public int ClienteId { get; set; }
+        public int TavoloId { get; set; }
+        public string SessioneId { get; set; } = null!;
+        public int BevandaId { get; set; }
+        public string NomeBevanda { get; set; } = null!;
+        public string Descrizione { get; set; } = null!;
+        public decimal PrezzoNetto { get; set; }
+        public decimal? PrezzoLordo { get; set; }
+        public decimal IvaPercentuale { get; set; }
+        public string? ImmagineUrl { get; set; }
+        public bool BevandaDisponibile { get; set; }
+        public DateTime? DataAggiunta { get; set; }
+    }
+}
