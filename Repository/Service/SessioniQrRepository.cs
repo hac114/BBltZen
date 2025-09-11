@@ -1,6 +1,7 @@
 ﻿using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
+using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class SessioniQrRepository
+    public class SessioniQrRepository : ISessioniQrRepository
     {
         private readonly BubbleTeaContext _context;
         public SessioniQrRepository(BubbleTeaContext context)
