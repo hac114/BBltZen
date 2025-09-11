@@ -1,6 +1,7 @@
 ﻿using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
+using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class UtentiRepository
+    public class UtentiRepository : IUtentiRepository
     {
         private readonly BubbleTeaContext _context;
         public UtentiRepository(BubbleTeaContext context)
@@ -36,9 +37,9 @@ namespace Repository.Service
 
         public async Task<UtentiDTO> GetByIdAsync(int utenteId)
         {
-            var utente= await _context.Utenti
+            var utente = await _context.Utenti
                 .FindAsync(utenteId);
-            if(utente == null) return null;
+            if (utente == null) return null;
             return new UtentiDTO
             {
                 UtenteId = utenteId,

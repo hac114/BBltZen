@@ -1,6 +1,7 @@
 ﻿using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
+using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class TaxRatesRepository
+    public class TaxRatesRepository : ITaxRatesRepository
     {
         private readonly BubbleTeaContext _context;
         public TaxRatesRepository(BubbleTeaContext context)
@@ -24,7 +25,7 @@ namespace Repository.Service
                     TaxRateId = t.TaxRateId,
                     Aliquota = t.Aliquota,
                     Descrizione = t.Descrizione,
-                    
+
                     // Map all other properties from TaxRate entity to TaxRatesDTO
                 })
                 .ToListAsync();
@@ -40,7 +41,7 @@ namespace Repository.Service
                 TaxRateId = taxRate.TaxRateId,
                 Aliquota = taxRate.Aliquota,
                 Descrizione = taxRate.Descrizione,
-                
+
                 // Map all other properties
             };
         }
@@ -57,7 +58,7 @@ namespace Repository.Service
                 TaxRateId = taxRate.TaxRateId,
                 Aliquota = taxRate.Aliquota,
                 Descrizione = taxRate.Descrizione,
-                
+
                 // Map all other properties
             };
         }
@@ -68,7 +69,7 @@ namespace Repository.Service
             {
                 Aliquota = taxRateDto.Aliquota,
                 Descrizione = taxRateDto.Descrizione,
-                
+
                 // Map all other properties from DTO to entity
             };
 
@@ -87,7 +88,7 @@ namespace Repository.Service
 
             taxRate.Aliquota = taxRateDto.Aliquota;
             taxRate.Descrizione = taxRateDto.Descrizione;
-            
+
             // Update all other properties
 
             _context.TaxRates.Update(taxRate);
