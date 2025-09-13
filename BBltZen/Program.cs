@@ -1,5 +1,7 @@
 
 using Microsoft.Extensions.DependencyInjection;
+using Repository;
+using Repository.Interface;
 using Repository.Service;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
@@ -19,8 +21,8 @@ namespace BBltZen
             builder.Services.AddSwaggerGen();
 
             builder.Services.AddDbContext<Database.BubbleTeaContext>();
-            //builder.Services.AddScoped<IOrdineRepository, OrdineRepository>();
-            //builder.Services.AddScoped<IDolceRepository, DolceRepository>();
+            builder.Services.AddScoped<IOrdineRepository, OrdineRepository>();
+            builder.Services.AddScoped<IDolceRepository, DolceRepository>();
 
             var app = builder.Build();
 
