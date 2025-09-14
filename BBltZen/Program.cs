@@ -1,9 +1,7 @@
 
-using Microsoft.Extensions.DependencyInjection;
+using Database;
+using Microsoft.EntityFrameworkCore;
 using Repository;
-using Repository.Interface;
-using Repository.Service;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace BBltZen
 {
@@ -14,18 +12,20 @@ namespace BBltZen
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
-
-            builder.Services.AddControllers();            
+            builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            builder.Services.AddDbContext<Database.BubbleTeaContext>();
-            builder.Services.AddScoped<IOrdineRepository, OrdineRepository>();
-            builder.Services.AddScoped<IDolceRepository, DolceRepository>();
+            // Database Context
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            builder.Services.AddDbContext<BubbleTeaContext>(options =>
+                options.UseSqlServer(connectionString));
+
+            // Registra TUTTI i repository in un colpo solo
+            builder.Services.AddServiceDb(); // Metodo da StartUpConfigurator
 
             var app = builder.Build();
 
-           
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
@@ -34,12 +34,8 @@ namespace BBltZen
             }
 
             app.UseHttpsRedirection();
-
             app.UseAuthorization();
-
-
             app.MapControllers();
-
             app.Run();
         }
     }

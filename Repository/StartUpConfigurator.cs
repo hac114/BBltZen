@@ -8,21 +8,22 @@ namespace Repository
     {
         public static void AddServiceDb(this IServiceCollection services)
         {
-            services.AddTransient<IOrdineRepository, OrdineRepository>();
-            services.AddTransient<IDolceRepository, DolceRepository>();
-            services.AddTransient<IIngredienteRepository, IngredienteRepository>();
-            services.AddTransient<INotificheOperativeRepository, NotificheOperativeRepository>();
-            services.AddTransient<IOrderItemRepository, OrderItemRepository>();
-            services.AddTransient<IStatoOrdineRepository, StatoOrdineRepository>();
-            services.AddTransient<IStatoPagamentoRepository, StatoPagamentoRepository>();
-            services.AddTransient<ITavoloRepository, TavoloRepository>();
-            services.AddTransient<ITaxRatesRepository, TaxRatesRepository>();
-            services.AddTransient<IUtentiRepository, UtentiRepository>();
-            services.AddTransient<IVwStatisticheOrdiniAvanzateRepository, VwStatisticheOrdiniAvanzateRepository>();
+            services.AddScoped<IOrdineRepository, OrdineRepository>();
+            services.AddScoped<IDolceRepository, DolceRepository>();
+            services.AddScoped<IIngredienteRepository, IngredienteRepository>();
+            services.AddScoped<INotificheOperativeRepository, NotificheOperativeRepository>();
+            services.AddScoped<IOrderItemRepository, OrderItemRepository>();
+            services.AddScoped<IStatoOrdineRepository, StatoOrdineRepository>();
+            services.AddScoped<IStatoPagamentoRepository, StatoPagamentoRepository>();
+            services.AddScoped<ITavoloRepository, TavoloRepository>();
+            services.AddScoped<ITaxRatesRepository, TaxRatesRepository>();
+            services.AddScoped<IUtentiRepository, UtentiRepository>();
+            services.AddScoped<IVwStatisticheOrdiniAvanzateRepository, VwStatisticheOrdiniAvanzateRepository>();
 
-            // COMMENTATI (ma tenuti per riferimento):
-            // services.AddTransient<IVwIngredientiPopolariRepository, VwIngredientiPopolariRepository>();
-            // services.AddTransient<ISessioniQrRepository, SessioniQrRepository>();
+            // Aggiungi anche questi quando saranno implementati:
+            // services.AddScoped<IArticoloRepository, ArticoloRepository>();
+            // services.AddScoped<IVwIngredientiPopolariRepository, VwIngredientiPopolariRepository>();
+            // services.AddScoped<ISessioniQrRepository, SessioniQrRepository>();
         }
     }
 }
