@@ -12,10 +12,12 @@ namespace DTO
         public int PersonalizzazioneId { get; set; }
         public int DimensioneBicchiereId { get; set; }
         public decimal Prezzo { get; set; }
-        public string ImmagineUrl { get; set; }
+        public string? ImmagineUrl { get; set; }
         public bool Disponibile { get; set; }
         public bool SempreDisponibile { get; set; }
         public int Priorita { get; set; }
-        public DimensioneBicchiereDTO DimensioneBicchiere { get; set; }
+        public DateTime DataCreazione { get; set; }
+        public DateTime DataAggiornamento { get; set; }
+        public required DimensioneBicchiereDTO DimensioneBicchiere { get; set; }
     }
 }

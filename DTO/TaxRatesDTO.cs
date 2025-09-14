@@ -13,5 +13,5 @@ namespace DTO
     public string Descrizione { get; set; } = null!;
     public DateTime? DataCreazione { get; set; }
     public DateTime? DataAggiornamento { get; set; }
-}
+    }
 }

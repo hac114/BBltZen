@@ -9,8 +9,8 @@ namespace DTO
     public class DimensioneBicchiereDTO
     {
         public int DimensioneBicchiereId { get; set; }
-        public string Sigla { get; set; }
-        public string Descrizione { get; set; }
+        public required string Sigla { get; set; }
+        public required string Descrizione { get; set; }
         public decimal Capienza { get; set; }
         public int UnitaMisuraId { get; set; }
         public decimal PrezzoBase { get; set; }

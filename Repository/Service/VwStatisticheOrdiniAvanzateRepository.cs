@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class VwStatisticheOrdiniAvanzateRepository : IVwStatisticheOrdiniAvanzateRepository, IVwStatisticheOrdiniAvanzateRepository
+    public class VwStatisticheOrdiniAvanzateRepository : IVwStatisticheOrdiniAvanzateRepository
     {
         private readonly BubbleTeaContext _context;
 

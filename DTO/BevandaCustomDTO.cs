@@ -15,7 +15,11 @@ namespace DTO
         public int PersCustomId { get; set; }
 
         public decimal Prezzo { get; set; }
-        public DimensioneBicchiereDTO DimensioneBicchiere { get; set; }
+
+        public DateTime DataCreazione { get; set; }
+
+        public DateTime DataAggiornamento { get; set; }
+        public required DimensioneBicchiereDTO DimensioneBicchiere { get; set; }
         //public PersonalizzazioneCustomDTO Personalizzazione { get; set; }
         
     }

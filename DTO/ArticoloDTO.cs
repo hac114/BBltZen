@@ -9,7 +9,7 @@ namespace DTO
     public class ArticoloDTO
     {
         public int ArticoloId { get; set; }
-        public string Tipo { get; set; }
+        public string Tipo { get; set; } = null!;
         public DateTime? DataCreazione { get; set; }
         public DateTime? DataAggiornamento { get; set; }
     }

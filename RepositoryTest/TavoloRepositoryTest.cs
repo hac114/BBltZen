@@ -1,18 +1,19 @@
 ﻿using DTO;
 using Repository.Interface;
+using RepositoryTest.Mocks; // 👈 AGGIUNTO using per i mock
 using Assert = Microsoft.VisualStudio.TestTools.UnitTesting.Assert;
 
 namespace RepositoryTest
 {
     [TestClass]
-    public class TavoloRepositoryTest : BaseTest
+    public class TavoloRepositoryTest
     {
         private ITavoloRepository _tavoloRepository;
 
         [TestInitialize]
         public void Initialize()
         {
-            _tavoloRepository = MockTavoloRepository; // Usa direttamente il mock
+            _tavoloRepository = new MockTavoloRepository(); // 👈 CREAZIONE DIRETTA DEL MOCK
         }
 
         [TestMethod]
