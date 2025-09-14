@@ -1,22 +1,23 @@
 ﻿using DTO;
 using Repository.Interface;
-using RepositoryTest.Mocks; // 👈 AGGIUNTO using per i mock
-using Assert = Microsoft.VisualStudio.TestTools.UnitTesting.Assert;
+using RepositoryTest.Mocks;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Xunit;
 
 namespace RepositoryTest
 {
-    [TestClass]
     public class TavoloRepositoryTest
     {
-        private ITavoloRepository _tavoloRepository;
+        private readonly ITavoloRepository _tavoloRepository;
 
-        [TestInitialize]
-        public void Initialize()
+        public TavoloRepositoryTest()
         {
             _tavoloRepository = new MockTavoloRepository(); // 👈 CREAZIONE DIRETTA DEL MOCK
         }
 
-        [TestMethod]
+        [Fact]
         public async Task AddAsync_Should_Add_Tavolo()
         {
             // Arrange
@@ -33,12 +34,12 @@ namespace RepositoryTest
 
             // Assert
             var result = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
-            Assert.IsNotNull(result);
-            Assert.AreEqual(1, result.Numero);
-            Assert.AreEqual("Terrazza", result.Zona);
+            Assert.NotNull(result);
+            Assert.Equal(1, result.Numero);
+            Assert.Equal("Terrazza", result.Zona);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetByIdAsync_Should_Return_Correct_Tavolo()
         {
             // Arrange
@@ -55,12 +56,12 @@ namespace RepositoryTest
             var result = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
 
             // Assert
-            Assert.IsNotNull(result);
-            Assert.AreEqual(tavoloDto.TavoloId, result.TavoloId);
-            Assert.AreEqual("QR002", result.QrCode);
+            Assert.NotNull(result);
+            Assert.Equal(tavoloDto.TavoloId, result.TavoloId);
+            Assert.Equal("QR002", result.QrCode);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetByQrCodeAsync_Should_Return_Correct_Tavolo()
         {
             // Arrange
@@ -77,20 +78,20 @@ namespace RepositoryTest
             var result = await _tavoloRepository.GetByQrCodeAsync("QR003");
 
             // Assert
-            Assert.IsNotNull(result);
-            Assert.AreEqual(3, result.Numero);
-            Assert.AreEqual("Terrazza", result.Zona);
+            Assert.NotNull(result);
+            Assert.Equal(3, result.Numero);
+            Assert.Equal("Terrazza", result.Zona);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task GetDisponibiliAsync_Should_Return_Only_Available_Tables()
         {
             // Arrange
             var tavoli = new List<TavoloDTO>
             {
-                new() { Numero = 4, Zona = "Interno", QrCode = "QR004", Disponibile = true },
-                new() { Numero = 5, Zona = "Terrazza", QrCode = "QR005", Disponibile = false },
-                new() { Numero = 6, Zona = "Interno", QrCode = "QR006", Disponibile = true }
+                new TavoloDTO { Numero = 4, Zona = "Interno", QrCode = "QR004", Disponibile = true },
+                new TavoloDTO { Numero = 5, Zona = "Terrazza", QrCode = "QR005", Disponibile = false },
+                new TavoloDTO { Numero = 6, Zona = "Interno", QrCode = "QR006", Disponibile = true }
             };
 
             foreach (var tavolo in tavoli)
@@ -102,11 +103,11 @@ namespace RepositoryTest
             var result = await _tavoloRepository.GetDisponibiliAsync();
 
             // Assert
-            Assert.AreEqual(2, result.Count());
-            Assert.IsTrue(result.All(t => t.Disponibile));
+            Assert.Equal(2, result.Count());
+            Assert.All(result, t => Assert.True(t.Disponibile));
         }
 
-        [TestMethod]
+        [Fact]
         public async Task UpdateAsync_Should_Update_Tavolo_Correctly()
         {
             // Arrange
@@ -133,14 +134,14 @@ namespace RepositoryTest
 
             // Assert
             var updated = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
-            Assert.IsNotNull(updated);
-            Assert.AreEqual(77, updated.Numero);
-            Assert.AreEqual("Terrazza", updated.Zona);
-            Assert.AreEqual("QR0077", updated.QrCode);
-            Assert.IsFalse(updated.Disponibile);
+            Assert.NotNull(updated);
+            Assert.Equal(77, updated.Numero);
+            Assert.Equal("Terrazza", updated.Zona);
+            Assert.Equal("QR0077", updated.QrCode);
+            Assert.False(updated.Disponibile);
         }
 
-        [TestMethod]
+        [Fact]
         public async Task DeleteAsync_Should_Remove_Tavolo()
         {
             // Arrange
@@ -158,7 +159,7 @@ namespace RepositoryTest
 
             // Assert
             var deleted = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
-            Assert.IsNull(deleted);
+            Assert.Null(deleted);
         }
     }
 }

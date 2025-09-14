@@ -1,22 +1,32 @@
 ﻿using Database;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using Repository;
-using Repository.Interface;
-using Repository.Service;
 
 namespace RepositoryTest
 {
     public class BaseTest
     {
-        protected readonly IServiceProvider _service;
+        protected readonly IServiceProvider _serviceProvider;
+        protected readonly Mock<BubbleTeaContext> _mockContext;
+
         public BaseTest()
         {
-            var build = WebApplication.CreateBuilder();
-            build.Services.AddTransient<IOrdineRepository, OrdineRepository>();
-            build.Services.AddServiceDb();
-            build.Services.AddDbContext<BubbleTeaContext>();
-            build.Services.AddDbContext<Database.BubbleTeaContext>();
-            var dati = build.Build();
-            _service = dati.Services;
+            var services = new ServiceCollection();
+
+            // Crea un mock del DbContext
+            _mockContext = new Mock<BubbleTeaContext>();
+
+            // Registra il mock nel container DI
+            services.AddScoped<BubbleTeaContext>(_ => _mockContext.Object);
+
+            // Registra TUTTI i repository
+            services.AddServiceDb();
+
+            _serviceProvider = services.BuildServiceProvider();
         }
+
+        protected T GetService<T>() => _serviceProvider.GetRequiredService<T>();
     }
 }

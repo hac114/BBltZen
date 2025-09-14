@@ -19,6 +19,7 @@ namespace Repository
             services.AddScoped<ITaxRatesRepository, TaxRatesRepository>();
             services.AddScoped<IUtentiRepository, UtentiRepository>();
             services.AddScoped<IVwStatisticheOrdiniAvanzateRepository, VwStatisticheOrdiniAvanzateRepository>();
+            services.AddScoped<IDimensioneBicchiereRepository, DimensioneBicchiereRepository>();
 
             // Aggiungi anche questi quando saranno implementati:
             // services.AddScoped<IArticoloRepository, ArticoloRepository>();
