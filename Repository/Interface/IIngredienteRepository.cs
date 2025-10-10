@@ -9,7 +9,7 @@ namespace Repository.Interface
         Task<bool> ExistsAsync(int id);
         Task<IEnumerable<IngredienteDTO>> GetAllAsync();
         Task<IEnumerable<IngredienteDTO>> GetByCategoriaAsync(int categoriaId);
-        Task<IngredienteDTO> GetByIdAsync(int id);
+        Task<IngredienteDTO?> GetByIdAsync(int id);
         Task<IEnumerable<IngredienteDTO>> GetDisponibiliAsync();
         Task UpdateAsync(IngredienteDTO ingredienteDto);
     }

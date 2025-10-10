@@ -1,6 +1,8 @@
 ﻿using DTO;
 using Repository.Interface;
-using RepositoryTest.Mocks;
+using Repository.Service;
+using Database;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,11 +13,20 @@ namespace RepositoryTest
     public class TavoloRepositoryTest
     {
         private readonly ITavoloRepository _tavoloRepository;
+        private readonly BubbleTeaContext _context;
 
         public TavoloRepositoryTest()
         {
-            _tavoloRepository = new MockTavoloRepository(); // 👈 CREAZIONE DIRETTA DEL MOCK
+            // Sostituisci le linee esistenti con:
+            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
+                .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
+                .Options;
+
+            _context = new BubbleTeaContext(options);
+            _context.Database.EnsureCreated();
+            _tavoloRepository = new TavoloRepository(_context);
         }
+
 
         [Fact]
         public async Task AddAsync_Should_Add_Tavolo()

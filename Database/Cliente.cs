@@ -9,8 +9,6 @@ public partial class Cliente
 
     public int TavoloId { get; set; }
 
-    public string SessioneId { get; set; } = null!;
-
     public DateTime DataCreazione { get; set; }
 
     public DateTime DataAggiornamento { get; set; }

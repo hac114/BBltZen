@@ -21,8 +21,6 @@ public partial class BubbleTeaContext : DbContext
 
     public virtual DbSet<BevandaStandard> BevandaStandard { get; set; }
 
-    public virtual DbSet<BevandaStandardBackup> BevandaStandardBackup { get; set; }
-
     public virtual DbSet<CategoriaIngrediente> CategoriaIngrediente { get; set; }
 
     public virtual DbSet<Cliente> Cliente { get; set; }
@@ -39,19 +37,17 @@ public partial class BubbleTeaContext : DbContext
 
     public virtual DbSet<IngredientiPersonalizzazione> IngredientiPersonalizzazione { get; set; }
 
-    public virtual DbSet<IvaBackup> IvaBackup { get; set; }
-
     public virtual DbSet<LogAccessi> LogAccessi { get; set; }
 
     public virtual DbSet<LogAttivita> LogAttivita { get; set; }
+
+    public virtual DbSet<MigrationAudit> MigrationAudit { get; set; }
 
     public virtual DbSet<NotificheOperative> NotificheOperative { get; set; }
 
     public virtual DbSet<OrderItem> OrderItem { get; set; }
 
     public virtual DbSet<Ordine> Ordine { get; set; }
-
-    public virtual DbSet<OrdineBackup> OrdineBackup { get; set; }
 
     public virtual DbSet<Personalizzazione> Personalizzazione { get; set; }
 
@@ -74,6 +70,8 @@ public partial class BubbleTeaContext : DbContext
     public virtual DbSet<Tavolo> Tavolo { get; set; }
 
     public virtual DbSet<TaxRates> TaxRates { get; set; }
+
+    public virtual DbSet<TempPriceCalculations> TempPriceCalculations { get; set; }
 
     public virtual DbSet<TriggerLogs> TriggerLogs { get; set; }
 
@@ -103,6 +101,8 @@ public partial class BubbleTeaContext : DbContext
 
     public virtual DbSet<VwNotifichePendenti> VwNotifichePendenti { get; set; }
 
+    public virtual DbSet<VwOrderCalculationSupport> VwOrderCalculationSupport { get; set; }
+
     public virtual DbSet<VwOrdiniAnnullati> VwOrdiniAnnullati { get; set; }
 
     public virtual DbSet<VwOrdiniSospesi> VwOrdiniSospesi { get; set; }
@@ -119,11 +119,17 @@ public partial class BubbleTeaContext : DbContext
 
     public virtual DbSet<VwTempiStato> VwTempiStato { get; set; }
 
-    
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Server=localhost;Database=BubbleTea;Trusted_Connection=true;TrustServerCertificate=true;");
-
+    {
+        // ⚠️ IMPORTANTE: Controlla se è già configurato dall'esterno
+        if (!optionsBuilder.IsConfigured)
+        {
+            // Solo se non è già configurato (ad esempio dai test con InMemory)
+            // Usa SQL Server come fallback per l'applicazione principale
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+            optionsBuilder.UseSqlServer("Server=localhost;Database=BubbleTea;Trusted_Connection=true;TrustServerCertificate=true;");
+        }
+    }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Articolo>(entity =>
@@ -230,35 +236,6 @@ public partial class BubbleTeaContext : DbContext
                 .HasConstraintName("FK_BEVANDA_STANDARD_Personalizzazione");
         });
 
-        modelBuilder.Entity<BevandaStandardBackup>(entity =>
-        {
-            entity
-                .HasNoKey()
-                .ToTable("BEVANDA_STANDARD_BACKUP");
-
-            entity.Property(e => e.ArticoloId).HasColumnName("articolo_id");
-            entity.Property(e => e.DataAggiornamento)
-                .HasColumnType("datetime")
-                .HasColumnName("data_aggiornamento");
-            entity.Property(e => e.DataCreazione)
-                .HasColumnType("datetime")
-                .HasColumnName("data_creazione");
-            entity.Property(e => e.Descrizione)
-                .HasMaxLength(500)
-                .HasColumnName("descrizione");
-            entity.Property(e => e.DimensioneBicchiereId).HasColumnName("dimensione_bicchiere_id");
-            entity.Property(e => e.Disponibile).HasColumnName("disponibile");
-            entity.Property(e => e.ImmagineUrl)
-                .HasMaxLength(500)
-                .HasColumnName("immagine_url");
-            entity.Property(e => e.PersonalizzazioneId).HasColumnName("personalizzazione_id");
-            entity.Property(e => e.Prezzo)
-                .HasColumnType("decimal(4, 2)")
-                .HasColumnName("prezzo");
-            entity.Property(e => e.Priorita).HasColumnName("priorita");
-            entity.Property(e => e.SempreDisponibile).HasColumnName("sempre_disponibile");
-        });
-
         modelBuilder.Entity<CategoriaIngrediente>(entity =>
         {
             entity.HasKey(e => e.CategoriaId);
@@ -286,10 +263,6 @@ public partial class BubbleTeaContext : DbContext
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
                 .HasColumnName("data_creazione");
-            entity.Property(e => e.SessioneId)
-                .HasMaxLength(100)
-                .IsUnicode(false)
-                .HasColumnName("sessione_id");
             entity.Property(e => e.TavoloId).HasColumnName("tavolo_id");
 
             entity.HasOne(d => d.Tavolo).WithMany(p => p.Cliente)
@@ -332,7 +305,7 @@ public partial class BubbleTeaContext : DbContext
                 .HasColumnType("decimal(5, 2)")
                 .HasColumnName("capienza");
             entity.Property(e => e.Descrizione)
-                .HasMaxLength(10)
+                .HasMaxLength(50)
                 .HasColumnName("descrizione");
             entity.Property(e => e.Moltiplicatore)
                 .HasDefaultValue(100m)
@@ -342,7 +315,7 @@ public partial class BubbleTeaContext : DbContext
                 .HasColumnType("decimal(10, 2)")
                 .HasColumnName("prezzo_base");
             entity.Property(e => e.Sigla)
-                .HasMaxLength(1)
+                .HasMaxLength(3)
                 .IsUnicode(false)
                 .IsFixedLength()
                 .HasColumnName("sigla");
@@ -481,30 +454,6 @@ public partial class BubbleTeaContext : DbContext
                 .HasConstraintName("FK_PERS_CUSTOM");
         });
 
-        modelBuilder.Entity<IvaBackup>(entity =>
-        {
-            entity
-                .HasNoKey()
-                .ToTable("IVA_BACKUP");
-
-            entity.Property(e => e.Aliquota)
-                .HasColumnType("decimal(5, 2)")
-                .HasColumnName("aliquota");
-            entity.Property(e => e.CodiceCategoria)
-                .HasMaxLength(10)
-                .IsUnicode(false)
-                .HasColumnName("codice_categoria");
-            entity.Property(e => e.DataFineValidita).HasColumnName("data_fine_validita");
-            entity.Property(e => e.DataInizioValidita).HasColumnName("data_inizio_validita");
-            entity.Property(e => e.Descrizione)
-                .HasMaxLength(50)
-                .IsUnicode(false)
-                .HasColumnName("descrizione");
-            entity.Property(e => e.IvaId)
-                .ValueGeneratedOnAdd()
-                .HasColumnName("iva_id");
-        });
-
         modelBuilder.Entity<LogAccessi>(entity =>
         {
             entity.HasKey(e => e.LogId).HasName("PK__LogAcces__9E2397E007CE0209");
@@ -566,6 +515,43 @@ public partial class BubbleTeaContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false)
                 .HasColumnName("tipo_attivita");
+        });
+
+        modelBuilder.Entity<MigrationAudit>(entity =>
+        {
+            entity.HasKey(e => e.AuditId).HasName("PK__Migratio__5AF33E334196E2F6");
+
+            entity.ToTable("Migration_Audit");
+
+            entity.Property(e => e.AuditId).HasColumnName("audit_id");
+            entity.Property(e => e.ExecutedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("executed_at");
+            entity.Property(e => e.ExecutedBy)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasDefaultValueSql("(suser_sname())")
+                .HasColumnName("executed_by");
+            entity.Property(e => e.MigrationPhase)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("migration_phase");
+            entity.Property(e => e.Notes)
+                .HasMaxLength(1000)
+                .HasColumnName("notes");
+            entity.Property(e => e.ObjectName)
+                .HasMaxLength(255)
+                .IsUnicode(false)
+                .HasColumnName("object_name");
+            entity.Property(e => e.ObjectType)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("object_type");
+            entity.Property(e => e.OperationType)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("operation_type");
         });
 
         modelBuilder.Entity<NotificheOperative>(entity =>
@@ -710,30 +696,6 @@ public partial class BubbleTeaContext : DbContext
             entity.HasOne(d => d.StatoPagamento).WithMany(p => p.Ordine)
                 .HasForeignKey(d => d.StatoPagamentoId)
                 .HasConstraintName("FK__ORDINE__stato_pa__6E2152BE");
-        });
-
-        modelBuilder.Entity<OrdineBackup>(entity =>
-        {
-            entity
-                .HasNoKey()
-                .ToTable("ORDINE_BACKUP");
-
-            entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
-            entity.Property(e => e.DataAggiornamento)
-                .HasColumnType("datetime")
-                .HasColumnName("data_aggiornamento");
-            entity.Property(e => e.DataCreazione)
-                .HasColumnType("datetime")
-                .HasColumnName("data_creazione");
-            entity.Property(e => e.OrdineId)
-                .ValueGeneratedOnAdd()
-                .HasColumnName("ordine_id");
-            entity.Property(e => e.Priorita).HasColumnName("priorita");
-            entity.Property(e => e.StatoOrdineId).HasColumnName("stato_ordine_id");
-            entity.Property(e => e.StatoPagamentoId).HasColumnName("stato_pagamento_id");
-            entity.Property(e => e.Totale)
-                .HasColumnType("decimal(10, 2)")
-                .HasColumnName("totale");
         });
 
         modelBuilder.Entity<Personalizzazione>(entity =>
@@ -996,6 +958,31 @@ public partial class BubbleTeaContext : DbContext
                 .HasColumnName("descrizione");
         });
 
+        modelBuilder.Entity<TempPriceCalculations>(entity =>
+        {
+            entity.HasKey(e => e.TempId).HasName("PK__Temp_Pri__FEEC6BDB2AF05344");
+
+            entity.ToTable("Temp_Price_Calculations");
+
+            entity.HasIndex(e => e.ArticoloId, "IX_Temp_Price_Calculations_articolo");
+
+            entity.Property(e => e.TempId).HasColumnName("temp_id");
+            entity.Property(e => e.ArticoloId).HasColumnName("articolo_id");
+            entity.Property(e => e.CalcolatoDa)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasDefaultValueSql("(suser_sname())")
+                .HasColumnName("calcolato_da");
+            entity.Property(e => e.DataCalcolo)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("data_calcolo");
+            entity.Property(e => e.PersCustomId).HasColumnName("pers_custom_id");
+            entity.Property(e => e.PrezzoCalcolato)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("prezzo_calcolato");
+        });
+
         modelBuilder.Entity<TriggerLogs>(entity =>
         {
             entity.HasKey(e => e.LogId).HasName("PK__TRIGGER___9E2397E06F281AFD");
@@ -1143,10 +1130,6 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.PrezzoNetto)
                 .HasColumnType("decimal(4, 2)")
                 .HasColumnName("prezzo_netto");
-            entity.Property(e => e.SessioneId)
-                .HasMaxLength(100)
-                .IsUnicode(false)
-                .HasColumnName("sessione_id");
             entity.Property(e => e.TavoloId).HasColumnName("tavolo_id");
         });
 
@@ -1366,6 +1349,29 @@ public partial class BubbleTeaContext : DbContext
                 .IsUnicode(false)
                 .HasColumnName("ordini_coinvolti");
             entity.Property(e => e.Priorita).HasColumnName("priorita");
+        });
+
+        modelBuilder.Entity<VwOrderCalculationSupport>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_Order_Calculation_Support");
+
+            entity.Property(e => e.ArticoloId).HasColumnName("articolo_id");
+            entity.Property(e => e.OrderItemId).HasColumnName("order_item_id");
+            entity.Property(e => e.OrdineId).HasColumnName("ordine_id");
+            entity.Property(e => e.PrezzoBase)
+                .HasColumnType("decimal(10, 2)")
+                .HasColumnName("prezzo_base");
+            entity.Property(e => e.Quantita).HasColumnName("quantita");
+            entity.Property(e => e.TaxRate)
+                .HasColumnType("decimal(5, 2)")
+                .HasColumnName("tax_rate");
+            entity.Property(e => e.TipoArticolo)
+                .HasMaxLength(2)
+                .IsUnicode(false)
+                .IsFixedLength()
+                .HasColumnName("tipo_articolo");
         });
 
         modelBuilder.Entity<VwOrdiniAnnullati>(entity =>

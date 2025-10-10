@@ -5,7 +5,6 @@ using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Repository.Service
@@ -13,36 +12,53 @@ namespace Repository.Service
     public class IngredienteRepository : IIngredienteRepository
     {
         private readonly BubbleTeaContext _context;
+
         public IngredienteRepository(BubbleTeaContext context)
         {
             _context = context;
         }
+
         public async Task<IEnumerable<IngredienteDTO>> GetAllAsync()
         {
             return await _context.Ingrediente
+                .Where(i => i.Disponibile)  // 👈 SOFT-DELETE FILTER
+                .Include(i => i.Categoria)
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,
+                    Nome = i.Ingrediente1,
                     CategoriaId = i.CategoriaId,
-                    Disponibile = i.Disponibile
-                    // Map other properties as needed
+                    PrezzoAggiunto = i.PrezzoAggiunto,
+                    Disponibile = i.Disponibile,
+                    DataInserimento = i.DataInserimento,
+                    DataAggiornamento = i.DataAggiornamento
                 })
                 .ToListAsync();
         }
 
-        public async Task<IngredienteDTO> GetByIdAsync(int id)
+        public async Task<IngredienteDTO?> GetByIdAsync(int id)
         {
-            var ingrediente = await _context.Ingrediente.FindAsync(id);
+            // PRIMA verifica se esiste e è disponibile
+            var ingrediente = await _context.Ingrediente
+                .Where(i => i.IngredienteId == id && i.Disponibile)
+                .FirstOrDefaultAsync();
+
             if (ingrediente == null) return null;
+
+            // POI carica la categoria separatamente se necessario
+            await _context.Entry(ingrediente)
+                .Reference(i => i.Categoria)
+                .LoadAsync();
 
             return new IngredienteDTO
             {
                 IngredienteId = ingrediente.IngredienteId,
-                //Nome = ingrediente.Nome,
-                //Prezzo = ingrediente.Prezzo,
+                Nome = ingrediente.Ingrediente1,
                 CategoriaId = ingrediente.CategoriaId,
-                Disponibile = ingrediente.Disponibile
-                // Map other properties as needed
+                PrezzoAggiunto = ingrediente.PrezzoAggiunto,
+                Disponibile = ingrediente.Disponibile,
+                DataInserimento = ingrediente.DataInserimento,
+                DataAggiornamento = ingrediente.DataAggiornamento
             };
         }
 
@@ -50,18 +66,20 @@ namespace Repository.Service
         {
             var ingrediente = new Ingrediente
             {
-                //Nome = ingredienteDto.Nome,
-                //Prezzo = ingredienteDto.Prezzo,
+                Ingrediente1 = ingredienteDto.Nome,
                 CategoriaId = ingredienteDto.CategoriaId,
-                Disponibile = ingredienteDto.Disponibile
-                // Map other properties as needed
+                PrezzoAggiunto = ingredienteDto.PrezzoAggiunto,
+                Disponibile = ingredienteDto.Disponibile,
+                DataInserimento = DateTime.Now,
+                DataAggiornamento = DateTime.Now
             };
 
-            await _context.Ingrediente.AddAsync(ingrediente);
+            _context.Ingrediente.Add(ingrediente);
             await _context.SaveChangesAsync();
 
-            // Return the generated ID to the DTO
             ingredienteDto.IngredienteId = ingrediente.IngredienteId;
+            ingredienteDto.DataInserimento = ingrediente.DataInserimento;
+            ingredienteDto.DataAggiornamento = ingrediente.DataAggiornamento;
         }
 
         public async Task UpdateAsync(IngredienteDTO ingredienteDto)
@@ -70,14 +88,15 @@ namespace Repository.Service
             if (ingrediente == null)
                 throw new ArgumentException("Ingrediente not found");
 
-            //ingrediente.Nome = ingredienteDto.Nome;
-            //ingrediente.Prezzo = ingredienteDto.Prezzo;
+            ingrediente.Ingrediente1 = ingredienteDto.Nome;
             ingrediente.CategoriaId = ingredienteDto.CategoriaId;
+            ingrediente.PrezzoAggiunto = ingredienteDto.PrezzoAggiunto;
             ingrediente.Disponibile = ingredienteDto.Disponibile;
-            // Update other properties as needed
+            ingrediente.DataAggiornamento = DateTime.Now;
 
-            _context.Ingrediente.Update(ingrediente);
             await _context.SaveChangesAsync();
+
+            ingredienteDto.DataAggiornamento = ingrediente.DataAggiornamento;
         }
 
         public async Task DeleteAsync(int id)
@@ -85,7 +104,8 @@ namespace Repository.Service
             var ingrediente = await _context.Ingrediente.FindAsync(id);
             if (ingrediente != null)
             {
-                _context.Ingrediente.Remove(ingrediente);
+                ingrediente.Disponibile = false;  // 👈 SOFT DELETE
+                ingrediente.DataAggiornamento = DateTime.Now;
                 await _context.SaveChangesAsync();
             }
         }
@@ -99,14 +119,16 @@ namespace Repository.Service
         {
             return await _context.Ingrediente
                 .Where(i => i.CategoriaId == categoriaId)
+                .Include(i => i.Categoria)
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,
-                    //Nome = i.Nome,
-                    //Prezzo = i.Prezzo,
+                    Nome = i.Ingrediente1,
                     CategoriaId = i.CategoriaId,
-                    Disponibile = i.Disponibile
-                    // Map other properties as needed
+                    PrezzoAggiunto = i.PrezzoAggiunto,
+                    Disponibile = i.Disponibile,
+                    DataInserimento = i.DataInserimento,
+                    DataAggiornamento = i.DataAggiornamento
                 })
                 .ToListAsync();
         }
@@ -115,14 +137,16 @@ namespace Repository.Service
         {
             return await _context.Ingrediente
                 .Where(i => i.Disponibile)
+                .Include(i => i.Categoria)
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,
-                    //Nome = i.Nome,
-                    //Prezzo = i.Prezzo,
+                    Nome = i.Ingrediente1,
                     CategoriaId = i.CategoriaId,
-                    Disponibile = i.Disponibile
-                    // Map other properties as needed
+                    PrezzoAggiunto = i.PrezzoAggiunto,
+                    Disponibile = i.Disponibile,
+                    DataInserimento = i.DataInserimento,
+                    DataAggiornamento = i.DataAggiornamento
                 })
                 .ToListAsync();
         }

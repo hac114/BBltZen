@@ -9,7 +9,7 @@ namespace DTO
     public class IngredienteDTO
     {
         public int IngredienteId { get; set; }
-        public string Ingrediente1 { get; set; } = null!;
+        public required string Nome { get; set; }
         public int CategoriaId { get; set; }
         public decimal PrezzoAggiunto { get; set; }
         public bool Disponibile { get; set; }

@@ -16,11 +16,19 @@ namespace Repository.Service
 
         public async Task<DimensioneBicchiereDTO?> GetByIdAsync(int id)
         {
+            // PRIMA verifica se esiste senza Include
             var dimensione = await _context.DimensioneBicchiere
-                .Include(d => d.UnitaMisura)
-                .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == id);
+                .Where(d => d.DimensioneBicchiereId == id)
+                .FirstOrDefaultAsync();
 
-            return dimensione == null ? null : MapToDTO(dimensione);
+            if (dimensione == null) return null;
+
+            // POI carica la relazione separatamente
+            await _context.Entry(dimensione)
+                .Reference(d => d.UnitaMisura)
+                .LoadAsync();
+
+            return MapToDTO(dimensione);
         }
 
         public async Task<List<DimensioneBicchiereDTO>> GetAllAsync()
@@ -45,6 +53,8 @@ namespace Repository.Service
             var dimensione = MapToEntity(dimensioneDto);
             _context.DimensioneBicchiere.Add(dimensione);
             await _context.SaveChangesAsync();
+
+            dimensioneDto.DimensioneBicchiereId = dimensione.DimensioneBicchiereId;
         }
 
         public async Task UpdateAsync(DimensioneBicchiereDTO dimensioneDto)

@@ -11,8 +11,6 @@ public partial class VwBevandePreferiteClienti
 
     public int TavoloId { get; set; }
 
-    public string SessioneId { get; set; } = null!;
-
     public int BevandaId { get; set; }
 
     public string NomeBevanda { get; set; } = null!;
