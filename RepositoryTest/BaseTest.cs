@@ -56,7 +56,7 @@ namespace RepositoryTest
             }
         }
 
-        // ✅ METODO PER PULIRE TABELLE SPECIFICHE
+        // ✅ METODO PER PULIRE TABELLE SPECIFICHE (SOLO UNO!)
         protected async Task CleanTableAsync<T>() where T : class
         {
             var entities = _context.Set<T>().ToList();

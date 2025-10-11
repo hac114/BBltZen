@@ -26,7 +26,9 @@ namespace RepositoryTest
         [Fact]
         public async Task AddAsync_Should_Add_CategoriaIngrediente()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categoriaDto = new CategoriaIngredienteDTO
             {
                 Categoria = "Tè e Infusi"
@@ -45,7 +47,9 @@ namespace RepositoryTest
         [Fact]
         public async Task GetByIdAsync_Should_Return_Correct_CategoriaIngrediente()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categoriaDto = new CategoriaIngredienteDTO
             {
                 Categoria = "Sciroppi"
@@ -74,7 +78,9 @@ namespace RepositoryTest
         [Fact]
         public async Task GetAllAsync_Should_Return_All_CategorieIngrediente()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categorieList = new List<CategoriaIngredienteDTO>
             {
                 new CategoriaIngredienteDTO { Categoria = "Tè e Infusi" },
@@ -102,7 +108,9 @@ namespace RepositoryTest
         [Fact]
         public async Task UpdateAsync_Should_Update_CategoriaIngrediente_Correctly()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categoriaDto = new CategoriaIngredienteDTO
             {
                 Categoria = "Tè"
@@ -127,7 +135,9 @@ namespace RepositoryTest
         [Fact]
         public async Task UpdateAsync_Should_Not_Throw_For_NonExisting_Id()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var updateDto = new CategoriaIngredienteDTO
             {
                 CategoriaId = 999,
@@ -141,7 +151,9 @@ namespace RepositoryTest
         [Fact]
         public async Task DeleteAsync_Should_Remove_CategoriaIngrediente()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categoriaDto = new CategoriaIngredienteDTO
             {
                 Categoria = "Topping Speciali"
@@ -166,7 +178,9 @@ namespace RepositoryTest
         [Fact]
         public async Task AddAsync_Should_Assign_Generated_Id()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categoriaDto = new CategoriaIngredienteDTO
             {
                 Categoria = "Frutta"
@@ -182,6 +196,9 @@ namespace RepositoryTest
         [Fact]
         public async Task GetAllAsync_Should_Return_Empty_List_When_No_Data()
         {
+            // Arrange - Pulisci tutte le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             // Act
             var result = await _categoriaIngredienteRepository.GetAllAsync();
 
@@ -192,7 +209,9 @@ namespace RepositoryTest
         [Fact]
         public async Task Multiple_Add_Should_Generate_Different_Ids()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categoria1 = new CategoriaIngredienteDTO { Categoria = "Categoria 1" };
             var categoria2 = new CategoriaIngredienteDTO { Categoria = "Categoria 2" };
 
@@ -209,7 +228,9 @@ namespace RepositoryTest
         [Fact]
         public async Task Update_Should_Not_Affect_Other_Categorie()
         {
-            // Arrange
+            // Arrange - Pulisci le categorie esistenti
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
             var categoria1 = new CategoriaIngredienteDTO { Categoria = "Original 1" };
             var categoria2 = new CategoriaIngredienteDTO { Categoria = "Original 2" };
 
