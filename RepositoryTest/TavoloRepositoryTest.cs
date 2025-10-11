@@ -1,8 +1,6 @@
 ﻿using DTO;
 using Repository.Interface;
 using Repository.Service;
-using Database;
-using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,23 +8,15 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class TavoloRepositoryTest
+    public class TavoloRepositoryTest : BaseTest
     {
         private readonly ITavoloRepository _tavoloRepository;
-        private readonly BubbleTeaContext _context;
 
         public TavoloRepositoryTest()
         {
-            // Sostituisci le linee esistenti con:
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
-            _context.Database.EnsureCreated();
+            // ✅ CREA IL REPOSITORY SPECIFICO USANDO IL CONTEXT EREDITATO
             _tavoloRepository = new TavoloRepository(_context);
         }
-
 
         [Fact]
         public async Task AddAsync_Should_Add_Tavolo()

@@ -11,27 +11,17 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class CategoriaIngredienteRepositoryTest : IDisposable
+    public class CategoriaIngredienteRepositoryTest : BaseTest
     {
         private readonly ICategoriaIngredienteRepository _categoriaIngredienteRepository;
-        private readonly BubbleTeaContext _context;
 
         public CategoriaIngredienteRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
-            _context.Database.EnsureCreated();
+            // ✅ SEMPLICE: BaseTest già fornisce _context (AppDbContext) inizializzato
             _categoriaIngredienteRepository = new CategoriaIngredienteRepository(_context);
         }
 
-        public void Dispose()
-        {
-            _context?.Database?.EnsureDeleted();
-            _context?.Dispose();
-        }
+        // ✅ RIMOSSO Dispose() - BaseTest già lo gestisce automaticamente
 
         [Fact]
         public async Task AddAsync_Should_Add_CategoriaIngrediente()

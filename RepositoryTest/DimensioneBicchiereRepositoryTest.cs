@@ -11,30 +11,20 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class DimensioneBicchiereRepositoryTest : IDisposable
+    public class DimensioneBicchiereRepositoryTest : BaseTest
     {
         private readonly IDimensioneBicchiereRepository _dimensioneBicchiereRepository;
-        private readonly BubbleTeaContext _context;
 
         public DimensioneBicchiereRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
-            _context.Database.EnsureCreated();
+            // ✅ SEMPLICE: BaseTest già fornisce _context (AppDbContext) inizializzato
             _dimensioneBicchiereRepository = new DimensioneBicchiereRepository(_context);
 
             // Setup: aggiungi alcune unità di misura per i test
             SetupUnitaDiMisura();
         }
 
-        public void Dispose()
-        {
-            _context?.Database?.EnsureDeleted();
-            _context?.Dispose();
-        }
+        // ✅ RIMOSSO Dispose() - BaseTest già lo gestisce automaticamente
 
         private void SetupUnitaDiMisura()
         {

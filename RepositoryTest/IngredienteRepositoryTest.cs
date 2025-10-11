@@ -1,8 +1,5 @@
 ﻿using DTO;
 using Repository.Interface;
-using Repository.Service;
-using Database;
-using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,28 +8,8 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class IngredienteRepositoryTest : IDisposable
+    public class IngredienteRepositoryTest : BaseTest
     {
-        private readonly IIngredienteRepository _ingredienteRepository;
-        private readonly BubbleTeaContext _context;
-
-        public IngredienteRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
-            _context.Database.EnsureCreated();
-            _ingredienteRepository = new IngredienteRepository(_context);
-        }
-
-        public void Dispose()
-        {
-            _context?.Database?.EnsureDeleted();
-            _context?.Dispose();
-        }
-
         [Fact]
         public async Task AddAsync_Should_Add_Ingrediente()
         {
@@ -54,7 +31,7 @@ namespace RepositoryTest
             Assert.Equal("Tapioca", result.Ingrediente1);
             Assert.Equal(1, result.CategoriaId);
             Assert.True(result.Disponibile);
-        }        
+        }
 
         [Fact]
         public async Task GetByIdAsync_Should_Return_Correct_Ingrediente()

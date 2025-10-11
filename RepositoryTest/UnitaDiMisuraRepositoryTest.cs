@@ -1,8 +1,6 @@
 ﻿using DTO;
 using Repository.Interface;
 using Repository.Service;
-using Database;
-using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,26 +9,14 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class UnitaDiMisuraRepositoryTest : IDisposable
+    public class UnitaDiMisuraRepositoryTest : BaseTest
     {
         private readonly IUnitaDiMisuraRepository _unitaDiMisuraRepository;
-        private readonly BubbleTeaContext _context;
 
         public UnitaDiMisuraRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
-            _context.Database.EnsureCreated();
+            // ✅ CREA IL REPOSITORY SPECIFICO USANDO IL CONTEXT EREDITATO
             _unitaDiMisuraRepository = new UnitaDiMisuraRepository(_context);
-        }
-
-        public void Dispose()
-        {
-            _context?.Database?.EnsureDeleted();
-            _context?.Dispose();
         }
 
         [Fact]

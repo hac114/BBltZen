@@ -1,8 +1,7 @@
-﻿using DTO;
+﻿using Database;
+using DTO;
 using Repository.Interface;
 using Repository.Service;
-using Database;
-using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,29 +10,17 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class SessioniQrRepositoryTest : IDisposable
+    public class SessioniQrRepositoryTest : BaseTest
     {
         private readonly ISessioniQrRepository _sessioniQrRepository;
-        private readonly BubbleTeaContext _context;
 
         public SessioniQrRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
-            _context.Database.EnsureCreated();
+            // ✅ USA IL REPOSITORY GIA' CREATO IN BaseTest O CREANE UNO SPECIFICO
             _sessioniQrRepository = new SessioniQrRepository(_context);
 
             // Setup: aggiungi alcuni clienti per i test
             SetupClienti();
-        }
-
-        public void Dispose()
-        {
-            _context?.Database?.EnsureDeleted();
-            _context?.Dispose();
         }
 
         private void SetupClienti()
