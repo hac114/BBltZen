@@ -18,6 +18,6 @@ namespace DTO
         public int Priorita { get; set; }
         public DateTime DataCreazione { get; set; }
         public DateTime DataAggiornamento { get; set; }
-        public required DimensioneBicchiereDTO DimensioneBicchiere { get; set; }
+        public DimensioneBicchiereDTO? DimensioneBicchiere { get; set; }
     }
 }

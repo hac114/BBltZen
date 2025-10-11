@@ -28,6 +28,7 @@ namespace Repository
             services.AddScoped<IPreferitiClienteRepository, PreferitiClienteRepository>();
             services.AddScoped<IPersonalizzazioneRepository, PersonalizzazioneRepository>();
             services.AddScoped<IPersonalizzazioneIngredienteRepository, PersonalizzazioneIngredienteRepository>();
+            services.AddScoped<IBevandaStandardRepository, BevandaStandardRepository>();
             
             // Aggiungi anche questi quando saranno implementati:
             // services.AddScoped<IArticoloRepository, ArticoloRepository>();
