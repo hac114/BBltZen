@@ -10,8 +10,7 @@ namespace DTO
     {
         public int PreferitoId { get; set; }
         public int ClienteId { get; set; }
-        public int TavoloId { get; set; }
-        public string SessioneId { get; set; } = null!;
+        public int TavoloId { get; set; }        
         public int BevandaId { get; set; }
         public string NomeBevanda { get; set; } = null!;
         public string Descrizione { get; set; } = null!;

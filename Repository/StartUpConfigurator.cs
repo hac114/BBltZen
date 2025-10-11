@@ -23,7 +23,7 @@ namespace Repository
             services.AddScoped<IUnitaDiMisuraRepository, UnitaDiMisuraRepository>();
             services.AddScoped<ICategoriaIngredienteRepository, CategoriaIngredienteRepository>();
             services.AddScoped<IIngredienteRepository, IngredienteRepository>();
-            services.AddScoped<ISessioniQrRepository, SessioniQrRepository>();
+            services.AddScoped<ISessioniQrRepository, SessioniQrRepository>();            
 
             // Aggiungi anche questi quando saranno implementati:
             // services.AddScoped<IArticoloRepository, ArticoloRepository>();
