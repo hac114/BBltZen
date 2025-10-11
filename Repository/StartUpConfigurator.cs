@@ -23,8 +23,12 @@ namespace Repository
             services.AddScoped<IUnitaDiMisuraRepository, UnitaDiMisuraRepository>();
             services.AddScoped<ICategoriaIngredienteRepository, CategoriaIngredienteRepository>();
             services.AddScoped<IIngredienteRepository, IngredienteRepository>();
-            services.AddScoped<ISessioniQrRepository, SessioniQrRepository>();            
-
+            services.AddScoped<ISessioniQrRepository, SessioniQrRepository>();
+            services.AddScoped<IClienteRepository, ClienteRepository>();
+            services.AddScoped<IPreferitiClienteRepository, PreferitiClienteRepository>();
+            services.AddScoped<IPersonalizzazioneRepository, PersonalizzazioneRepository>();
+            services.AddScoped<IPersonalizzazioneIngredienteRepository, PersonalizzazioneIngredienteRepository>();
+            
             // Aggiungi anche questi quando saranno implementati:
             // services.AddScoped<IArticoloRepository, ArticoloRepository>();
             // services.AddScoped<IVwIngredientiPopolariRepository, VwIngredientiPopolariRepository>();
