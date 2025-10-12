@@ -1,11 +1,11 @@
-﻿using DTO;
+﻿using Database;
+using DTO;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Database;
 
 namespace Repository.Service
 {
@@ -37,11 +37,11 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task<DolceDTO?> GetByIdAsync(int id)
+        public async Task<DolceDTO?> GetByIdAsync(int articoloId)
         {
             var dolce = await _context.Dolce
                 .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.ArticoloId == id);
+                .FirstOrDefaultAsync(d => d.ArticoloId == articoloId);
 
             if (dolce == null) return null;
 
@@ -57,84 +57,6 @@ namespace Repository.Service
                 DataCreazione = dolce.DataCreazione,
                 DataAggiornamento = dolce.DataAggiornamento
             };
-        }
-
-        public async Task<DolceDTO> AddAsync(DolceDTO entity)
-        {
-            if (entity == null)
-                throw new ArgumentNullException(nameof(entity));
-
-            // Validazioni
-            if (string.IsNullOrWhiteSpace(entity.Nome))
-                throw new ArgumentException("Nome is required");
-
-            if (entity.Prezzo <= 0)
-                throw new ArgumentException("Prezzo must be greater than 0");
-
-            var dolce = new Dolce
-            {
-                Nome = entity.Nome,
-                Prezzo = entity.Prezzo,
-                Descrizione = entity.Descrizione,
-                ImmagineUrl = entity.ImmagineUrl,
-                Disponibile = entity.Disponibile,
-                Priorita = entity.Priorita,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
-            };
-
-            await _context.Dolce.AddAsync(dolce);
-            await _context.SaveChangesAsync();
-
-            // Aggiorna il DTO con l'ID generato
-            entity.ArticoloId = dolce.ArticoloId;
-            entity.DataCreazione = dolce.DataCreazione;
-            entity.DataAggiornamento = dolce.DataAggiornamento;
-
-            return entity;
-        }
-
-        public async Task UpdateAsync(DolceDTO entity)
-        {
-            if (entity == null || entity.ArticoloId == 0)
-                throw new ArgumentException("Invalid entity or entity ID");
-
-            var existingDolce = await _context.Dolce
-                .FirstOrDefaultAsync(d => d.ArticoloId == entity.ArticoloId);
-
-            if (existingDolce == null)
-                throw new KeyNotFoundException($"Dolce with ID {entity.ArticoloId} not found");
-
-            // Aggiorna le proprietà
-            existingDolce.Nome = entity.Nome;
-            existingDolce.Prezzo = entity.Prezzo;
-            existingDolce.Descrizione = entity.Descrizione;
-            existingDolce.ImmagineUrl = entity.ImmagineUrl;
-            existingDolce.Disponibile = entity.Disponibile;
-            existingDolce.Priorita = entity.Priorita;
-            existingDolce.DataAggiornamento = DateTime.Now;
-
-            _context.Dolce.Update(existingDolce);
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task<bool> DeleteAsync(int id)
-        {
-            var dolce = await _context.Dolce
-                .FirstOrDefaultAsync(d => d.ArticoloId == id);
-
-            if (dolce == null) return false;
-
-            _context.Dolce.Remove(dolce);
-            await _context.SaveChangesAsync();
-
-            return true;
-        }
-
-        public async Task<bool> ExistsAsync(int id)
-        {
-            return await _context.Dolce
-                .AnyAsync(d => d.ArticoloId == id);
         }
 
         public async Task<IEnumerable<DolceDTO>> GetDisponibiliAsync()
@@ -163,7 +85,7 @@ namespace Repository.Service
         {
             return await _context.Dolce
                 .AsNoTracking()
-                .Where(d => d.Priorita == priorita && d.Disponibile)
+                .Where(d => d.Priorita == priorita)
                 .OrderBy(d => d.Nome)
                 .Select(d => new DolceDTO
                 {
@@ -180,18 +102,84 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task<bool> ToggleDisponibilitaAsync(int id, bool disponibile)
+        public async Task AddAsync(DolceDTO dolceDto)
+        {
+            // Prima crea l'Articolo
+            var articolo = new Articolo
+            {
+                Tipo = "DOLCE",
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
+            };
+
+            _context.Articolo.Add(articolo);
+            await _context.SaveChangesAsync(); // Salva per ottenere l'ID
+
+            // Poi crea il Dolce
+            var dolce = new Dolce
+            {
+                ArticoloId = articolo.ArticoloId, // Usa l'ID generato
+                Nome = dolceDto.Nome,
+                Prezzo = dolceDto.Prezzo,
+                Descrizione = dolceDto.Descrizione,
+                ImmagineUrl = dolceDto.ImmagineUrl,
+                Disponibile = dolceDto.Disponibile,
+                Priorita = dolceDto.Priorita,
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
+            };
+
+            _context.Dolce.Add(dolce);
+            await _context.SaveChangesAsync();
+
+            // Aggiorna il DTO con i valori del database
+            dolceDto.ArticoloId = dolce.ArticoloId;
+            dolceDto.DataCreazione = dolce.DataCreazione;
+            dolceDto.DataAggiornamento = dolce.DataAggiornamento;
+        }
+
+        public async Task UpdateAsync(DolceDTO dolceDto)
         {
             var dolce = await _context.Dolce
-                .FirstOrDefaultAsync(d => d.ArticoloId == id);
+                .FirstOrDefaultAsync(d => d.ArticoloId == dolceDto.ArticoloId);
 
-            if (dolce == null) return false;
+            if (dolce == null)
+                throw new ArgumentException($"Dolce con ArticoloId {dolceDto.ArticoloId} non trovato");
 
-            dolce.Disponibile = disponibile;
+            dolce.Nome = dolceDto.Nome;
+            dolce.Prezzo = dolceDto.Prezzo;
+            dolce.Descrizione = dolceDto.Descrizione;
+            dolce.ImmagineUrl = dolceDto.ImmagineUrl;
+            dolce.Disponibile = dolceDto.Disponibile;
+            dolce.Priorita = dolceDto.Priorita;
             dolce.DataAggiornamento = DateTime.Now;
 
             await _context.SaveChangesAsync();
-            return true;
+
+            dolceDto.DataAggiornamento = dolce.DataAggiornamento;
+        }
+
+        public async Task DeleteAsync(int articoloId)
+        {
+            var dolce = await _context.Dolce
+                .FirstOrDefaultAsync(d => d.ArticoloId == articoloId);
+
+            if (dolce != null)
+            {
+                _context.Dolce.Remove(dolce);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task<bool> ExistsAsync(int articoloId)
+        {
+            return await _context.Dolce
+                .AnyAsync(d => d.ArticoloId == articoloId);
+        }
+
+        public async Task<bool> ExistsByArticoloIdAsync(int articoloId)
+        {
+            return await ExistsAsync(articoloId);
         }
     }
 }

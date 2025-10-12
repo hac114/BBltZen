@@ -35,10 +35,7 @@ namespace Repository
             services.AddScoped<IIngredientiPersonalizzazioneRepository, IngredientiPersonalizzazioneRepository>();
             services.AddScoped<IBevandaCustomRepository, BevandaCustomRepository>();
             
-            // Aggiungi anche questi quando saranno implementati:
-            // services.AddScoped<IArticoloRepository, ArticoloRepository>();
-            // services.AddScoped<IVwIngredientiPopolariRepository, VwIngredientiPopolariRepository>();
-            // services.AddScoped<ISessioniQrRepository, SessioniQrRepository>();
+            
         }
     }
 }
