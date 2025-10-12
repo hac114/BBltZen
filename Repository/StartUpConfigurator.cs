@@ -36,6 +36,10 @@ namespace Repository
             services.AddScoped<IBevandaCustomRepository, BevandaCustomRepository>();
             services.AddScoped<IArticoloRepository, ArticoloRepository>();
             services.AddScoped<IStatoStoricoOrdineRepository, StatoStoricoOrdineRepository>();
+            services.AddScoped<IStatisticheCacheRepository, StatisticheCacheRepository>();
+            services.AddScoped<IConfigSoglieTempiRepository, ConfigSoglieTempiRepository>();
+            services.AddScoped<ILogAccessiRepository, LogAccessiRepository>();
+            services.AddScoped<ILogAttivitaRepository, LogAttivitaRepository>();
             
             
         }

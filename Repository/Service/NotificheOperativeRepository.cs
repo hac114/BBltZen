@@ -1,10 +1,10 @@
 ﻿using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
+using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Repository.Service
@@ -12,66 +12,68 @@ namespace Repository.Service
     public class NotificheOperativeRepository : INotificheOperativeRepository
     {
         private readonly BubbleTeaContext _context;
+
         public NotificheOperativeRepository(BubbleTeaContext context)
         {
             _context = context;
         }
+
         public async Task<IEnumerable<NotificheOperativeDTO>> GetAllAsync()
         {
             return await _context.NotificheOperative
+                .AsNoTracking()
                 .OrderByDescending(n => n.DataCreazione)
                 .Select(n => new NotificheOperativeDTO
                 {
                     NotificaId = n.NotificaId,
-                    DataGestione = n.DataGestione,
-                    Messaggio = n.Messaggio,
-                    Priorita = n.Priorita,
-                    Stato = n.Stato,
                     DataCreazione = n.DataCreazione,
-                    UtenteGestione = n.UtenteGestione,
                     OrdiniCoinvolti = n.OrdiniCoinvolti,
-
-                    // Map other properties as needed
+                    Messaggio = n.Messaggio,
+                    Stato = n.Stato,
+                    DataGestione = n.DataGestione,
+                    UtenteGestione = n.UtenteGestione,
+                    Priorita = n.Priorita
                 })
                 .ToListAsync();
         }
 
-        public async Task<NotificheOperativeDTO> GetByIdAsync(int notificaId)
+        public async Task<NotificheOperativeDTO?> GetByIdAsync(int notificaId)
         {
-            var notifica = await _context.NotificheOperative.FindAsync(notificaId);
+            var notifica = await _context.NotificheOperative
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n => n.NotificaId == notificaId);
+
             if (notifica == null) return null;
 
             return new NotificheOperativeDTO
             {
                 NotificaId = notifica.NotificaId,
-                DataGestione = notifica.DataGestione,
-                Messaggio = notifica.Messaggio,
-                Priorita = notifica.Priorita,
-                Stato = notifica.Stato,
                 DataCreazione = notifica.DataCreazione,
-                UtenteGestione = notifica.UtenteGestione,
                 OrdiniCoinvolti = notifica.OrdiniCoinvolti,
-                // Map other properties as needed
+                Messaggio = notifica.Messaggio,
+                Stato = notifica.Stato,
+                DataGestione = notifica.DataGestione,
+                UtenteGestione = notifica.UtenteGestione,
+                Priorita = notifica.Priorita
             };
         }
 
         public async Task<IEnumerable<NotificheOperativeDTO>> GetByStatoAsync(string stato)
         {
             return await _context.NotificheOperative
+                .AsNoTracking()
                 .Where(n => n.Stato == stato)
                 .OrderByDescending(n => n.DataCreazione)
                 .Select(n => new NotificheOperativeDTO
                 {
                     NotificaId = n.NotificaId,
-                    DataGestione = n.DataGestione,
-                    Messaggio = n.Messaggio,
-                    Priorita = n.Priorita,
-                    Stato = n.Stato,
                     DataCreazione = n.DataCreazione,
-                    UtenteGestione = n.UtenteGestione,
                     OrdiniCoinvolti = n.OrdiniCoinvolti,
-
-                    // Map other properties as needed
+                    Messaggio = n.Messaggio,
+                    Stato = n.Stato,
+                    DataGestione = n.DataGestione,
+                    UtenteGestione = n.UtenteGestione,
+                    Priorita = n.Priorita
                 })
                 .ToListAsync();
         }
@@ -79,20 +81,19 @@ namespace Repository.Service
         public async Task<IEnumerable<NotificheOperativeDTO>> GetByPrioritaAsync(int priorita)
         {
             return await _context.NotificheOperative
+                .AsNoTracking()
                 .Where(n => n.Priorita == priorita)
                 .OrderByDescending(n => n.DataCreazione)
                 .Select(n => new NotificheOperativeDTO
                 {
                     NotificaId = n.NotificaId,
-                    DataGestione = n.DataGestione,
-                    Messaggio = n.Messaggio,
-                    Priorita = n.Priorita,
-                    Stato = n.Stato,
                     DataCreazione = n.DataCreazione,
-                    UtenteGestione = n.UtenteGestione,
                     OrdiniCoinvolti = n.OrdiniCoinvolti,
-
-                    // Map other properties as needed
+                    Messaggio = n.Messaggio,
+                    Stato = n.Stato,
+                    DataGestione = n.DataGestione,
+                    UtenteGestione = n.UtenteGestione,
+                    Priorita = n.Priorita
                 })
                 .ToListAsync();
         }
@@ -100,22 +101,20 @@ namespace Repository.Service
         public async Task<IEnumerable<NotificheOperativeDTO>> GetPendentiAsync()
         {
             return await _context.NotificheOperative
+                .AsNoTracking()
                 .Where(n => n.Stato == "Pendente")
-                .OrderByDescending(n => n.Priorita)
+                .OrderBy(n => n.Priorita) // CAMBIATO: OrderBy invece di OrderByDescending
                 .ThenByDescending(n => n.DataCreazione)
                 .Select(n => new NotificheOperativeDTO
                 {
                     NotificaId = n.NotificaId,
-                    DataGestione = n.DataGestione,
-                    Messaggio = n.Messaggio,
-                    Priorita = n.Priorita,
-                    Stato = n.Stato,
                     DataCreazione = n.DataCreazione,
-                    UtenteGestione = n.UtenteGestione,
                     OrdiniCoinvolti = n.OrdiniCoinvolti,
-
-
-                    // Map other properties as needed
+                    Messaggio = n.Messaggio,
+                    Stato = n.Stato,
+                    DataGestione = n.DataGestione,
+                    UtenteGestione = n.UtenteGestione,
+                    Priorita = n.Priorita
                 })
                 .ToListAsync();
         }
@@ -123,21 +122,19 @@ namespace Repository.Service
         public async Task<IEnumerable<NotificheOperativeDTO>> GetByPeriodoAsync(DateTime dataInizio, DateTime dataFine)
         {
             return await _context.NotificheOperative
+                .AsNoTracking()
                 .Where(n => n.DataCreazione >= dataInizio && n.DataCreazione <= dataFine)
-                .OrderBy(n => n.DataCreazione)
+                .OrderByDescending(n => n.DataCreazione)
                 .Select(n => new NotificheOperativeDTO
                 {
                     NotificaId = n.NotificaId,
-                    DataGestione = n.DataGestione,
-                    Messaggio = n.Messaggio,
-                    Priorita = n.Priorita,
-                    Stato = n.Stato,
                     DataCreazione = n.DataCreazione,
-                    UtenteGestione = n.UtenteGestione,
                     OrdiniCoinvolti = n.OrdiniCoinvolti,
-
-
-                    // Map other properties as needed
+                    Messaggio = n.Messaggio,
+                    Stato = n.Stato,
+                    DataGestione = n.DataGestione,
+                    UtenteGestione = n.UtenteGestione,
+                    Priorita = n.Priorita
                 })
                 .ToListAsync();
         }
@@ -146,49 +143,52 @@ namespace Repository.Service
         {
             var notifica = new NotificheOperative
             {
-                Messaggio = notificaDto.Messaggio,
-                Priorita = notificaDto.Priorita,
-                Stato = notificaDto.Stato ?? "Pendente", // Default value
                 DataCreazione = DateTime.Now,
+                OrdiniCoinvolti = notificaDto.OrdiniCoinvolti,
+                Messaggio = notificaDto.Messaggio,
+                Stato = notificaDto.Stato ?? "Pendente",
                 DataGestione = notificaDto.DataGestione,
                 UtenteGestione = notificaDto.UtenteGestione,
-                NotificaId = notificaDto.NotificaId,
-                OrdiniCoinvolti = notificaDto.OrdiniCoinvolti,
-
-                // Map other properties as needed
+                Priorita = notificaDto.Priorita
             };
 
-            await _context.NotificheOperative.AddAsync(notifica);
+            _context.NotificheOperative.Add(notifica);
             await _context.SaveChangesAsync();
 
-            // Return the generated ID to DTO
             notificaDto.NotificaId = notifica.NotificaId;
             notificaDto.DataCreazione = notifica.DataCreazione;
         }
 
         public async Task UpdateAsync(NotificheOperativeDTO notificaDto)
         {
-            var notifica = await _context.NotificheOperative.FindAsync(notificaDto.NotificaId);
+            var notifica = await _context.NotificheOperative
+                .FirstOrDefaultAsync(n => n.NotificaId == notificaDto.NotificaId);
+
             if (notifica == null)
-                throw new ArgumentException("Notifica not found");
+                throw new ArgumentException($"Notifica con ID {notificaDto.NotificaId} non trovata");
 
-            // notifica.DataCreazione = notificaDto.DataCreazione; // Usually not updated
+            notifica.OrdiniCoinvolti = notificaDto.OrdiniCoinvolti;
             notifica.Messaggio = notificaDto.Messaggio;
-            notifica.Priorita = notificaDto.Priorita;
             notifica.Stato = notificaDto.Stato;
-            notifica.DataGestione = DateTime.Now; // Always update timestamp
-            // Update other properties as needed
+            notifica.Priorita = notificaDto.Priorita;
+            notifica.UtenteGestione = notificaDto.UtenteGestione;
 
-            _context.NotificheOperative.Update(notifica);
+            // Aggiorna DataGestione solo se lo stato cambia in "Gestita"
+            if (notificaDto.Stato == "Gestita" && notifica.DataGestione == null)
+            {
+                notifica.DataGestione = DateTime.Now;
+            }
+
             await _context.SaveChangesAsync();
 
-            // Update DTO with latest timestamp
             notificaDto.DataGestione = notifica.DataGestione;
         }
 
         public async Task DeleteAsync(int notificaId)
         {
-            var notifica = await _context.NotificheOperative.FindAsync(notificaId);
+            var notifica = await _context.NotificheOperative
+                .FirstOrDefaultAsync(n => n.NotificaId == notificaId);
+
             if (notifica != null)
             {
                 _context.NotificheOperative.Remove(notifica);
@@ -198,7 +198,14 @@ namespace Repository.Service
 
         public async Task<bool> ExistsAsync(int notificaId)
         {
-            return await _context.NotificheOperative.AnyAsync(n => n.NotificaId == notificaId);
+            return await _context.NotificheOperative
+                .AnyAsync(n => n.NotificaId == notificaId);
+        }
+
+        public async Task<int> GetNumeroNotifichePendentiAsync()
+        {
+            return await _context.NotificheOperative
+                .CountAsync(n => n.Stato == "Pendente");
         }
     }
 }

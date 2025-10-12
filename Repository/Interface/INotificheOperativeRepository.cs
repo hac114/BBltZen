@@ -1,6 +1,6 @@
 ﻿using DTO;
 
-namespace Repository.Service
+namespace Repository.Interface
 {
     public interface INotificheOperativeRepository
     {
@@ -8,11 +8,12 @@ namespace Repository.Service
         Task DeleteAsync(int notificaId);
         Task<bool> ExistsAsync(int notificaId);
         Task<IEnumerable<NotificheOperativeDTO>> GetAllAsync();
-        Task<NotificheOperativeDTO> GetByIdAsync(int notificaId);
+        Task<NotificheOperativeDTO?> GetByIdAsync(int notificaId);
         Task<IEnumerable<NotificheOperativeDTO>> GetByPeriodoAsync(DateTime dataInizio, DateTime dataFine);
         Task<IEnumerable<NotificheOperativeDTO>> GetByPrioritaAsync(int priorita);
         Task<IEnumerable<NotificheOperativeDTO>> GetByStatoAsync(string stato);
         Task<IEnumerable<NotificheOperativeDTO>> GetPendentiAsync();
         Task UpdateAsync(NotificheOperativeDTO notificaDto);
+        Task<int> GetNumeroNotifichePendentiAsync();
     }
 }
