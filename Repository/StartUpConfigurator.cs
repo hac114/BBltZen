@@ -40,8 +40,10 @@ namespace Repository
             services.AddScoped<IConfigSoglieTempiRepository, ConfigSoglieTempiRepository>();
             services.AddScoped<ILogAccessiRepository, LogAccessiRepository>();
             services.AddScoped<ILogAttivitaRepository, LogAttivitaRepository>();
-            
-            
+
+            services.AddMemoryCache(); // Per la cache in memoria
+            services.AddScoped<IPriceCalculationServiceRepository, PriceCalculationServiceRepository>();
+
         }
     }
 }

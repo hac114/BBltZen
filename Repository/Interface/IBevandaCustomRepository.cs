@@ -1,4 +1,5 @@
-﻿using DTO;
+﻿using Database;
+using DTO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -16,5 +17,6 @@ namespace Repository.Interface
         Task<bool> ExistsAsync(int bevandaCustomId);
         Task<bool> ExistsByArticoloIdAsync(int articoloId);
         Task<bool> ExistsByPersCustomIdAsync(int persCustomId);
+
     }
 }
