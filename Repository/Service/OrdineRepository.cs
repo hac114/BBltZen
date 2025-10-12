@@ -5,7 +5,6 @@ using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Repository.Service
@@ -21,7 +20,20 @@ namespace Repository.Service
 
         public async Task<IEnumerable<OrdineDTO>> GetAllAsync()
         {
-            return (IEnumerable<OrdineDTO>)await _context.Ordine.ToListAsync();
+            return await _context.Ordine
+                .AsNoTracking()
+                .Select(o => new OrdineDTO
+                {
+                    OrdineId = o.OrdineId,
+                    ClienteId = o.ClienteId,
+                    DataCreazione = o.DataCreazione,
+                    DataAggiornamento = o.DataAggiornamento,
+                    StatoOrdineId = o.StatoOrdineId,
+                    StatoPagamentoId = o.StatoPagamentoId,
+                    Totale = o.Totale,
+                    Priorita = o.Priorita
+                })
+                .ToListAsync();
         }
 
         public async Task<OrdineDTO?> GetByIdAsync(int id)
@@ -31,6 +43,7 @@ namespace Repository.Service
                 .FirstOrDefaultAsync(o => o.OrdineId == id);
 
             if (ordine == null) return null;
+
             return new OrdineDTO
             {
                 OrdineId = ordine.OrdineId,
@@ -42,7 +55,6 @@ namespace Repository.Service
                 Totale = ordine.Totale,
                 Priorita = ordine.Priorita
             };
-
         }
 
         public async Task<OrdineDTO> AddAsync(OrdineDTO entity)
@@ -53,18 +65,22 @@ namespace Repository.Service
             var ordineEntity = new Ordine
             {
                 ClienteId = entity.ClienteId,
-                DataCreazione = entity.DataCreazione,
-                DataAggiornamento = entity.DataAggiornamento,
-                StatoOrdineId = entity.StatoOrdineId,
-                StatoPagamentoId = entity.StatoPagamentoId,
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now,
+                StatoOrdineId = entity.StatoOrdineId ?? 1, // Default a 1 se null
+                StatoPagamentoId = entity.StatoPagamentoId ?? 1, // Default a 1 se null
                 Totale = entity.Totale,
                 Priorita = entity.Priorita
             };
+
             await _context.Ordine.AddAsync(ordineEntity);
             await _context.SaveChangesAsync();
+
+            // Aggiorna il DTO con i valori del database
             entity.OrdineId = ordineEntity.OrdineId;
             entity.DataCreazione = ordineEntity.DataCreazione;
             entity.DataAggiornamento = ordineEntity.DataAggiornamento;
+
             return entity;
         }
 
@@ -75,9 +91,9 @@ namespace Repository.Service
 
             var existingOrdine = await _context.Ordine
                 .FirstOrDefaultAsync(o => o.OrdineId == entity.OrdineId);
-            //.FindAsync(entity.OrdineId);
+
             if (existingOrdine == null)
-                throw new InvalidOperationException("Entity not found in the database.");
+                throw new InvalidOperationException($"Ordine con ID {entity.OrdineId} non trovato.");
 
             existingOrdine.ClienteId = entity.ClienteId;
             existingOrdine.StatoOrdineId = entity.StatoOrdineId;
@@ -85,21 +101,86 @@ namespace Repository.Service
             existingOrdine.Totale = entity.Totale;
             existingOrdine.Priorita = entity.Priorita;
             existingOrdine.DataAggiornamento = DateTime.Now;
-            _context.Ordine.Update(existingOrdine);
+
             await _context.SaveChangesAsync();
 
+            // Aggiorna il DTO con la data di aggiornamento
+            entity.DataAggiornamento = existingOrdine.DataAggiornamento;
         }
 
         public async Task DeleteAsync(int id)
         {
-            var entity = await _context.Ordine.FindAsync(id);
+            var entity = await _context.Ordine
+                .FirstOrDefaultAsync(o => o.OrdineId == id);
+
             if (entity != null)
             {
                 _context.Ordine.Remove(entity);
                 await _context.SaveChangesAsync();
-
             }
         }
-    }
 
+        public async Task<bool> ExistsAsync(int id)
+        {
+            return await _context.Ordine
+                .AnyAsync(o => o.OrdineId == id);
+        }
+
+        public async Task<IEnumerable<OrdineDTO>> GetByClienteIdAsync(int clienteId)
+        {
+            return await _context.Ordine
+                .AsNoTracking()
+                .Where(o => o.ClienteId == clienteId)
+                .Select(o => new OrdineDTO
+                {
+                    OrdineId = o.OrdineId,
+                    ClienteId = o.ClienteId,
+                    DataCreazione = o.DataCreazione,
+                    DataAggiornamento = o.DataAggiornamento,
+                    StatoOrdineId = o.StatoOrdineId,
+                    StatoPagamentoId = o.StatoPagamentoId,
+                    Totale = o.Totale,
+                    Priorita = o.Priorita
+                })
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<OrdineDTO>> GetByStatoOrdineIdAsync(int statoOrdineId)
+        {
+            return await _context.Ordine
+                .AsNoTracking()
+                .Where(o => o.StatoOrdineId == statoOrdineId)
+                .Select(o => new OrdineDTO
+                {
+                    OrdineId = o.OrdineId,
+                    ClienteId = o.ClienteId,
+                    DataCreazione = o.DataCreazione,
+                    DataAggiornamento = o.DataAggiornamento,
+                    StatoOrdineId = o.StatoOrdineId,
+                    StatoPagamentoId = o.StatoPagamentoId,
+                    Totale = o.Totale,
+                    Priorita = o.Priorita
+                })
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<OrdineDTO>> GetByStatoPagamentoIdAsync(int statoPagamentoId)
+        {
+            return await _context.Ordine
+                .AsNoTracking()
+                .Where(o => o.StatoPagamentoId == statoPagamentoId)
+                .Select(o => new OrdineDTO
+                {
+                    OrdineId = o.OrdineId,
+                    ClienteId = o.ClienteId,
+                    DataCreazione = o.DataCreazione,
+                    DataAggiornamento = o.DataAggiornamento,
+                    StatoOrdineId = o.StatoOrdineId,
+                    StatoPagamentoId = o.StatoPagamentoId,
+                    Totale = o.Totale,
+                    Priorita = o.Priorita
+                })
+                .ToListAsync();
+        }
+    }
 }

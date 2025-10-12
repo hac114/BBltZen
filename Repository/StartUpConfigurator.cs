@@ -35,6 +35,7 @@ namespace Repository
             services.AddScoped<IIngredientiPersonalizzazioneRepository, IngredientiPersonalizzazioneRepository>();
             services.AddScoped<IBevandaCustomRepository, BevandaCustomRepository>();
             services.AddScoped<IArticoloRepository, ArticoloRepository>();
+            services.AddScoped<IStatoStoricoOrdineRepository, StatoStoricoOrdineRepository>();
             
             
         }
