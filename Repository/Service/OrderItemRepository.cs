@@ -5,7 +5,6 @@ using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Repository.Service
@@ -22,6 +21,7 @@ namespace Repository.Service
         public async Task<IEnumerable<OrderItemDTO>> GetAllAsync()
         {
             return await _context.OrderItem
+                .AsNoTracking()
                 .Select(oi => new OrderItemDTO
                 {
                     OrderItemId = oi.OrderItemId,
@@ -40,11 +40,14 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task<OrderItemDTO> GetByIdAsync(int id)
+        public async Task<OrderItemDTO?> GetByIdAsync(int id)
         {
             var orderItem = await _context.OrderItem
-                .FindAsync(id);
+                .AsNoTracking()
+                .FirstOrDefaultAsync(oi => oi.OrderItemId == id);
+
             if (orderItem == null) return null;
+
             return new OrderItemDTO
             {
                 OrderItemId = orderItem.OrderItemId,
@@ -62,57 +65,78 @@ namespace Repository.Service
             };
         }
 
-        public async Task AddAsync(OrderItemDTO orderItem)
+        public async Task AddAsync(OrderItemDTO orderItemDto)
         {
-            var orderIteme = new OrderItem
+            var orderItem = new OrderItem
             {
-                OrdineId = orderItem.OrdineId,
-                ArticoloId = orderItem.ArticoloId,
-                Quantita = orderItem.Quantita,
-                PrezzoUnitario = orderItem.PrezzoUnitario,
-                ScontoApplicato = orderItem.ScontoApplicato,
-                Imponibile = orderItem.Imponibile,
+                OrdineId = orderItemDto.OrdineId,
+                ArticoloId = orderItemDto.ArticoloId,
+                Quantita = orderItemDto.Quantita,
+                PrezzoUnitario = orderItemDto.PrezzoUnitario,
+                ScontoApplicato = orderItemDto.ScontoApplicato,
+                Imponibile = orderItemDto.Imponibile,
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now,
+                TipoArticolo = orderItemDto.TipoArticolo,
+                TotaleIvato = orderItemDto.TotaleIvato,
+                TaxRateId = orderItemDto.TaxRateId
             };
-            await _context.OrderItem.AddAsync(orderIteme);
+
+            _context.OrderItem.Add(orderItem);
             await _context.SaveChangesAsync();
-            orderItem.OrderItemId = orderIteme.OrderItemId;
+
+            // Aggiorna il DTO con i valori del database
+            orderItemDto.OrderItemId = orderItem.OrderItemId;
+            orderItemDto.DataCreazione = orderItem.DataCreazione;
+            orderItemDto.DataAggiornamento = orderItem.DataAggiornamento;
         }
 
-        public async Task UpdateAsync(OrderItemDTO orderItems)
+        public async Task UpdateAsync(OrderItemDTO orderItemDto)
         {
-            var orderItem = await _context.OrderItem.FindAsync(orderItems.OrderItemId);
-            if (orderItem == null)
-                throw new ArgumentException("Invalid entity or entity ID.");
-            orderItem.OrdineId = orderItems.OrdineId;
-            orderItem.ArticoloId = orderItems.ArticoloId;
-            orderItem.Quantita = orderItems.Quantita;
-            orderItem.PrezzoUnitario = orderItems.PrezzoUnitario;
-            orderItem.ScontoApplicato = orderItems.ScontoApplicato;
-            orderItem.Imponibile = orderItems.Imponibile;
-            orderItem.DataAggiornamento = DateTime.UtcNow;
+            var orderItem = await _context.OrderItem
+                .FirstOrDefaultAsync(oi => oi.OrderItemId == orderItemDto.OrderItemId);
 
-            _context.OrderItem.Update(orderItem);
+            if (orderItem == null)
+                throw new ArgumentException($"OrderItem con OrderItemId {orderItemDto.OrderItemId} non trovato");
+
+            orderItem.OrdineId = orderItemDto.OrdineId;
+            orderItem.ArticoloId = orderItemDto.ArticoloId;
+            orderItem.Quantita = orderItemDto.Quantita;
+            orderItem.PrezzoUnitario = orderItemDto.PrezzoUnitario;
+            orderItem.ScontoApplicato = orderItemDto.ScontoApplicato;
+            orderItem.Imponibile = orderItemDto.Imponibile;
+            orderItem.DataAggiornamento = DateTime.Now;
+            orderItem.TipoArticolo = orderItemDto.TipoArticolo;
+            orderItem.TotaleIvato = orderItemDto.TotaleIvato;
+            orderItem.TaxRateId = orderItemDto.TaxRateId;
+
             await _context.SaveChangesAsync();
+
+            orderItemDto.DataAggiornamento = orderItem.DataAggiornamento;
         }
 
         public async Task DeleteAsync(int id)
         {
-            var orderItems = await _context.OrderItem.FindAsync(id);
-            if (orderItems != null)
+            var orderItem = await _context.OrderItem
+                .FirstOrDefaultAsync(oi => oi.OrderItemId == id);
+
+            if (orderItem != null)
             {
-                _context.OrderItem.Remove(orderItems);
+                _context.OrderItem.Remove(orderItem);
                 await _context.SaveChangesAsync();
             }
         }
 
         public async Task<bool> ExistsAsync(int id)
         {
-            return await _context.OrderItem.AnyAsync(oi => oi.OrderItemId == id);
+            return await _context.OrderItem
+                .AnyAsync(oi => oi.OrderItemId == id);
         }
 
         public async Task<IEnumerable<OrderItemDTO>> GetByOrderIdAsync(int ordineId)
         {
             return await _context.OrderItem
+                .AsNoTracking()
                 .Where(oi => oi.OrdineId == ordineId)
                 .Select(oi => new OrderItemDTO
                 {
@@ -135,6 +159,7 @@ namespace Repository.Service
         public async Task<IEnumerable<OrderItemDTO>> GetByArticoloIdAsync(int articoloId)
         {
             return await _context.OrderItem
+                .AsNoTracking()
                 .Where(oi => oi.ArticoloId == articoloId)
                 .Select(oi => new OrderItemDTO
                 {

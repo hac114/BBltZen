@@ -11,5 +11,6 @@ namespace Repository.Interface
         Task<TaxRatesDTO> GetByAliquotaAsync(decimal aliquota);
         Task<TaxRatesDTO> GetByIdAsync(int taxRateId);
         Task UpdateAsync(TaxRatesDTO taxRateDto);
+        Task<bool> ExistsByAliquotaAsync(decimal aliquota, int? excludeTaxRateId = null);
     }
 }
