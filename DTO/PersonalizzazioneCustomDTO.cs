@@ -18,7 +18,6 @@ namespace DTO
 
         public DateTime DataCreazione { get; set; }
 
-        public DateTime DataAggiornamento { get; set; }
-        public required BevandaCustomDTO BevandaCustomDTO { get; set; }
+        public DateTime DataAggiornamento { get; set; }       
     }
 }

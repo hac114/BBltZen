@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Repository.Interface;
 using Repository.Service;
+using System.Net.Security;
 
 namespace Repository
 {
@@ -29,6 +30,9 @@ namespace Repository
             services.AddScoped<IPersonalizzazioneRepository, PersonalizzazioneRepository>();
             services.AddScoped<IPersonalizzazioneIngredienteRepository, PersonalizzazioneIngredienteRepository>();
             services.AddScoped<IBevandaStandardRepository, BevandaStandardRepository>();
+            services.AddScoped<IDimensioneQuantitaIngredientiRepository, DimensioneQuantitaIngredientiRepository>();
+            services.AddScoped<IPersonalizzazioneCustomRepository, PersonalizzazioneCustomRepository>();
+            services.AddScoped<IIngredientiPersonalizzazioneRepository, IngredientiPersonalizzazioneRepository>();
             
             // Aggiungi anche questi quando saranno implementati:
             // services.AddScoped<IArticoloRepository, ArticoloRepository>();

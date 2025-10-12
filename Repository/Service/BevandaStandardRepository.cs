@@ -55,7 +55,7 @@ namespace Repository.Service
         {
             return await _context.BevandaStandard
                 .AsNoTracking()
-                .Where(bs => bs.Disponibile || bs.SempreDisponibile)
+                .Where(bs => bs.SempreDisponibile) // SOLO bevande sempre disponibili
                 .Include(bs => bs.Articolo)
                 .Include(bs => bs.Personalizzazione)
                 .Include(bs => bs.DimensioneBicchiere)

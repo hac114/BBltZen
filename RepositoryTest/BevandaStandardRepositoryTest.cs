@@ -168,8 +168,8 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             var resultList = result.ToList();
-            Assert.Equal(2, resultList.Count);
-            Assert.All(resultList, bs => Assert.True(bs.Disponibile || bs.SempreDisponibile));
+            Assert.Single(resultList); // ✅ Nuova logica - solo 1 bevanda con SempreDisponibile = true
+            Assert.All(resultList, bs => Assert.True(bs.SempreDisponibile)); // Solo SempreDisponibile = true
         }
 
         [Fact]
@@ -180,8 +180,8 @@ namespace RepositoryTest
 
             // Assert
             var resultList = result.ToList();
-            Assert.Equal(1, resultList[0].Priorita);
-            Assert.Equal(2, resultList[1].Priorita);
+            Assert.Single(resultList); // ✅ Solo 1 bevanda
+            Assert.Equal(2, resultList[0].Priorita); // La bevanda 2 ha Priorita = 2 e SempreDisponibile = true
         }
 
         [Fact]
