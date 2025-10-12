@@ -34,6 +34,7 @@ namespace Repository
             services.AddScoped<IPersonalizzazioneCustomRepository, PersonalizzazioneCustomRepository>();
             services.AddScoped<IIngredientiPersonalizzazioneRepository, IngredientiPersonalizzazioneRepository>();
             services.AddScoped<IBevandaCustomRepository, BevandaCustomRepository>();
+            services.AddScoped<IArticoloRepository, ArticoloRepository>();
             
             
         }
