@@ -32,12 +32,39 @@ namespace RepositoryTest
             _context.Database.EnsureDeleted();
             _context.Database.EnsureCreated();
 
-            // Crea Ingredienti - solo con le proprietà che esistono realmente
+            // Crea Ingredienti - CON TUTTE LE PROPRIETÀ OBBLIGATORIE
             var ingredienti = new List<Ingrediente>
             {
-                new Ingrediente { IngredienteId = 1 },
-                new Ingrediente { IngredienteId = 2 },
-                new Ingrediente { IngredienteId = 3 }
+                new Ingrediente
+                {
+                    IngredienteId = 1,
+                    Ingrediente1 = "Tè Verde", // Nome dell'ingrediente
+                    CategoriaId = 1,
+                    PrezzoAggiunto = 1.00m,
+                    Disponibile = true,
+                    DataInserimento = DateTime.Now.AddDays(-30),
+                    DataAggiornamento = DateTime.Now.AddDays(-10)
+                },
+                new Ingrediente
+                {
+                    IngredienteId = 2,
+                    Ingrediente1 = "Boba",
+                    CategoriaId = 4,
+                    PrezzoAggiunto = 0.50m,
+                    Disponibile = true,
+                    DataInserimento = DateTime.Now.AddDays(-25),
+                    DataAggiornamento = DateTime.Now.AddDays(-5)
+                },
+                new Ingrediente
+                {
+                    IngredienteId = 3,
+                    Ingrediente1 = "Sciroppo di Miele",
+                    CategoriaId = 3,
+                    PrezzoAggiunto = 0.30m,
+                    Disponibile = true,
+                    DataInserimento = DateTime.Now.AddDays(-20),
+                    DataAggiornamento = DateTime.Now.AddDays(-1)
+                }
             };
 
             // Crea Personalizzazioni Custom
@@ -101,6 +128,8 @@ namespace RepositoryTest
             _context.IngredientiPersonalizzazione.AddRange(ingredientiPersonalizzazione);
             _context.SaveChanges();
         }
+
+        // ... [TUTTI GLI ALTRI METODI DI TEST RIMANGONO INVARIATI] ...
 
         [Fact]
         public async Task GetAllAsync_ShouldReturnAllIngredientiPersonalizzazione()
