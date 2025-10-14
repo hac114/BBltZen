@@ -43,6 +43,8 @@ namespace Repository
 
             services.AddMemoryCache(); // Per la cache in memoria
             services.AddScoped<IPriceCalculationServiceRepository, PriceCalculationServiceRepository>();
+            services.AddScoped<IAdvancedPriceCalculationServiceRepository, AdvancedPriceCalculationServiceRepository>();
+            services.AddScoped<ISistemaCacheRepository, SistemaCacheRepository>();
 
         }
     }
