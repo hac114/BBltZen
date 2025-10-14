@@ -22,7 +22,6 @@ namespace Repository.Service
         {
             return await _context.Ingrediente
                 .Where(i => i.Disponibile)  // 👈 SOFT-DELETE FILTER
-                .Include(i => i.Categoria)
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,
@@ -38,17 +37,11 @@ namespace Repository.Service
 
         public async Task<IngredienteDTO?> GetByIdAsync(int id)
         {
-            // PRIMA verifica se esiste e è disponibile
             var ingrediente = await _context.Ingrediente
                 .Where(i => i.IngredienteId == id && i.Disponibile)
                 .FirstOrDefaultAsync();
 
             if (ingrediente == null) return null;
-
-            // POI carica la categoria separatamente se necessario
-            await _context.Entry(ingrediente)
-                .Reference(i => i.Categoria)
-                .LoadAsync();
 
             return new IngredienteDTO
             {
@@ -119,7 +112,6 @@ namespace Repository.Service
         {
             return await _context.Ingrediente
                 .Where(i => i.CategoriaId == categoriaId)
-                .Include(i => i.Categoria)
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,
@@ -137,7 +129,6 @@ namespace Repository.Service
         {
             return await _context.Ingrediente
                 .Where(i => i.Disponibile)
-                .Include(i => i.Categoria)
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,

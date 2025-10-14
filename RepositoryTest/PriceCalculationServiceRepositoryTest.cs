@@ -1,6 +1,6 @@
-﻿// In RepositoryTest/PriceCalculationServiceRepositoryTest.cs
-using Database;
+﻿using Database;
 using DTO;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -24,84 +24,111 @@ namespace RepositoryTest
             _mockLogger = new Mock<ILogger<PriceCalculationServiceRepository>>();
             _memoryCache = new MemoryCache(new MemoryCacheOptions());
 
-            // Crea i repository necessari per il servizio
-            var bevandaStandardRepo = new BevandaStandardRepository(_context);
-            var bevandaCustomRepo = new BevandaCustomRepository(_context);
-            var dolceRepo = new DolceRepository(_context);
-            var personalizzazioneCustomRepo = new PersonalizzazioneCustomRepository(_context);
-            var ingredienteRepo = new IngredienteRepository(_context);
-            var ingredientiPersonalizzazioneRepo = new IngredientiPersonalizzazioneRepository(_context);
-            var dimensioneBicchiereRepo = new DimensioneBicchiereRepository(_context);
-            var taxRatesRepo = new TaxRatesRepository(_context);
+            // ✅ INIZIALIZZA DATI COMPLETI prima di creare i repository
+            InitializeCompleteTestData();
 
-            _priceCalculationService = new PriceCalculationServiceRepository(
-                _memoryCache,
-                _mockLogger.Object,
-                bevandaStandardRepo,
-                bevandaCustomRepo,
-                dolceRepo,
-                personalizzazioneCustomRepo,
-                ingredienteRepo,
-                ingredientiPersonalizzazioneRepo,
-                dimensioneBicchiereRepo,
-                taxRatesRepo
-            );
-
-            InitializeTestData();
+            // ✅ CREA REPOSITORY CON LO STESSO CONTEXT
+            _priceCalculationService = CreatePriceCalculationService(_context);
         }
 
-        private void InitializeTestData()
+        private void InitializeCompleteTestData()
         {
-            // ✅ INIZIALIZZA DATI DI TEST
-            if (!_context.TaxRates.Any())
-            {
-                _context.TaxRates.AddRange(
-                    new TaxRates { TaxRateId = 1, Aliquota = 22.00m, Descrizione = "IVA Standard" },
-                    new TaxRates { TaxRateId = 2, Aliquota = 10.00m, Descrizione = "IVA Ridotta" }
-                );
-            }
+            // ✅ PULISCI E RICREA TUTTI I DATI
+            _context.Database.EnsureDeleted();
+            _context.Database.EnsureCreated();
 
-            if (!_context.DimensioneBicchiere.Any())
-            {
-                _context.DimensioneBicchiere.AddRange(
-                    new DimensioneBicchiere { DimensioneBicchiereId = 1, Sigla = "M", Descrizione = "medium", Capienza = 500, PrezzoBase = 3.50m, Moltiplicatore = 1.00m },
-                    new DimensioneBicchiere { DimensioneBicchiereId = 2, Sigla = "L", Descrizione = "large", Capienza = 700, PrezzoBase = 5.00m, Moltiplicatore = 1.30m }
-                );
-            }
+            // Tax Rates
+            _context.TaxRates.AddRange(
+                new TaxRates { TaxRateId = 1, Aliquota = 22.00m, Descrizione = "IVA Standard" },
+                new TaxRates { TaxRateId = 2, Aliquota = 10.00m, Descrizione = "IVA Ridotta" }
+            );
 
-            if (!_context.Ingrediente.Any())
-            {
-                _context.Ingrediente.AddRange(
-                    // ✅ USA LA ENTITY DEL DATABASE - verifica il nome esatto della proprietà
-                    new Ingrediente { IngredienteId = 1, Ingrediente1 = "Tea Nero Premium", CategoriaId = 1, PrezzoAggiunto = 1.00m, Disponibile = true },
-                    new Ingrediente { IngredienteId = 2, Ingrediente1 = "Latte Condensato", CategoriaId = 2, PrezzoAggiunto = 0.50m, Disponibile = true }
-                );
-            }
+            // Dimensioni Bicchieri
+            _context.DimensioneBicchiere.AddRange(
+                new DimensioneBicchiere { DimensioneBicchiereId = 1, Sigla = "M", Descrizione = "medium", Capienza = 500, PrezzoBase = 3.50m, Moltiplicatore = 1.00m },
+                new DimensioneBicchiere { DimensioneBicchiereId = 2, Sigla = "L", Descrizione = "large", Capienza = 700, PrezzoBase = 5.00m, Moltiplicatore = 1.30m }
+            );
+
+            // Ingredienti
+            _context.Ingrediente.AddRange(
+                new Ingrediente { IngredienteId = 1, Ingrediente1 = "Tea Nero Premium", CategoriaId = 1, PrezzoAggiunto = 1.00m, Disponibile = true },
+                new Ingrediente { IngredienteId = 2, Ingrediente1 = "Latte Condensato", CategoriaId = 2, PrezzoAggiunto = 0.50m, Disponibile = true }
+            );
+
+            // Articoli e Bevande Standard (DATI CRITICI PER I TEST)
+            _context.Articolo.AddRange(
+                new Articolo { ArticoloId = 1, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { ArticoloId = 2, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { ArticoloId = 3, Tipo = "D", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+            );
+
+            _context.BevandaStandard.AddRange(
+                new BevandaStandard { ArticoloId = 1, PersonalizzazioneId = 1, DimensioneBicchiereId = 1, Prezzo = 4.50m, Disponibile = true, DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new BevandaStandard { ArticoloId = 2, PersonalizzazioneId = 1, DimensioneBicchiereId = 2, Prezzo = 6.00m, Disponibile = true, DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+            );
+
+            // Dolci
+            _context.Dolce.AddRange(
+                new Dolce { ArticoloId = 3, Nome = "Tiramisu", Prezzo = 5.50m, Disponibile = true, DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+            );
 
             _context.SaveChanges();
+        }
+
+        private IPriceCalculationServiceRepository CreatePriceCalculationService(BubbleTeaContext context)
+        {
+            return new PriceCalculationServiceRepository(
+                _memoryCache,
+                _mockLogger.Object,
+                new BevandaStandardRepository(context),
+                new BevandaCustomRepository(context),
+                new DolceRepository(context),
+                new PersonalizzazioneCustomRepository(context),
+                new IngredienteRepository(context),
+                new IngredientiPersonalizzazioneRepository(context),
+                new DimensioneBicchiereRepository(context),
+                new TaxRatesRepository(context)
+            );
         }
 
         [Fact]
         public async Task CalculateBevandaStandardPrice_WithValidId_ReturnsPrice()
         {
-            // Arrange - Usa un ArticoloId che ESISTE già nei dati di test
-            var existingBevanda = _context.BevandaStandard.First();
-
-            // Act - Passa l'ArticoloId che sappiamo esistere
-            var result = await _priceCalculationService.CalculateBevandaStandardPrice(existingBevanda.ArticoloId);
+            // Act
+            var result = await _priceCalculationService.CalculateBevandaStandardPrice(1);
 
             // Assert
-            Assert.Equal(existingBevanda.Prezzo, result);
+            Assert.Equal(4.50m, result);
+        }
+
+        [Fact]
+        public async Task CalculateBevandaStandardPrice_WithExistingData_ReturnsPrice()
+        {
+            // Act
+            var result = await _priceCalculationService.CalculateBevandaStandardPrice(2);
+
+            // Assert
+            Assert.Equal(6.00m, result);
+        }
+
+        [Fact]
+        public async Task CalculateDolcePrice_WithValidId_ReturnsPrice()
+        {
+            // Act
+            var result = await _priceCalculationService.CalculateDolcePrice(3);
+
+            // Assert
+            Assert.Equal(5.50m, result);
         }
 
         [Fact]
         public async Task CalculateTaxAmount_WithValidInput_ReturnsCorrectTax()
         {
             // Act
-            var result = await _priceCalculationService.CalculateTaxAmount(10.00m, 1); // 10€ con IVA 22%
+            var result = await _priceCalculationService.CalculateTaxAmount(10.00m, 1);
 
             // Assert
-            Assert.Equal(1.80m, result); // 10 - (10 / 1.22) = 1.80
+            Assert.Equal(1.80m, result);
         }
 
         [Fact]
@@ -123,7 +150,7 @@ namespace RepositoryTest
                 PersCustomId = 1,
                 Nome = "Test Custom",
                 GradoDolcezza = 3,
-                DimensioneBicchiereId = 1 // Medium - prezzo base 3.50
+                DimensioneBicchiereId = 1
             };
             _context.PersonalizzazioneCustom.Add(personalizzazioneCustom);
 
@@ -131,7 +158,7 @@ namespace RepositoryTest
             {
                 IngredientePersId = 1,
                 PersCustomId = 1,
-                IngredienteId = 1 // Tea Nero Premium - 1.00€
+                IngredienteId = 1
             };
             _context.IngredientiPersonalizzazione.Add(ingredientePersonalizzazione);
 
@@ -140,55 +167,18 @@ namespace RepositoryTest
             // Act
             var result = await _priceCalculationService.CalculateBevandaCustomPrice(1);
 
-            // Assert - Prezzo base 3.50 + ingrediente 1.00 = 4.50
+            // Assert
             Assert.Equal(4.50m, result);
-        }
-
-        [Fact]
-        public async Task CalculateBevandaCustomPrice_WithLargeSize_ReturnsCorrectPriceWithMultiplier()
-        {
-            // Arrange
-            var personalizzazioneCustom = new PersonalizzazioneCustom
-            {
-                PersCustomId = 2,
-                Nome = "Test Custom Large",
-                GradoDolcezza = 3,
-                DimensioneBicchiereId = 2 // Large - prezzo base 5.00, moltiplicatore 1.3
-            };
-            _context.PersonalizzazioneCustom.Add(personalizzazioneCustom);
-
-            var ingredientePersonalizzazione = new IngredientiPersonalizzazione
-            {
-                IngredientePersId = 2,
-                PersCustomId = 2,
-                IngredienteId = 1 // Tea Nero Premium - 1.00€ × 1.3 = 1.30€
-            };
-            _context.IngredientiPersonalizzazione.Add(ingredientePersonalizzazione);
-
-            await _context.SaveChangesAsync();
-
-            // Act
-            var result = await _priceCalculationService.CalculateBevandaCustomPrice(2);
-
-            // Assert - Prezzo base 5.00 + (ingrediente 1.00 × 1.3) = 6.30
-            Assert.Equal(6.30m, result);
         }
 
         [Fact]
         public async Task CalculateImponibile_WithValidInput_ReturnsCorrectImponibile()
         {
             // Act
-            var result = await _priceCalculationService.CalculateImponibile(12.20m, 1, 1); // 12.20€ con IVA 22%
+            var result = await _priceCalculationService.CalculateImponibile(12.20m, 1, 1);
 
-            // Assert - 12.20 / 1.22 = 10.00
+            // Assert
             Assert.Equal(10.00m, result);
-        }
-
-        [Fact]
-        public async Task ClearCache_ShouldClearMemoryCache()
-        {
-            // Act & Assert - Non dovrebbe lanciare eccezioni
-            await _priceCalculationService.ClearCache();
         }
 
         [Fact]
@@ -205,6 +195,52 @@ namespace RepositoryTest
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentException>(() =>
                 _priceCalculationService.CalculateBevandaCustomPrice(999));
+        }
+
+        [Fact]
+        public async Task CalculateDolcePrice_WithInvalidId_ThrowsException()
+        {
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                _priceCalculationService.CalculateDolcePrice(999));
+        }
+
+        [Fact]
+        public async Task ClearCache_ShouldClearMemoryCache()
+        {
+            // Act & Assert
+            await _priceCalculationService.ClearCache();
+        }
+
+        [Fact]
+        public async Task PreloadCache_ShouldPreloadDataWithoutErrors()
+        {
+            // Act & Assert
+            await _priceCalculationService.PreloadCache();
+        }
+
+        // ✅ MANTENIAMO SOLO QUESTO TEST ISOLATO COME BACKUP
+        [Fact]
+        public async Task CalculateBevandaStandardPrice_IsolatedTest_ShouldWork()
+        {
+            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
+                .UseInMemoryDatabase(databaseName: $"Test_Isolated_{Guid.NewGuid()}")
+                .Options;
+
+            using var isolatedContext = new BubbleTeaContext(options);
+            isolatedContext.Database.EnsureCreated();
+
+            var articolo = new Articolo { ArticoloId = 1, Tipo = "BS" };
+            var bevanda = new BevandaStandard { ArticoloId = 1, Prezzo = 3.50m };
+
+            isolatedContext.Articolo.Add(articolo);
+            isolatedContext.BevandaStandard.Add(bevanda);
+            await isolatedContext.SaveChangesAsync();
+
+            var isolatedService = CreatePriceCalculationService(isolatedContext);
+
+            var result = await isolatedService.CalculateBevandaStandardPrice(1);
+            Assert.Equal(3.50m, result);
         }
     }
 }

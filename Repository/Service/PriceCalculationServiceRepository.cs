@@ -6,7 +6,6 @@ using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Repository.Service
@@ -54,29 +53,30 @@ namespace Repository.Service
             _taxRatesRepo = taxRatesRepo;
         }
 
-        public async Task<decimal> CalculateBevandaStandardPrice(int bevandaStandardId)
+        public async Task<decimal> CalculateBevandaStandardPrice(int articoloId)
         {
-            var cacheKey = string.Format(CACHE_KEY_PREZZO_BEVANDA_STD, bevandaStandardId);
+            var cacheKey = string.Format(CACHE_KEY_PREZZO_BEVANDA_STD, articoloId);
 
             if (_cache.TryGetValue(cacheKey, out decimal cachedPrice))
                 return cachedPrice;
 
             try
             {
-                var bevanda = await _bevandaStandardRepo.GetByIdAsync(bevandaStandardId);
+                // ✅ CERCA PER ARTICOLO_ID - che è la chiave di relazione
+                var bevanda = await _bevandaStandardRepo.GetByIdAsync(articoloId);
                 if (bevanda == null)
-                    throw new ArgumentException($"Bevanda standard non trovata: {bevandaStandardId}");
+                    throw new ArgumentException($"Bevanda standard non trovata per articolo: {articoloId}");
 
                 var prezzo = bevanda.Prezzo;
 
                 _cache.Set(cacheKey, prezzo, _cacheDuration);
-                _logger.LogInformation("Calcolato prezzo bevanda standard {BevandaId}: {Prezzo}", bevandaStandardId, prezzo);
+                _logger.LogInformation("Calcolato prezzo bevanda standard {ArticoloId}: {Prezzo}", articoloId, prezzo);
 
                 return prezzo;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel calcolo prezzo bevanda standard {BevandaId}", bevandaStandardId);
+                _logger.LogError(ex, "Errore nel calcolo prezzo bevanda standard {ArticoloId}", articoloId);
                 throw;
             }
         }
@@ -135,19 +135,20 @@ namespace Repository.Service
             }
         }
 
-        public async Task<decimal> CalculateDolcePrice(int dolceId)
+        public async Task<decimal> CalculateDolcePrice(int articoloId)
         {
             try
             {
-                var dolce = await _dolceRepo.GetByIdAsync(dolceId);
+                // ✅ CERCA PER ARTICOLO_ID - coerenza con la struttura del DB
+                var dolce = await _dolceRepo.GetByIdAsync(articoloId);
                 if (dolce == null)
-                    throw new ArgumentException($"Dolce non trovato: {dolceId}");
+                    throw new ArgumentException($"Dolce non trovato per articolo: {articoloId}");
 
                 return dolce.Prezzo;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel calcolo prezzo dolce {DolceId}", dolceId);
+                _logger.LogError(ex, "Errore nel calcolo prezzo dolce {ArticoloId}", articoloId);
                 throw;
             }
         }
@@ -166,11 +167,15 @@ namespace Repository.Service
                         prezzoBase = await CalculateBevandaStandardPrice(item.ArticoloId);
                         break;
                     case "BC": // Bevanda Custom
-                               // Per bevanda custom, articolo_id punta a BEVANDA_CUSTOM, che ha pers_custom_id
+                        // Per bevanda custom, articolo_id punta a BEVANDA_CUSTOM, che ha pers_custom_id
                         var bevandaCustom = await _bevandaCustomRepo.GetByArticoloIdAsync(item.ArticoloId);
                         if (bevandaCustom != null)
                         {
                             prezzoBase = await CalculateBevandaCustomPrice(bevandaCustom.PersCustomId);
+                        }
+                        else
+                        {
+                            throw new ArgumentException($"Bevanda custom non trovata per articolo: {item.ArticoloId}");
                         }
                         break;
                     case "D": // Dolce

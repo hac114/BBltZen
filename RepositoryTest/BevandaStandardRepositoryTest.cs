@@ -366,5 +366,68 @@ namespace RepositoryTest
             // Assert
             Assert.False(result);
         }
+
+        //[Fact]
+        //public async Task Debug_BevandaStandardRepository()
+        //{
+        //    // Crea context isolato
+        //    var options = new DbContextOptionsBuilder<BubbleTeaContext>()
+        //        .UseInMemoryDatabase(databaseName: $"Test_Repo_Debug_{Guid.NewGuid()}")
+        //        .Options;
+
+        //    using var context = new BubbleTeaContext(options);
+        //    context.Database.EnsureCreated();
+
+        //    // Crea dati
+        //    var articolo = new Articolo { ArticoloId = 1, Tipo = "BS" };
+        //    var bevanda = new BevandaStandard
+        //    {
+        //        ArticoloId = 1,
+        //        Prezzo = 3.50m,
+        //        PersonalizzazioneId = 1,
+        //        DimensioneBicchiereId = 1,
+        //        Disponibile = true
+        //    };
+
+        //    context.Articolo.Add(articolo);
+        //    context.BevandaStandard.Add(bevanda);
+        //    await context.SaveChangesAsync();
+
+        //    Console.WriteLine("=== DEBUG REPOSITORY ===");
+
+        //    // 1. Verifica dati nel context
+        //    var bevandaNelContext = context.BevandaStandard.FirstOrDefault(bs => bs.ArticoloId == 1);
+        //    Console.WriteLine($"Bevanda nel context: {bevandaNelContext != null}");
+
+        //    // 2. Test repository
+        //    var repo = new BevandaStandardRepository(context);
+        //    var risultatoRepo = await repo.GetByIdAsync(1);
+        //    Console.WriteLine($"Repository.GetByIdAsync(1): {risultatoRepo != null}");
+
+        //    // 3. Se è null, verifica cosa cerca il repository
+        //    if (risultatoRepo == null)
+        //    {
+        //        Console.WriteLine("❌ REPOSITORY NON TROVA I DATI!");
+
+        //        // Verifica la query manualmente
+        //        var queryManuale = await context.BevandaStandard
+        //            .AsNoTracking()
+        //            .Include(bs => bs.Articolo)
+        //            .Include(bs => bs.Personalizzazione)
+        //            .Include(bs => bs.DimensioneBicchiere)
+        //            .FirstOrDefaultAsync(bs => bs.ArticoloId == 1);
+
+        //        Console.WriteLine($"Query manuale: {queryManuale != null}");
+
+        //        if (queryManuale == null)
+        //        {
+        //            Console.WriteLine("⚠️  ANCHE LA QUERY MANUALE NON TROVA I DATI!");
+        //            Console.WriteLine($"Bevande nel DB: {context.BevandaStandard.Count()}");
+        //            Console.WriteLine($"Articoli nel DB: {context.Articolo.Count()}");
+        //        }
+        //    }
+
+        //    Assert.NotNull(risultatoRepo);
+        //}
     }
 }

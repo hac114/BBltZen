@@ -20,82 +20,101 @@ namespace Repository.Service
 
         public async Task<IEnumerable<BevandaStandardDTO>> GetAllAsync()
         {
-            return await _context.BevandaStandard
+            var bevandeStandard = await _context.BevandaStandard
                 .AsNoTracking()
-                .Include(bs => bs.Articolo)
-                .Include(bs => bs.Personalizzazione)
-                .Include(bs => bs.DimensioneBicchiere)
-                .Select(bs => new BevandaStandardDTO
-                {
-                    ArticoloId = bs.ArticoloId,
-                    PersonalizzazioneId = bs.PersonalizzazioneId,
-                    DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                    Prezzo = bs.Prezzo,
-                    ImmagineUrl = bs.ImmagineUrl,
-                    Disponibile = bs.Disponibile,
-                    SempreDisponibile = bs.SempreDisponibile,
-                    Priorita = bs.Priorita,
-                    DataCreazione = bs.DataCreazione,
-                    DataAggiornamento = bs.DataAggiornamento,
-                    DimensioneBicchiere = new DimensioneBicchiereDTO
-                    {
-                        DimensioneBicchiereId = bs.DimensioneBicchiere.DimensioneBicchiereId,
-                        Sigla = bs.DimensioneBicchiere.Sigla,
-                        Descrizione = bs.DimensioneBicchiere.Descrizione,
-                        Capienza = bs.DimensioneBicchiere.Capienza,
-                        UnitaMisuraId = bs.DimensioneBicchiere.UnitaMisuraId,
-                        PrezzoBase = bs.DimensioneBicchiere.PrezzoBase,
-                        Moltiplicatore = bs.DimensioneBicchiere.Moltiplicatore
-                    }
-                })
                 .ToListAsync();
+
+            var articoli = await _context.Articolo
+                .Where(a => bevandeStandard.Select(bs => bs.ArticoloId).Contains(a.ArticoloId))
+                .ToDictionaryAsync(a => a.ArticoloId);
+
+            var personalizzazioni = await _context.Personalizzazione
+                .Where(p => bevandeStandard.Select(bs => bs.PersonalizzazioneId).Contains(p.PersonalizzazioneId))
+                .ToDictionaryAsync(p => p.PersonalizzazioneId);
+
+            var dimensioniBicchieri = await _context.DimensioneBicchiere
+                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
+
+            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            {
+                ArticoloId = bs.ArticoloId,
+                PersonalizzazioneId = bs.PersonalizzazioneId,
+                DimensioneBicchiereId = bs.DimensioneBicchiereId,
+                Prezzo = bs.Prezzo,
+                ImmagineUrl = bs.ImmagineUrl,
+                Disponibile = bs.Disponibile,
+                SempreDisponibile = bs.SempreDisponibile,
+                Priorita = bs.Priorita,
+                DataCreazione = bs.DataCreazione,
+                DataAggiornamento = bs.DataAggiornamento,
+                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
+                    ? new DimensioneBicchiereDTO
+                    {
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                        Sigla = dimensione.Sigla,
+                        Descrizione = dimensione.Descrizione,
+                        Capienza = dimensione.Capienza,
+                        UnitaMisuraId = dimensione.UnitaMisuraId,
+                        PrezzoBase = dimensione.PrezzoBase,
+                        Moltiplicatore = dimensione.Moltiplicatore
+                    }
+                    : null
+            }).ToList();
         }
 
         public async Task<IEnumerable<BevandaStandardDTO>> GetDisponibiliAsync()
         {
-            return await _context.BevandaStandard
+            var bevandeStandard = await _context.BevandaStandard
                 .AsNoTracking()
                 .Where(bs => bs.SempreDisponibile) // SOLO bevande sempre disponibili
-                .Include(bs => bs.Articolo)
-                .Include(bs => bs.Personalizzazione)
-                .Include(bs => bs.DimensioneBicchiere)
-                .Select(bs => new BevandaStandardDTO
-                {
-                    ArticoloId = bs.ArticoloId,
-                    PersonalizzazioneId = bs.PersonalizzazioneId,
-                    DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                    Prezzo = bs.Prezzo,
-                    ImmagineUrl = bs.ImmagineUrl,
-                    Disponibile = bs.Disponibile,
-                    SempreDisponibile = bs.SempreDisponibile,
-                    Priorita = bs.Priorita,
-                    DataCreazione = bs.DataCreazione,
-                    DataAggiornamento = bs.DataAggiornamento,
-                    DimensioneBicchiere = new DimensioneBicchiereDTO
-                    {
-                        DimensioneBicchiereId = bs.DimensioneBicchiere.DimensioneBicchiereId,
-                        Sigla = bs.DimensioneBicchiere.Sigla,
-                        Descrizione = bs.DimensioneBicchiere.Descrizione,
-                        Capienza = bs.DimensioneBicchiere.Capienza,
-                        UnitaMisuraId = bs.DimensioneBicchiere.UnitaMisuraId,
-                        PrezzoBase = bs.DimensioneBicchiere.PrezzoBase,
-                        Moltiplicatore = bs.DimensioneBicchiere.Moltiplicatore
-                    }
-                })
-                .OrderBy(bs => bs.Priorita)
                 .ToListAsync();
+
+            var dimensioniBicchieri = await _context.DimensioneBicchiere
+                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
+
+            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            {
+                ArticoloId = bs.ArticoloId,
+                PersonalizzazioneId = bs.PersonalizzazioneId,
+                DimensioneBicchiereId = bs.DimensioneBicchiereId,
+                Prezzo = bs.Prezzo,
+                ImmagineUrl = bs.ImmagineUrl,
+                Disponibile = bs.Disponibile,
+                SempreDisponibile = bs.SempreDisponibile,
+                Priorita = bs.Priorita,
+                DataCreazione = bs.DataCreazione,
+                DataAggiornamento = bs.DataAggiornamento,
+                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
+                    ? new DimensioneBicchiereDTO
+                    {
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                        Sigla = dimensione.Sigla,
+                        Descrizione = dimensione.Descrizione,
+                        Capienza = dimensione.Capienza,
+                        UnitaMisuraId = dimensione.UnitaMisuraId,
+                        PrezzoBase = dimensione.PrezzoBase,
+                        Moltiplicatore = dimensione.Moltiplicatore
+                    }
+                    : null
+            })
+            .OrderBy(bs => bs.Priorita)
+            .ToList();
         }
 
         public async Task<BevandaStandardDTO?> GetByIdAsync(int articoloId)
         {
             var bevandaStandard = await _context.BevandaStandard
                 .AsNoTracking()
-                .Include(bs => bs.Articolo)
-                .Include(bs => bs.Personalizzazione)
-                .Include(bs => bs.DimensioneBicchiere)
                 .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId);
 
             if (bevandaStandard == null) return null;
+
+            // Carica esplicitamente la dimensione bicchiere se necessario
+            var dimensioneBicchiere = await _context.DimensioneBicchiere
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == bevandaStandard.DimensioneBicchiereId);
 
             return new BevandaStandardDTO
             {
@@ -109,16 +128,18 @@ namespace Repository.Service
                 Priorita = bevandaStandard.Priorita,
                 DataCreazione = bevandaStandard.DataCreazione,
                 DataAggiornamento = bevandaStandard.DataAggiornamento,
-                DimensioneBicchiere = new DimensioneBicchiereDTO
-                {
-                    DimensioneBicchiereId = bevandaStandard.DimensioneBicchiere.DimensioneBicchiereId,
-                    Sigla = bevandaStandard.DimensioneBicchiere.Sigla,
-                    Descrizione = bevandaStandard.DimensioneBicchiere.Descrizione,
-                    Capienza = bevandaStandard.DimensioneBicchiere.Capienza,
-                    UnitaMisuraId = bevandaStandard.DimensioneBicchiere.UnitaMisuraId,
-                    PrezzoBase = bevandaStandard.DimensioneBicchiere.PrezzoBase,
-                    Moltiplicatore = bevandaStandard.DimensioneBicchiere.Moltiplicatore
-                }
+                DimensioneBicchiere = dimensioneBicchiere != null
+                    ? new DimensioneBicchiereDTO
+                    {
+                        DimensioneBicchiereId = dimensioneBicchiere.DimensioneBicchiereId,
+                        Sigla = dimensioneBicchiere.Sigla,
+                        Descrizione = dimensioneBicchiere.Descrizione,
+                        Capienza = dimensioneBicchiere.Capienza,
+                        UnitaMisuraId = dimensioneBicchiere.UnitaMisuraId,
+                        PrezzoBase = dimensioneBicchiere.PrezzoBase,
+                        Moltiplicatore = dimensioneBicchiere.Moltiplicatore
+                    }
+                    : null
             };
         }
 
@@ -129,51 +150,82 @@ namespace Repository.Service
 
         public async Task<IEnumerable<BevandaStandardDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId)
         {
-            return await _context.BevandaStandard
+            var bevandeStandard = await _context.BevandaStandard
                 .AsNoTracking()
                 .Where(bs => bs.DimensioneBicchiereId == dimensioneBicchiereId && (bs.Disponibile || bs.SempreDisponibile))
-                .Include(bs => bs.Articolo)
-                .Include(bs => bs.Personalizzazione)
-                .Include(bs => bs.DimensioneBicchiere)
-                .Select(bs => new BevandaStandardDTO
-                {
-                    ArticoloId = bs.ArticoloId,
-                    PersonalizzazioneId = bs.PersonalizzazioneId,
-                    DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                    Prezzo = bs.Prezzo,
-                    ImmagineUrl = bs.ImmagineUrl,
-                    Disponibile = bs.Disponibile,
-                    SempreDisponibile = bs.SempreDisponibile,
-                    Priorita = bs.Priorita,
-                    DataCreazione = bs.DataCreazione,
-                    DataAggiornamento = bs.DataAggiornamento
-                })
-                .OrderBy(bs => bs.Priorita)
                 .ToListAsync();
+
+            var dimensioniBicchieri = await _context.DimensioneBicchiere
+                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
+
+            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            {
+                ArticoloId = bs.ArticoloId,
+                PersonalizzazioneId = bs.PersonalizzazioneId,
+                DimensioneBicchiereId = bs.DimensioneBicchiereId,
+                Prezzo = bs.Prezzo,
+                ImmagineUrl = bs.ImmagineUrl,
+                Disponibile = bs.Disponibile,
+                SempreDisponibile = bs.SempreDisponibile,
+                Priorita = bs.Priorita,
+                DataCreazione = bs.DataCreazione,
+                DataAggiornamento = bs.DataAggiornamento,
+                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
+                    ? new DimensioneBicchiereDTO
+                    {
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                        Sigla = dimensione.Sigla,
+                        Descrizione = dimensione.Descrizione,
+                        Capienza = dimensione.Capienza,
+                        UnitaMisuraId = dimensione.UnitaMisuraId,
+                        PrezzoBase = dimensione.PrezzoBase,
+                        Moltiplicatore = dimensione.Moltiplicatore
+                    }
+                    : null
+            })
+            .OrderBy(bs => bs.Priorita)
+            .ToList();
         }
 
         public async Task<IEnumerable<BevandaStandardDTO>> GetByPersonalizzazioneAsync(int personalizzazioneId)
         {
-            return await _context.BevandaStandard
+            var bevandeStandard = await _context.BevandaStandard
                 .AsNoTracking()
                 .Where(bs => bs.PersonalizzazioneId == personalizzazioneId && bs.SempreDisponibile) // Solo quelle SEMPRE disponibili
-                .Include(bs => bs.Articolo)
-                .Include(bs => bs.DimensioneBicchiere)
-                .Select(bs => new BevandaStandardDTO
-                {
-                    ArticoloId = bs.ArticoloId,
-                    PersonalizzazioneId = bs.PersonalizzazioneId,
-                    DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                    Prezzo = bs.Prezzo,
-                    ImmagineUrl = bs.ImmagineUrl,
-                    Disponibile = bs.Disponibile,
-                    SempreDisponibile = bs.SempreDisponibile,
-                    Priorita = bs.Priorita,
-                    DataCreazione = bs.DataCreazione,
-                    DataAggiornamento = bs.DataAggiornamento
-                })
-                .OrderBy(bs => bs.Priorita)
                 .ToListAsync();
+
+            var dimensioniBicchieri = await _context.DimensioneBicchiere
+                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
+
+            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            {
+                ArticoloId = bs.ArticoloId,
+                PersonalizzazioneId = bs.PersonalizzazioneId,
+                DimensioneBicchiereId = bs.DimensioneBicchiereId,
+                Prezzo = bs.Prezzo,
+                ImmagineUrl = bs.ImmagineUrl,
+                Disponibile = bs.Disponibile,
+                SempreDisponibile = bs.SempreDisponibile,
+                Priorita = bs.Priorita,
+                DataCreazione = bs.DataCreazione,
+                DataAggiornamento = bs.DataAggiornamento,
+                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
+                    ? new DimensioneBicchiereDTO
+                    {
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                        Sigla = dimensione.Sigla,
+                        Descrizione = dimensione.Descrizione,
+                        Capienza = dimensione.Capienza,
+                        UnitaMisuraId = dimensione.UnitaMisuraId,
+                        PrezzoBase = dimensione.PrezzoBase,
+                        Moltiplicatore = dimensione.Moltiplicatore
+                    }
+                    : null
+            })
+            .OrderBy(bs => bs.Priorita)
+            .ToList();
         }
 
         public async Task AddAsync(BevandaStandardDTO bevandaStandardDto)

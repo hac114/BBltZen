@@ -21,9 +21,6 @@ namespace Repository.Service
         public async Task<IEnumerable<PersonalizzazioneIngredienteDTO>> GetAllAsync()
         {
             return await _context.PersonalizzazioneIngrediente
-                .Include(pi => pi.Personalizzazione)
-                .Include(pi => pi.Ingrediente)
-                .Include(pi => pi.UnitaMisura)
                 .Select(pi => new PersonalizzazioneIngredienteDTO
                 {
                     PersonalizzazioneIngredienteId = pi.PersonalizzazioneIngredienteId,
@@ -39,8 +36,6 @@ namespace Repository.Service
         {
             return await _context.PersonalizzazioneIngrediente
                 .Where(pi => pi.PersonalizzazioneId == personalizzazioneId)
-                .Include(pi => pi.Ingrediente)
-                .Include(pi => pi.UnitaMisura)
                 .Select(pi => new PersonalizzazioneIngredienteDTO
                 {
                     PersonalizzazioneIngredienteId = pi.PersonalizzazioneIngredienteId,
@@ -56,7 +51,6 @@ namespace Repository.Service
         {
             return await _context.PersonalizzazioneIngrediente
                 .Where(pi => pi.IngredienteId == ingredienteId)
-                .Include(pi => pi.Personalizzazione)
                 .Select(pi => new PersonalizzazioneIngredienteDTO
                 {
                     PersonalizzazioneIngredienteId = pi.PersonalizzazioneIngredienteId,
@@ -71,10 +65,7 @@ namespace Repository.Service
         public async Task<PersonalizzazioneIngredienteDTO?> GetByIdAsync(int id)
         {
             var personalizzazioneIngrediente = await _context.PersonalizzazioneIngrediente
-                .AsNoTracking() // 👈 AGGIUNGI QUESTA LINEA
-                .Include(pi => pi.Personalizzazione)
-                .Include(pi => pi.Ingrediente)
-                .Include(pi => pi.UnitaMisura)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(pi => pi.PersonalizzazioneIngredienteId == id);
 
             if (personalizzazioneIngrediente == null) return null;
@@ -92,9 +83,6 @@ namespace Repository.Service
         public async Task<PersonalizzazioneIngredienteDTO?> GetByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId)
         {
             var personalizzazioneIngrediente = await _context.PersonalizzazioneIngrediente
-                .Include(pi => pi.Personalizzazione)
-                .Include(pi => pi.Ingrediente)
-                .Include(pi => pi.UnitaMisura)
                 .FirstOrDefaultAsync(pi => pi.PersonalizzazioneId == personalizzazioneId &&
                                          pi.IngredienteId == ingredienteId);
 
@@ -128,7 +116,6 @@ namespace Repository.Service
 
         public async Task UpdateAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
         {
-            // CERCA l'entità esistente nel database
             var existing = await _context.PersonalizzazioneIngrediente
                 .FirstOrDefaultAsync(pi => pi.PersonalizzazioneIngredienteId == personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId);
 
@@ -137,13 +124,11 @@ namespace Repository.Service
                 throw new ArgumentException($"PersonalizzazioneIngrediente con ID {personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId} non trovato");
             }
 
-            // AGGIORNA i valori
             existing.PersonalizzazioneId = personalizzazioneIngredienteDto.PersonalizzazioneId;
             existing.IngredienteId = personalizzazioneIngredienteDto.IngredienteId;
             existing.Quantita = personalizzazioneIngredienteDto.Quantita;
             existing.UnitaMisuraId = personalizzazioneIngredienteDto.UnitaMisuraId;
 
-            // SALVA le modifiche
             await _context.SaveChangesAsync();
         }
 
@@ -152,7 +137,7 @@ namespace Repository.Service
             var personalizzazioneIngrediente = await _context.PersonalizzazioneIngrediente.FindAsync(id);
             if (personalizzazioneIngrediente != null)
             {
-                _context.PersonalizzazioneIngrediente.Remove(personalizzazioneIngrediente);  // 👈 DELETE FISICO
+                _context.PersonalizzazioneIngrediente.Remove(personalizzazioneIngrediente);
                 await _context.SaveChangesAsync();
             }
         }
@@ -165,7 +150,7 @@ namespace Repository.Service
 
             if (personalizzazioneIngrediente != null)
             {
-                _context.PersonalizzazioneIngrediente.Remove(personalizzazioneIngrediente);  // 👈 DELETE FISICO
+                _context.PersonalizzazioneIngrediente.Remove(personalizzazioneIngrediente);
                 await _context.SaveChangesAsync();
             }
         }

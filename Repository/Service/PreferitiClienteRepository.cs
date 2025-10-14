@@ -21,8 +21,6 @@ namespace Repository.Service
         public async Task<IEnumerable<PreferitiClienteDTO>> GetAllAsync()
         {
             return await _context.PreferitiCliente
-                .Include(p => p.Cliente)
-                .Include(p => p.Bevanda)
                 .Select(p => new PreferitiClienteDTO
                 {
                     PreferitoId = p.PreferitoId,
@@ -36,8 +34,6 @@ namespace Repository.Service
         public async Task<PreferitiClienteDTO?> GetByIdAsync(int id)
         {
             var preferito = await _context.PreferitiCliente
-                .Include(p => p.Cliente)
-                .Include(p => p.Bevanda)
                 .FirstOrDefaultAsync(p => p.PreferitoId == id);
 
             if (preferito == null) return null;
@@ -55,7 +51,6 @@ namespace Repository.Service
         {
             return await _context.PreferitiCliente
                 .Where(p => p.ClienteId == clienteId)
-                .Include(p => p.Bevanda)
                 .Select(p => new PreferitiClienteDTO
                 {
                     PreferitoId = p.PreferitoId,
@@ -70,7 +65,6 @@ namespace Repository.Service
         {
             return await _context.PreferitiCliente
                 .Where(p => p.BevandaId == bevandaId)
-                .Include(p => p.Cliente)
                 .Select(p => new PreferitiClienteDTO
                 {
                     PreferitoId = p.PreferitoId,
@@ -84,8 +78,6 @@ namespace Repository.Service
         public async Task<PreferitiClienteDTO?> GetByClienteAndBevandaAsync(int clienteId, int bevandaId)
         {
             var preferito = await _context.PreferitiCliente
-                .Include(p => p.Cliente)
-                .Include(p => p.Bevanda)
                 .FirstOrDefaultAsync(p => p.ClienteId == clienteId && p.BevandaId == bevandaId);
 
             if (preferito == null) return null;

@@ -21,7 +21,6 @@ namespace Repository.Service
         public async Task<IEnumerable<ClienteDTO>> GetAllAsync()
         {
             return await _context.Cliente
-                .Include(c => c.Tavolo)
                 .Select(c => new ClienteDTO
                 {
                     ClienteId = c.ClienteId,
@@ -35,7 +34,6 @@ namespace Repository.Service
         public async Task<ClienteDTO?> GetByIdAsync(int id)
         {
             var cliente = await _context.Cliente
-                .Include(c => c.Tavolo)
                 .FirstOrDefaultAsync(c => c.ClienteId == id);
 
             if (cliente == null) return null;
@@ -52,7 +50,6 @@ namespace Repository.Service
         public async Task<ClienteDTO?> GetByTavoloIdAsync(int tavoloId)
         {
             var cliente = await _context.Cliente
-                .Include(c => c.Tavolo)
                 .FirstOrDefaultAsync(c => c.TavoloId == tavoloId);
 
             if (cliente == null) return null;
