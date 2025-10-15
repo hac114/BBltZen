@@ -46,6 +46,8 @@ namespace Repository
             services.AddScoped<IAdvancedPriceCalculationServiceRepository, AdvancedPriceCalculationServiceRepository>();
             services.AddScoped<ISistemaCacheRepository, SistemaCacheRepository>();
 
+            services.AddScoped<IVwArticoliCompletiRepository, VwArticoliCompletiRepository>();
+
         }
     }
 }
