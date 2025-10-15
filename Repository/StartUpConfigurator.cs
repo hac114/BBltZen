@@ -47,6 +47,7 @@ namespace Repository
             services.AddScoped<ISistemaCacheRepository, SistemaCacheRepository>();
 
             services.AddScoped<IVwArticoliCompletiRepository, VwArticoliCompletiRepository>();
+            services.AddScoped<IVwMenuDinamicoRepository, VwMenuDinamicoRepository>();
 
         }
     }
