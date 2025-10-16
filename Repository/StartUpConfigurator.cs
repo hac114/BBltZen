@@ -50,6 +50,8 @@ namespace Repository
             services.AddScoped<IVwMenuDinamicoRepository, VwMenuDinamicoRepository>();
 
             services.AddScoped<IBeverageAvailabilityServiceRepository, BeverageAvailabilityServiceRepository>();
+            services.AddScoped<IOrderTotalServiceRepository, OrderTotalServiceRepository>();
+            services.AddScoped<IOperationalNotificationServiceRepository, OperationalNotificationServiceRepository>();
 
         }
     }
