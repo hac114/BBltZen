@@ -49,6 +49,8 @@ namespace Repository
             services.AddScoped<IVwArticoliCompletiRepository, VwArticoliCompletiRepository>();
             services.AddScoped<IVwMenuDinamicoRepository, VwMenuDinamicoRepository>();
 
+            services.AddScoped<IBeverageAvailabilityServiceRepository, BeverageAvailabilityServiceRepository>();
+
         }
     }
 }
