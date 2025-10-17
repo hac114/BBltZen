@@ -21,12 +21,6 @@ namespace Database
         public DbSet<NotificheOperativeDTO> NotificheOperative { get; set; }
 
         // Views
-        public DbSet<VwStatisticheOrdiniAvanzateDTO> VwStatisticheOrdiniAvanzate { get; set; }
-        public DbSet<VwDashboardAmministrativaDTO> VwDashboardAmministrativa { get; set; }
-        public DbSet<VwDashboardSintesiDTO> VwDashboardSintesi { get; set; }
-        public DbSet<VwDashboardStatisticheDTO> VwDashboardStatistiche { get; set; }
-        public DbSet<VwStatisticheRecentiDTO> VwStatisticheRecenti { get; set; }
-        public DbSet<VwStatisticheMensiliDTO> VwStatisticheMensili { get; set; }
-        public DbSet<VwStatisticheGiornaliereDTO> VwStatisticheGiornaliere { get; set; }
+        public DbSet<VwStatisticheOrdiniAvanzateDTO> VwStatisticheOrdiniAvanzate { get; set; }        
     }
 }
