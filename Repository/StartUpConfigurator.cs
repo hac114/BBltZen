@@ -52,6 +52,8 @@ namespace Repository
             services.AddScoped<IOrderTotalServiceRepository, OrderTotalServiceRepository>();
             services.AddScoped<IOperationalNotificationServiceRepository, OperationalNotificationServiceRepository>();
 
+            services.AddScoped<IStripeServiceRepository, StripeServiceRepository>();
+
         }
     }
 }

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
 using Repository.Service;
+using Microsoft.Extensions.Configuration;
 
 namespace RepositoryTest
 {
@@ -9,9 +10,18 @@ namespace RepositoryTest
     {
         protected readonly BubbleTeaContext _context;
         protected readonly IIngredienteRepository _ingredienteRepository;
+        protected readonly IConfiguration _configuration;
 
         public BaseTest()
         {
+            // ✅ CARICA CONFIGURAZIONE CON ENTRAMBI I FILE
+            _configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.test.json", optional: false)  // Template con placeholder
+                .AddJsonFile("appsettings.test.local.json", optional: true)  // Chiavi reali (se esiste)
+                .AddEnvironmentVariables()  // Variabili d'ambiente
+                .Build();
+
             // ✅ CREA OPZIONI PER INMEMORY
             var options = new DbContextOptionsBuilder<BubbleTeaContext>()
                 .UseInMemoryDatabase(databaseName: $"TestDb_{Guid.NewGuid()}")
@@ -49,6 +59,18 @@ namespace RepositoryTest
                     );
                     _context.SaveChanges();
                 }
+
+                // ✅ INIZIALIZZA STATI PAGAMENTO PER STRIPE
+                if (!_context.StatoPagamento.Any())
+                {
+                    _context.StatoPagamento.AddRange(
+                        new StatoPagamento { StatoPagamentoId = 1, StatoPagamento1 = "In_Attesa" },
+                        new StatoPagamento { StatoPagamentoId = 2, StatoPagamento1 = "Pagato" },
+                        new StatoPagamento { StatoPagamentoId = 3, StatoPagamento1 = "Fallito" },
+                        new StatoPagamento { StatoPagamentoId = 4, StatoPagamento1 = "Rimborsato" }
+                    );
+                    _context.SaveChanges();
+                }
             }
             catch (Exception ex)
             {
@@ -56,7 +78,7 @@ namespace RepositoryTest
             }
         }
 
-        // ✅ METODO PER PULIRE TABELLE SPECIFICHE (SOLO UNO!)
+        // ✅ METODO PER PULIRE TABELLE SPECIFICHE
         protected async Task CleanTableAsync<T>() where T : class
         {
             var entities = _context.Set<T>().ToList();
@@ -65,6 +87,27 @@ namespace RepositoryTest
                 _context.Set<T>().RemoveRange(entities);
                 await _context.SaveChangesAsync();
             }
+        }
+
+        // ✅ METODO PER OTTENERE CONFIGURAZIONE STRIPE
+        protected StripeSettings GetStripeSettings()
+        {
+            var stripeSection = _configuration.GetSection("Stripe");
+
+            return new StripeSettings
+            {
+                SecretKey = stripeSection["SecretKey"] ?? "REPLACE_WITH_STRIPE_SECRET_KEY",
+                PublishableKey = stripeSection["PublishableKey"] ?? "REPLACE_WITH_STRIPE_PUBLISHABLE_KEY",
+                WebhookSecret = stripeSection["WebhookSecret"] ?? "REPLACE_WITH_STRIPE_WEBHOOK_SECRET"
+            };
+        }
+
+        // ✅ METODO PER VERIFICARE SE LE CHIAVI STRIPE SONO REALI
+        protected bool HasRealStripeKeys()
+        {
+            var settings = GetStripeSettings();
+            return !settings.SecretKey.Contains("REPLACE_WITH_STRIPE") &&
+                   !settings.SecretKey.Contains("sk_test_mock");
         }
 
         public void Dispose()
