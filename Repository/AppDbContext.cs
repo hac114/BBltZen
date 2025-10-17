@@ -18,9 +18,6 @@ namespace Database
         public DbSet<SessioniQrDTO> SessioniQr { get; set; }
         public DbSet<LogAccessiDTO> LogAccessi { get; set; }
         public DbSet<LogAttivitaDTO> LogAttivita { get; set; }
-        public DbSet<NotificheOperativeDTO> NotificheOperative { get; set; }
-
-        // Views
-        public DbSet<VwStatisticheOrdiniAvanzateDTO> VwStatisticheOrdiniAvanzate { get; set; }        
+        public DbSet<NotificheOperativeDTO> NotificheOperative { get; set; }            
     }
 }

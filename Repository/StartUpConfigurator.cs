@@ -18,8 +18,7 @@ namespace Repository
             services.AddScoped<IStatoPagamentoRepository, StatoPagamentoRepository>();
             services.AddScoped<ITavoloRepository, TavoloRepository>();
             services.AddScoped<ITaxRatesRepository, TaxRatesRepository>();
-            services.AddScoped<IUtentiRepository, UtentiRepository>();
-            services.AddScoped<IVwStatisticheOrdiniAvanzateRepository, VwStatisticheOrdiniAvanzateRepository>();
+            services.AddScoped<IUtentiRepository, UtentiRepository>();            
             services.AddScoped<IDimensioneBicchiereRepository, DimensioneBicchiereRepository>();
             services.AddScoped<IUnitaDiMisuraRepository, UnitaDiMisuraRepository>();
             services.AddScoped<ICategoriaIngredienteRepository, CategoriaIngredienteRepository>();
