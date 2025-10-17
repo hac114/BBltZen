@@ -833,10 +833,10 @@ public partial class BubbleTeaContext : DbContext
                 .HasDefaultValue(false)
                 .HasColumnName("utilizzato");
 
-            entity.HasOne(d => d.Cliente).WithMany(p => p.SessioniQr)
-                .HasForeignKey(d => d.ClienteId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_SessioniQR_CLIENTE");
+            //entity.HasOne(d => d.Tavolo).WithMany(p => p.SessioniQr)  // ✅ CAMBIATO: Cliente → Tavolo
+            //    .HasForeignKey(d => d.TavoloId)                        // ✅ CAMBIATO: ClienteId → TavoloId
+            //    .OnDelete(DeleteBehavior.ClientSetNull)
+            //    .HasConstraintName("FK_SessioniQR_TAVOLO");           // ✅ CAMBIATO nome constraint
         });
 
         modelBuilder.Entity<StatisticheCache>(entity =>

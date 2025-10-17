@@ -75,6 +75,27 @@ namespace BBltZen.Controllers
             }
         }
 
+        // GET: api/SessioniQr/codice/{codiceSessione}
+        [HttpGet("codice/{codiceSessione}")]
+        public async Task<ActionResult<SessioniQrDTO>> GetByCodiceSessione(string codiceSessione)
+        {
+            try
+            {
+                var sessione = await _sessioniQrRepository.GetByCodiceSessioneAsync(codiceSessione);
+
+                if (sessione == null)
+                {
+                    return NotFound($"Sessione QR con codice {codiceSessione} non trovata");
+                }
+
+                return Ok(sessione);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Errore durante il recupero della sessione QR: {ex.Message}");
+            }
+        }
+
         // GET: api/SessioniQr/cliente/{clienteId}
         [HttpGet("cliente/{clienteId}")]
         public async Task<ActionResult<IEnumerable<SessioniQrDTO>>> GetByClienteId(int clienteId)
@@ -87,6 +108,21 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, $"Errore durante il recupero delle sessioni QR per il cliente: {ex.Message}");
+            }
+        }
+
+        // GET: api/SessioniQr/tavolo/{tavoloId}
+        [HttpGet("tavolo/{tavoloId}")]
+        public async Task<ActionResult<IEnumerable<SessioniQrDTO>>> GetByTavoloId(int tavoloId)
+        {
+            try
+            {
+                var sessioni = await _sessioniQrRepository.GetByTavoloIdAsync(tavoloId);
+                return Ok(sessioni);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Errore durante il recupero delle sessioni QR per il tavolo: {ex.Message}");
             }
         }
 
@@ -120,6 +156,36 @@ namespace BBltZen.Controllers
             }
         }
 
+        // POST: api/SessioniQr/genera/{tavoloId}
+        [HttpPost("genera/{tavoloId}")]
+        public async Task<ActionResult<SessioniQrDTO>> GeneraSessioneQr(int tavoloId, [FromQuery] string frontendUrl = "https://bbzen.it")
+        {
+            try
+            {
+                if (tavoloId <= 0)
+                {
+                    return BadRequest("TavoloId deve essere un valore valido");
+                }
+
+                if (string.IsNullOrWhiteSpace(frontendUrl))
+                {
+                    return BadRequest("L'URL del frontend è obbligatorio");
+                }
+
+                var sessione = await _sessioniQrRepository.GeneraSessioneQrAsync(tavoloId, frontendUrl);
+
+                return CreatedAtAction(nameof(GetById), new { id = sessione.SessioneId }, sessione);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Errore durante la generazione della sessione QR: {ex.Message}");
+            }
+        }
+
         // POST: api/SessioniQr
         [HttpPost]
         public async Task<ActionResult<SessioniQrDTO>> Create(SessioniQrDTO sessioneQrDto)
@@ -131,9 +197,9 @@ namespace BBltZen.Controllers
                     return BadRequest("Il campo QrCode è obbligatorio");
                 }
 
-                if (sessioneQrDto.ClienteId <= 0)
+                if (sessioneQrDto.TavoloId <= 0)
                 {
-                    return BadRequest("ClienteId deve essere un valore valido");
+                    return BadRequest("TavoloId deve essere un valore valido");
                 }
 
                 await _sessioniQrRepository.AddAsync(sessioneQrDto);
