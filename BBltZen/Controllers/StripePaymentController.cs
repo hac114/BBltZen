@@ -111,7 +111,7 @@ namespace BBltZen.Controllers
                 var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
                 var signature = Request.Headers["Stripe-Signature"];
 
-                _logger.LogInformation("Webhook ricevuto da Stripe");
+                _logger.LogInformation("whsec_ZEIJKM8bJsOkd7NUnCTZgJ6KSieBFHU2");
 
                 var result = await _stripeService.HandleWebhookAsync(json, signature);
 

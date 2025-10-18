@@ -1,7 +1,8 @@
-
 using Database;
 using Microsoft.EntityFrameworkCore;
 using Repository;
+using Keycloak.AuthServices.Authentication;
+using Microsoft.OpenApi.Models;
 
 namespace BBltZen
 {
@@ -14,27 +15,48 @@ namespace BBltZen
             // Add services to the container.
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+
+            // ✅ SWAGGER CONFIGURATO PER KEYCLOAK
+            builder.Services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "BBltZen API", Version = "v1" });
+
+                // Configurazione Bearer token per Keycloak
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Description = "Inserisci il token JWT di Keycloak: Bearer {token}",
+                    Name = "Authorization",
+                    In = ParameterLocation.Header,
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "Bearer"
+                });
+
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        Array.Empty<string>()
+                    }
+                });
+            });
+
+            // ✅ KEYCLOAK AUTHENTICATION
+            builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
 
             // 🔍 DEBUG: Verifica la configurazione
             Console.WriteLine("=== DEBUG CONFIGURAZIONE ===");
-
-            // Database Context
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             Console.WriteLine($"ConnectionString: {(string.IsNullOrEmpty(connectionString) ? "NULL o VUOTA" : "TROVATA")}");
-
-            // Mostra tutte le chiavi di configurazione disponibili
-            Console.WriteLine("Tutte le chiavi di configurazione:");
-            foreach (var key in builder.Configuration.AsEnumerable())
-            {
-                if (key.Key.Contains("Connection", StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine($"  {key.Key} = {key.Value}");
-                }
-            }
             Console.WriteLine("=== FINE DEBUG ===");
 
-            // Database Context - SOLO se la connection string esiste
+            // Database Context
             if (!string.IsNullOrEmpty(connectionString))
             {
                 builder.Services.AddDbContext<BubbleTeaContext>(options =>
@@ -42,14 +64,16 @@ namespace BBltZen
             }
             else
             {
-                // Fallback: usa una stringa di connessione di default per development
-                Console.WriteLine("⚠️  Usando connection string di fallback per InMemory");
+                Console.WriteLine("⚠️  Usando database InMemory");
                 builder.Services.AddDbContext<BubbleTeaContext>(options =>
-                    options.UseSqlServer(connectionString));
+                    options.UseInMemoryDatabase("BubbleTeaInMemory"));
             }
 
-            // Registra TUTTI i repository in un colpo solo
-            builder.Services.AddServiceDb(); // Metodo da StartUpConfigurator
+            // Registra tutti i repository
+            builder.Services.AddServiceDb();
+
+            // ✅ AUTHORIZATION
+            builder.Services.AddAuthorization();
 
             var app = builder.Build();
 
@@ -61,7 +85,11 @@ namespace BBltZen
             }
 
             app.UseHttpsRedirection();
+
+            // ✅ MIDDLEWARE IN ORDINE CORRETTO
+            app.UseAuthentication();
             app.UseAuthorization();
+
             app.MapControllers();
             app.Run();
         }
