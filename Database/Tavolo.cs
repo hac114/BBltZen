@@ -7,8 +7,6 @@ public partial class Tavolo
 {
     public int TavoloId { get; set; }
 
-    public string QrCode { get; set; } = null!;
-
     public bool Disponibile { get; set; }
 
     public int Numero { get; set; }
@@ -16,4 +14,6 @@ public partial class Tavolo
     public string? Zona { get; set; }
 
     public virtual ICollection<Cliente> Cliente { get; set; } = new List<Cliente>();
+
+    public virtual ICollection<SessioniQr> SessioniQr { get; set; } = new List<SessioniQr>();
 }

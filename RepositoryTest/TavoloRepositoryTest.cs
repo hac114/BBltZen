@@ -26,7 +26,6 @@ namespace RepositoryTest
             {
                 Numero = 1,
                 Zona = "Terrazza",
-                QrCode = "QR001",
                 Disponibile = true
             };
 
@@ -48,7 +47,6 @@ namespace RepositoryTest
             {
                 Numero = 2,
                 Zona = "Interno",
-                QrCode = "QR002",
                 Disponibile = true
             };
             await _tavoloRepository.AddAsync(tavoloDto);
@@ -59,24 +57,23 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.Equal(tavoloDto.TavoloId, result.TavoloId);
-            Assert.Equal("QR002", result.QrCode);
+            Assert.Equal("Interno", result.Zona);
         }
 
         [Fact]
-        public async Task GetByQrCodeAsync_Should_Return_Correct_Tavolo()
+        public async Task GetByNumeroAsync_Should_Return_Correct_Tavolo()
         {
             // Arrange
             var tavoloDto = new TavoloDTO
             {
                 Numero = 3,
                 Zona = "Terrazza",
-                QrCode = "QR003",
                 Disponibile = true
             };
             await _tavoloRepository.AddAsync(tavoloDto);
 
             // Act
-            var result = await _tavoloRepository.GetByQrCodeAsync("QR003");
+            var result = await _tavoloRepository.GetByNumeroAsync(3);
 
             // Assert
             Assert.NotNull(result);
@@ -90,9 +87,9 @@ namespace RepositoryTest
             // Arrange
             var tavoli = new List<TavoloDTO>
             {
-                new TavoloDTO { Numero = 4, Zona = "Interno", QrCode = "QR004", Disponibile = true },
-                new TavoloDTO { Numero = 5, Zona = "Terrazza", QrCode = "QR005", Disponibile = false },
-                new TavoloDTO { Numero = 6, Zona = "Interno", QrCode = "QR006", Disponibile = true }
+                new TavoloDTO { Numero = 4, Zona = "Interno", Disponibile = true },
+                new TavoloDTO { Numero = 5, Zona = "Terrazza", Disponibile = false },
+                new TavoloDTO { Numero = 6, Zona = "Interno", Disponibile = true }
             };
 
             foreach (var tavolo in tavoli)
@@ -116,7 +113,6 @@ namespace RepositoryTest
             {
                 Numero = 7,
                 Zona = "Interno",
-                QrCode = "QR007",
                 Disponibile = true
             };
             await _tavoloRepository.AddAsync(tavoloDto);
@@ -126,7 +122,6 @@ namespace RepositoryTest
                 TavoloId = tavoloDto.TavoloId,
                 Numero = 77,
                 Zona = "Terrazza",
-                QrCode = "QR0077",
                 Disponibile = false
             };
 
@@ -138,7 +133,6 @@ namespace RepositoryTest
             Assert.NotNull(updated);
             Assert.Equal(77, updated.Numero);
             Assert.Equal("Terrazza", updated.Zona);
-            Assert.Equal("QR0077", updated.QrCode);
             Assert.False(updated.Disponibile);
         }
 
@@ -150,7 +144,6 @@ namespace RepositoryTest
             {
                 Numero = 8,
                 Zona = "Interno",
-                QrCode = "QR008",
                 Disponibile = true
             };
             await _tavoloRepository.AddAsync(tavoloDto);
@@ -161,6 +154,26 @@ namespace RepositoryTest
             // Assert
             var deleted = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
             Assert.Null(deleted);
+        }
+
+        [Fact]
+        public async Task NumeroExistsAsync_Should_Check_Number_Uniqueness()
+        {
+            // Arrange
+            var tavoloDto = new TavoloDTO
+            {
+                Numero = 9,
+                Zona = "Interno",
+                Disponibile = true
+            };
+            await _tavoloRepository.AddAsync(tavoloDto);
+
+            // Act & Assert
+            var exists = await _tavoloRepository.NumeroExistsAsync(9);
+            Assert.True(exists);
+
+            var notExists = await _tavoloRepository.NumeroExistsAsync(99);
+            Assert.False(notExists);
         }
     }
 }

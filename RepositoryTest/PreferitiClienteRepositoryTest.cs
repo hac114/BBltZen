@@ -260,8 +260,7 @@ namespace RepositoryTest
             var tavolo = new Database.Tavolo
             {
                 Numero = 1,
-                Zona = "Test",
-                QrCode = "QR001",
+                Zona = "Test",                
                 Disponibile = true
             };
             _context.Tavolo.Add(tavolo);

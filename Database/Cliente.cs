@@ -19,8 +19,6 @@ public partial class Cliente
 
     public virtual ICollection<PreferitiCliente> PreferitiCliente { get; set; } = new List<PreferitiCliente>();
 
-    public virtual ICollection<SessioniQr> SessioniQr { get; set; } = new List<SessioniQr>();
-
     public virtual Tavolo Tavolo { get; set; } = null!;
 
     public virtual ICollection<Utenti> Utenti { get; set; } = new List<Utenti>();

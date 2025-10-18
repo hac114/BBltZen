@@ -6,10 +6,6 @@ namespace Database;
 
 public partial class BubbleTeaContext : DbContext
 {
-    public BubbleTeaContext()
-    {
-    }
-
     public BubbleTeaContext(DbContextOptions<BubbleTeaContext> options)
         : base(options)
     {
@@ -119,17 +115,6 @@ public partial class BubbleTeaContext : DbContext
 
     public virtual DbSet<VwTempiStato> VwTempiStato { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        // ⚠️ IMPORTANTE: Controlla se è già configurato dall'esterno
-        if (!optionsBuilder.IsConfigured)
-        {
-            // Solo se non è già configurato (ad esempio dai test con InMemory)
-            // Usa SQL Server come fallback per l'applicazione principale
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-            optionsBuilder.UseSqlServer("Server=localhost;Database=BubbleTea;Trusted_Connection=true;TrustServerCertificate=true;");
-        }
-    }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Articolo>(entity =>
@@ -816,6 +801,10 @@ public partial class BubbleTeaContext : DbContext
                 .HasDefaultValueSql("(newid())")
                 .HasColumnName("sessione_id");
             entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
+            entity.Property(e => e.CodiceSessione)
+                .HasMaxLength(100)
+                .HasDefaultValue("TEMP")
+                .HasColumnName("codice_sessione");
             entity.Property(e => e.DataCreazione)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
@@ -829,14 +818,21 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.QrCode)
                 .HasMaxLength(500)
                 .HasColumnName("qr_code");
+            entity.Property(e => e.Stato)
+                .HasMaxLength(20)
+                .HasDefaultValue("Attiva")
+                .HasColumnName("stato");
+            entity.Property(e => e.TavoloId)
+                .HasDefaultValue(1)
+                .HasColumnName("tavolo_id");
             entity.Property(e => e.Utilizzato)
                 .HasDefaultValue(false)
                 .HasColumnName("utilizzato");
 
-            //entity.HasOne(d => d.Tavolo).WithMany(p => p.SessioniQr)  // ✅ CAMBIATO: Cliente → Tavolo
-            //    .HasForeignKey(d => d.TavoloId)                        // ✅ CAMBIATO: ClienteId → TavoloId
-            //    .OnDelete(DeleteBehavior.ClientSetNull)
-            //    .HasConstraintName("FK_SessioniQR_TAVOLO");           // ✅ CAMBIATO nome constraint
+            entity.HasOne(d => d.Tavolo).WithMany(p => p.SessioniQr)
+                .HasForeignKey(d => d.TavoloId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_SessioniQR_TAVOLO");
         });
 
         modelBuilder.Entity<StatisticheCache>(entity =>
@@ -916,8 +912,6 @@ public partial class BubbleTeaContext : DbContext
 
             entity.ToTable("TAVOLO");
 
-            entity.HasIndex(e => e.QrCode, "UQ__TAVOLO__E2FB88899E7A2257").IsUnique();
-
             entity.HasIndex(e => e.Numero, "UQ__TAVOLO__FC77F211931F5723").IsUnique();
 
             entity.Property(e => e.TavoloId).HasColumnName("tavolo_id");
@@ -925,10 +919,6 @@ public partial class BubbleTeaContext : DbContext
                 .HasDefaultValue(true)
                 .HasColumnName("disponibile");
             entity.Property(e => e.Numero).HasColumnName("numero");
-            entity.Property(e => e.QrCode)
-                .HasMaxLength(100)
-                .IsUnicode(false)
-                .HasColumnName("qr_code");
             entity.Property(e => e.Zona)
                 .HasMaxLength(50)
                 .HasColumnName("zona");

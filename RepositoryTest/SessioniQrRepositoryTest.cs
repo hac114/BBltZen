@@ -32,8 +32,8 @@ namespace RepositoryTest
             if (!_context.Tavolo.Any())
             {
                 _context.Tavolo.AddRange(
-                    new Tavolo { TavoloId = 1, Numero = 1, Disponibile = true, QrCode = "T1_QR", Zona = "Interno" },
-                    new Tavolo { TavoloId = 2, Numero = 2, Disponibile = true, QrCode = "T2_QR", Zona = "Esterno" }
+                    new Tavolo { TavoloId = 1, Numero = 1, Disponibile = true, Zona = "Interno" },
+                    new Tavolo { TavoloId = 2, Numero = 2, Disponibile = true, Zona = "Esterno" }
                 );
             }
 

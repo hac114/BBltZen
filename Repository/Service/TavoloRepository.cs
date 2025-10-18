@@ -25,9 +25,7 @@ namespace Repository.Service
                     TavoloId = t.TavoloId,
                     Numero = t.Numero,
                     Zona = t.Zona,
-                    QrCode = t.QrCode,
                     Disponibile = t.Disponibile,
-                    // Map all other properties from Tavolo entity to TavoloDTO
                 })
                 .ToListAsync();
         }
@@ -42,27 +40,7 @@ namespace Repository.Service
                 TavoloId = tavolo.TavoloId,
                 Numero = tavolo.Numero,
                 Zona = tavolo.Zona,
-                QrCode = tavolo.QrCode,
                 Disponibile = tavolo.Disponibile,
-                // Map all other properties
-            };
-        }
-
-        public async Task<TavoloDTO> GetByQrCodeAsync(string qrCode)
-        {
-            var tavolo = await _context.Tavolo
-                .FirstOrDefaultAsync(t => t.QrCode == qrCode);
-
-            if (tavolo == null) return null;
-
-            return new TavoloDTO
-            {
-                TavoloId = tavolo.TavoloId,
-                Numero = tavolo.Numero,
-                Zona = tavolo.Zona,
-                QrCode = tavolo.QrCode,
-                Disponibile = tavolo.Disponibile,
-                // Map all other properties
             };
         }
 
@@ -78,9 +56,7 @@ namespace Repository.Service
                 TavoloId = tavolo.TavoloId,
                 Numero = tavolo.Numero,
                 Zona = tavolo.Zona,
-                QrCode = tavolo.QrCode,
                 Disponibile = tavolo.Disponibile,
-                // Map all other properties
             };
         }
 
@@ -93,7 +69,6 @@ namespace Repository.Service
                     TavoloId = t.TavoloId,
                     Numero = t.Numero,
                     Zona = t.Zona,
-                    QrCode = t.QrCode,
                     Disponibile = t.Disponibile,
                 })
                 .ToListAsync();
@@ -108,7 +83,6 @@ namespace Repository.Service
                     TavoloId = t.TavoloId,
                     Numero = t.Numero,
                     Zona = t.Zona,
-                    QrCode = t.QrCode,
                     Disponibile = t.Disponibile,
                 })
                 .ToListAsync();
@@ -120,15 +94,12 @@ namespace Repository.Service
             {
                 Numero = tavoloDto.Numero,
                 Zona = tavoloDto.Zona,
-                QrCode = tavoloDto.QrCode,
                 Disponibile = tavoloDto.Disponibile,
-                // Map all other properties from DTO to entity
             };
 
             await _context.Tavolo.AddAsync(tavolo);
             await _context.SaveChangesAsync();
 
-            // Return the generated ID to the DTO
             tavoloDto.TavoloId = tavolo.TavoloId;
         }
 
@@ -140,9 +111,7 @@ namespace Repository.Service
 
             tavolo.Numero = tavoloDto.Numero;
             tavolo.Zona = tavoloDto.Zona;
-            tavolo.QrCode = tavoloDto.QrCode;
             tavolo.Disponibile = tavoloDto.Disponibile;
-            // Update all other properties
 
             _context.Tavolo.Update(tavolo);
             await _context.SaveChangesAsync();
@@ -163,7 +132,6 @@ namespace Repository.Service
             return await _context.Tavolo.AnyAsync(t => t.TavoloId == tavoloId);
         }
 
-        // Additional useful methods you might want to add:
         public async Task<bool> NumeroExistsAsync(int numero, int? excludeId = null)
         {
             if (excludeId.HasValue)
@@ -173,17 +141,6 @@ namespace Repository.Service
             }
 
             return await _context.Tavolo.AnyAsync(t => t.Numero == numero);
-        }
-
-        public async Task<bool> QrCodeExistsAsync(string qrCode, int? excludeId = null)
-        {
-            if (excludeId.HasValue)
-            {
-                return await _context.Tavolo
-                    .AnyAsync(t => t.QrCode == qrCode && t.TavoloId != excludeId.Value);
-            }
-
-            return await _context.Tavolo.AnyAsync(t => t.QrCode == qrCode);
         }
     }
 }

@@ -47,23 +47,6 @@ namespace BBltZen.Controllers
             }
         }
 
-        [HttpGet("qr/{qrCode}")]
-        public async Task<ActionResult<TavoloDTO>> GetByQrCode(string qrCode)
-        {
-            try
-            {
-                var tavolo = await _tavoloRepository.GetByQrCodeAsync(qrCode);
-                if (tavolo == null)
-                    return NotFound($"Tavolo con QR Code {qrCode} non trovato");
-
-                return Ok(tavolo);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Errore interno: {ex.Message}");
-            }
-        }
-
         [HttpGet("disponibili")]
         public async Task<ActionResult<IEnumerable<TavoloDTO>>> GetDisponibili()
         {
@@ -86,9 +69,6 @@ namespace BBltZen.Controllers
                 // Validazione
                 if (await _tavoloRepository.NumeroExistsAsync(tavoloDto.Numero))
                     return BadRequest("Numero tavolo già esistente");
-
-                if (await _tavoloRepository.QrCodeExistsAsync(tavoloDto.QrCode))
-                    return BadRequest("QR Code già esistente");
 
                 await _tavoloRepository.AddAsync(tavoloDto);
 
@@ -116,9 +96,6 @@ namespace BBltZen.Controllers
                 // Validazione unique constraints
                 if (await _tavoloRepository.NumeroExistsAsync(tavoloDto.Numero, id))
                     return BadRequest("Numero tavolo già esistente");
-
-                if (await _tavoloRepository.QrCodeExistsAsync(tavoloDto.QrCode, id))
-                    return BadRequest("QR Code già esistente");
 
                 await _tavoloRepository.UpdateAsync(tavoloDto);
                 return NoContent();

@@ -7,13 +7,7 @@ public partial class SessioniQr
 {
     public Guid SessioneId { get; set; }
 
-    public int TavoloId { get; set; }           // ✅ CAMBIATO: ClienteId → TavoloId
-
-    public int? ClienteId { get; set; }         // ✅ MODIFICATO: ora nullable
-
-    public string CodiceSessione { get; set; } = null!;  // ✅ NUOVO
-
-    public string Stato { get; set; } = "Attiva";  // ✅ NUOVO
+    public int? ClienteId { get; set; }
 
     public string QrCode { get; set; } = null!;
 
@@ -23,5 +17,13 @@ public partial class SessioniQr
 
     public bool? Utilizzato { get; set; }
 
-    public DateTime? DataUtilizzo { get; set; }    
+    public DateTime? DataUtilizzo { get; set; }
+
+    public int TavoloId { get; set; }
+
+    public string CodiceSessione { get; set; } = null!;
+
+    public string Stato { get; set; } = null!;
+
+    public virtual Tavolo Tavolo { get; set; } = null!;
 }

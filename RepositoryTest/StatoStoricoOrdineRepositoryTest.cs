@@ -37,8 +37,7 @@ namespace RepositoryTest
             {
                 new Tavolo
                 {
-                    TavoloId = 1,
-                    QrCode = "TBL-001-QR",
+                    TavoloId = 1,                    
                     Disponibile = true,
                     Numero = 1,
                     Zona = "terrazza"
