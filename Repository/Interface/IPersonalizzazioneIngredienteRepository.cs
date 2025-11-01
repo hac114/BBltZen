@@ -13,8 +13,7 @@ namespace Repository.Interface
         Task<PersonalizzazioneIngredienteDTO?> GetByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId);
         Task AddAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
         Task UpdateAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
-        Task DeleteAsync(int id);
-        Task DeleteByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId);
+        Task DeleteAsync(int id);        
         Task<bool> ExistsAsync(int id);
         Task<bool> ExistsByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId);
         Task<int> GetCountByPersonalizzazioneAsync(int personalizzazioneId);

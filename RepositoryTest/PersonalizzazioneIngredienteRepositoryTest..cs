@@ -37,11 +37,6 @@ namespace RepositoryTest
             await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
             var id = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId;
 
-            // Verifica che l'Add abbia funzionato
-            var afterAdd = await _context.PersonalizzazioneIngrediente.FindAsync(id);
-            Assert.NotNull(afterAdd);
-            Console.WriteLine($"Dopo Add - ID: {afterAdd.PersonalizzazioneIngredienteId}, Quantita: {afterAdd.Quantita}");
-
             // FASE 2: Update
             var updateDto = new PersonalizzazioneIngredienteDTO
             {
@@ -52,44 +47,16 @@ namespace RepositoryTest
                 UnitaMisuraId = 2
             };
 
-            try
-            {
-                await _personalizzazioneIngredienteRepository.UpdateAsync(updateDto);
-                Console.WriteLine("UpdateAsync completato senza eccezioni");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ECCEZIONE in UpdateAsync: {ex.Message}");
-                throw;
-            }
+            await _personalizzazioneIngredienteRepository.UpdateAsync(updateDto);
 
-            // FASE 3: Verifica diretta del database
+            // FASE 3: Verifica
             var afterUpdate = await _context.PersonalizzazioneIngrediente.FindAsync(id);
-
-            if (afterUpdate == null)
-            {
-                Console.WriteLine("❌ RECORD COMPLETAMENTE SPARITO DAL DATABASE DOPO UPDATE");
-
-                // Conta tutti i record
-                var allRecords = _context.PersonalizzazioneIngrediente.ToList();
-                Console.WriteLine($"Record totali nel database: {allRecords.Count}");
-
-                foreach (var record in allRecords)
-                {
-                    Console.WriteLine($"Record trovato: ID={record.PersonalizzazioneIngredienteId}, PersonalizzazioneId={record.PersonalizzazioneId}, IngredienteId={record.IngredienteId}");
-                }
-
-                Assert.Fail("Il record è stato eliminato durante l'update");
-            }
-            else
-            {
-                Console.WriteLine($"✅ Record trovato dopo update - Quantita: {afterUpdate.Quantita}, UnitaMisuraId: {afterUpdate.UnitaMisuraId}");
-                Assert.Equal(200.0m, afterUpdate.Quantita);
-                Assert.Equal(2, afterUpdate.UnitaMisuraId);
-            }
+            Assert.NotNull(afterUpdate);
+            Assert.Equal(200.0m, afterUpdate.Quantita);
+            Assert.Equal(2, afterUpdate.UnitaMisuraId);
         }
 
-        // ... mantieni tutti gli altri test ESISTENTI ...
+        // ✅ MANTENUTI tutti i test tranne quello rimosso
 
         [Fact]
         public async Task AddAsync_Should_Add_PersonalizzazioneIngrediente()
@@ -230,33 +197,7 @@ namespace RepositoryTest
             Assert.Equal(100.0m, result.Quantita);
         }
 
-        [Fact]
-        public async Task DeleteByPersonalizzazioneAndIngredienteAsync_Should_Remove_PersonalizzazioneIngrediente()
-        {
-            // Arrange
-            await CleanTablesForPersonalizzazioneIngredienteTest();
-
-            var personalizzazioneIngredienteDto = new PersonalizzazioneIngredienteDTO
-            {
-                PersonalizzazioneId = 1,
-                IngredienteId = 1,
-                Quantita = 100.0m,
-                UnitaMisuraId = 1
-            };
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
-
-            // Act
-            await _personalizzazioneIngredienteRepository.DeleteByPersonalizzazioneAndIngredienteAsync(1, 1);
-
-            // Assert
-            var deleted = await _personalizzazioneIngredienteRepository.GetByPersonalizzazioneAndIngredienteAsync(1, 1);
-            Assert.Null(deleted);
-
-            // Verifica che sia stato rimosso fisicamente dal database
-            var inDb = await _context.PersonalizzazioneIngrediente
-                .FirstOrDefaultAsync(pi => pi.PersonalizzazioneId == 1 && pi.IngredienteId == 1);
-            Assert.Null(inDb);
-        }
+        // ❌ RIMOSSO: DeleteByPersonalizzazioneAndIngredienteAsync_Should_Remove_PersonalizzazioneIngrediente
 
         [Fact]
         public async Task DeleteAsync_Should_Remove_PersonalizzazioneIngrediente()
@@ -489,9 +430,7 @@ namespace RepositoryTest
             {
                 Nome = "Test Personalizzazione 1",
                 Descrizione = "Descrizione test 1",
-                DtCreazione = DateTime.Now,
-                DtUpdate = DateTime.Now,
-                IsDeleted = false
+                DtCreazione = DateTime.Now                
             };
             _context.Personalizzazione.Add(personalizzazione1);
 
@@ -499,9 +438,7 @@ namespace RepositoryTest
             {
                 Nome = "Test Personalizzazione 2",
                 Descrizione = "Descrizione test 2",
-                DtCreazione = DateTime.Now,
-                DtUpdate = DateTime.Now,
-                IsDeleted = false
+                DtCreazione = DateTime.Now                
             };
             _context.Personalizzazione.Add(personalizzazione2);
 

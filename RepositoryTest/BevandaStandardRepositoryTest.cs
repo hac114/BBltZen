@@ -32,7 +32,7 @@ namespace RepositoryTest
             _context.Database.EnsureDeleted();
             _context.Database.EnsureCreated();
 
-            // Crea Articoli - solo con i campi esistenti
+            // Crea Articoli
             var articoli = new List<Articolo>
             {
                 new Articolo { ArticoloId = 1, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
@@ -41,7 +41,7 @@ namespace RepositoryTest
                 new Articolo { ArticoloId = 4, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
             };
 
-            // Crea Personalizzazioni - con i nomi esatti delle proprietà
+            // Crea Personalizzazioni - SOLO campi esistenti
             var personalizzazioni = new List<Personalizzazione>
             {
                 new Personalizzazione
@@ -49,29 +49,25 @@ namespace RepositoryTest
                     PersonalizzazioneId = 1,
                     Nome = "Classica",
                     Descrizione = "Personalizzazione classica",
-                    DtCreazione = DateTime.Now,
-                    DtUpdate = DateTime.Now,
-                    IsDeleted = false
+                    DtCreazione = DateTime.Now
                 },
                 new Personalizzazione
                 {
                     PersonalizzazioneId = 2,
                     Nome = "Premium",
                     Descrizione = "Personalizzazione premium",
-                    DtCreazione = DateTime.Now,
-                    DtUpdate = DateTime.Now,
-                    IsDeleted = false
+                    DtCreazione = DateTime.Now
                 }
             };
 
-            // Crea UnitaDiMisura necessarie per DimensioneBicchiere
+            // Crea UnitaDiMisura
             var unitaDiMisura = new List<UnitaDiMisura>
             {
                 new UnitaDiMisura { UnitaMisuraId = 1, Sigla = "GR", Descrizione = "grammi" },
                 new UnitaDiMisura { UnitaMisuraId = 2, Sigla = "ML", Descrizione = "millilitri" }
             };
 
-            // Crea Dimensioni Bicchiere - solo con i campi esistenti
+            // Crea Dimensioni Bicchiere
             var dimensioniBicchiere = new List<DimensioneBicchiere>
             {
                 new DimensioneBicchiere
@@ -160,7 +156,7 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetDisponibiliAsync_ShouldReturnOnlyAvailableBevande()
+        public async Task GetDisponibiliAsync_ShouldReturnOnlySempreDisponibiliBevande()
         {
             // Act
             var result = await _repository.GetDisponibiliAsync();
@@ -168,8 +164,8 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             var resultList = result.ToList();
-            Assert.Single(resultList); // ✅ Nuova logica - solo 1 bevanda con SempreDisponibile = true
-            Assert.All(resultList, bs => Assert.True(bs.SempreDisponibile)); // Solo SempreDisponibile = true
+            Assert.Single(resultList); // Solo 1 bevanda con SempreDisponibile = true
+            Assert.All(resultList, bs => Assert.True(bs.SempreDisponibile));
         }
 
         [Fact]
@@ -180,8 +176,8 @@ namespace RepositoryTest
 
             // Assert
             var resultList = result.ToList();
-            Assert.Single(resultList); // ✅ Solo 1 bevanda
-            Assert.Equal(2, resultList[0].Priorita); // La bevanda 2 ha Priorita = 2 e SempreDisponibile = true
+            Assert.Single(resultList);
+            Assert.Equal(2, resultList[0].Priorita); // Bevanda 2 ha Priorita = 2
         }
 
         [Fact]
@@ -221,14 +217,14 @@ namespace RepositoryTest
         [Fact]
         public async Task GetByDimensioneBicchiereAsync_ShouldReturnFilteredBevande()
         {
-            // Act
-            var result = await _repository.GetByDimensioneBicchiereAsync(1);
+            // Act - Cerca per dimensione 2 (bevanda 2 è SempreDisponibile = true)
+            var result = await _repository.GetByDimensioneBicchiereAsync(2);
 
             // Assert
             var resultList = result.ToList();
-            Assert.Single(resultList); // Solo la bevanda disponibile con dimensione 1
-            Assert.Equal(1, resultList[0].ArticoloId);
-            Assert.Equal(1, resultList[0].DimensioneBicchiereId);
+            Assert.Single(resultList); // Ora trova la bevanda 2
+            Assert.Equal(2, resultList[0].ArticoloId); // Bevanda 2
+            Assert.Equal(2, resultList[0].DimensioneBicchiereId);
         }
 
         [Fact]
@@ -367,67 +363,272 @@ namespace RepositoryTest
             Assert.False(result);
         }
 
-        //[Fact]
-        //public async Task Debug_BevandaStandardRepository()
-        //{
-        //    // Crea context isolato
-        //    var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-        //        .UseInMemoryDatabase(databaseName: $"Test_Repo_Debug_{Guid.NewGuid()}")
-        //        .Options;
+        // ✅ NUOVI TEST PER CARD PRODOTTO
+        [Fact]
+        public async Task GetCardProdottiAsync_ShouldReturnOnlySempreDisponibiliBevande()
+        {
+            // Act
+            var result = await _repository.GetCardProdottiAsync();
 
-        //    using var context = new BubbleTeaContext(options);
-        //    context.Database.EnsureCreated();
+            // Assert
+            Assert.NotNull(result);
+            var resultList = result.ToList();
+            Assert.Single(resultList); // Solo 1 bevanda con SempreDisponibile = true
+            Assert.All(resultList, card => Assert.True(card.SempreDisponibile));
+        }
 
-        //    // Crea dati
-        //    var articolo = new Articolo { ArticoloId = 1, Tipo = "BS" };
-        //    var bevanda = new BevandaStandard
-        //    {
-        //        ArticoloId = 1,
-        //        Prezzo = 3.50m,
-        //        PersonalizzazioneId = 1,
-        //        DimensioneBicchiereId = 1,
-        //        Disponibile = true
-        //    };
+        [Fact]
+        public async Task GetCardProdottiAsync_ShouldReturnCardsWithPrezziAndIngredienti()
+        {
+            // Act
+            var result = await _repository.GetCardProdottiAsync();
 
-        //    context.Articolo.Add(articolo);
-        //    context.BevandaStandard.Add(bevanda);
-        //    await context.SaveChangesAsync();
+            // Assert
+            var resultList = result.ToList();
+            var card = resultList.First();
 
-        //    Console.WriteLine("=== DEBUG REPOSITORY ===");
+            Assert.NotNull(card.PrezziPerDimensioni);
+            Assert.NotEmpty(card.PrezziPerDimensioni);
+            Assert.NotNull(card.Ingredienti);
+            Assert.Equal("Premium", card.Nome);
+        }
 
-        //    // 1. Verifica dati nel context
-        //    var bevandaNelContext = context.BevandaStandard.FirstOrDefault(bs => bs.ArticoloId == 1);
-        //    Console.WriteLine($"Bevanda nel context: {bevandaNelContext != null}");
+        [Fact]
+        public async Task GetCardProdottoByIdAsync_WithValidId_ShouldReturnCardProdotto()
+        {
+            // Act
+            var result = await _repository.GetCardProdottoByIdAsync(2);
 
-        //    // 2. Test repository
-        //    var repo = new BevandaStandardRepository(context);
-        //    var risultatoRepo = await repo.GetByIdAsync(1);
-        //    Console.WriteLine($"Repository.GetByIdAsync(1): {risultatoRepo != null}");
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(2, result.ArticoloId);
+            Assert.Equal("Premium", result.Nome);
+            Assert.NotNull(result.PrezziPerDimensioni);
+            Assert.NotEmpty(result.PrezziPerDimensioni);
+        }
 
-        //    // 3. Se è null, verifica cosa cerca il repository
-        //    if (risultatoRepo == null)
-        //    {
-        //        Console.WriteLine("❌ REPOSITORY NON TROVA I DATI!");
+        [Fact]
+        public async Task GetCardProdottoByIdAsync_WithInvalidId_ShouldReturnNull()
+        {
+            // Act
+            var result = await _repository.GetCardProdottoByIdAsync(999);
 
-        //        // Verifica la query manualmente
-        //        var queryManuale = await context.BevandaStandard
-        //            .AsNoTracking()
-        //            .Include(bs => bs.Articolo)
-        //            .Include(bs => bs.Personalizzazione)
-        //            .Include(bs => bs.DimensioneBicchiere)
-        //            .FirstOrDefaultAsync(bs => bs.ArticoloId == 1);
+            // Assert
+            Assert.Null(result);
+        }
 
-        //        Console.WriteLine($"Query manuale: {queryManuale != null}");
+        [Fact]
+        public async Task GetCardProdottoByIdAsync_WithNonSempreDisponibile_ShouldReturnNull()
+        {
+            // Act - Bevanda 1 non è SempreDisponibile
+            var result = await _repository.GetCardProdottoByIdAsync(1);
 
-        //        if (queryManuale == null)
-        //        {
-        //            Console.WriteLine("⚠️  ANCHE LA QUERY MANUALE NON TROVA I DATI!");
-        //            Console.WriteLine($"Bevande nel DB: {context.BevandaStandard.Count()}");
-        //            Console.WriteLine($"Articoli nel DB: {context.Articolo.Count()}");
-        //        }
-        //    }
+            // Assert
+            Assert.Null(result);
+        }
 
-        //    Assert.NotNull(risultatoRepo);
-        //}
+        // AGGIUNGI QUESTI TEST a BevandaStandardRepositoryTest.cs:
+
+        [Fact]
+        public async Task GetPrimoPianoAsync_ShouldReturnOnlyDisponibiliAndSempreDisponibiliBevande()
+        {
+            // Act
+            var result = await _repository.GetPrimoPianoAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            var resultList = result.ToList();
+            Assert.Single(resultList); // Solo bevanda 2: Disponibile=true, SempreDisponibile=true
+            Assert.All(resultList, bs => Assert.True(bs.Disponibile));
+            Assert.All(resultList, bs => Assert.True(bs.SempreDisponibile));
+        }
+
+        [Fact]
+        public async Task GetSecondoPianoAsync_ShouldReturnOnlyNonDisponibiliAndSempreDisponibiliBevande()
+        {
+            // Act
+            var result = await _repository.GetSecondoPianoAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            var resultList = result.ToList();
+            Assert.Empty(resultList); // Nessuna bevanda con Disponibile=false E SempreDisponibile=true nei dati di test
+        }
+
+        [Fact]
+        public async Task GetCardProdottiPrimoPianoAsync_ShouldReturnOnlyDisponibiliAndSempreDisponibiliCards()
+        {
+            // Act
+            var result = await _repository.GetCardProdottiPrimoPianoAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            var resultList = result.ToList();
+            Assert.Single(resultList); // Solo bevanda 2
+            var card = resultList.First();
+            Assert.True(card.Disponibile);
+            Assert.True(card.SempreDisponibile);
+            Assert.NotNull(card.PrezziPerDimensioni);
+            Assert.NotEmpty(card.PrezziPerDimensioni);
+            Assert.Equal("Premium", card.Nome);
+        }
+
+        [Fact]
+        public async Task GetPrimoPianoAsync_ShouldOrderByPrioritaDescending()
+        {
+            // Arrange - Pulizia COMPLETA per InMemory
+            _context.BevandaStandard.RemoveRange(_context.BevandaStandard);
+            await _context.SaveChangesAsync();
+
+            // Verifica che sia vuoto
+            var countBefore = await _context.BevandaStandard.CountAsync();
+            if (countBefore > 0)
+            {
+                throw new Exception($"Il database non è vuoto! Contiene {countBefore} bevande.");
+            }
+
+            var bevande = new List<BevandaStandard>
+    {
+        new BevandaStandard
+        {
+            ArticoloId = 10,
+            PersonalizzazioneId = 1,
+            DimensioneBicchiereId = 1,
+            Prezzo = 5.00m,
+            Disponibile = true,
+            SempreDisponibile = true,
+            Priorita = 3,
+            DataCreazione = DateTime.Now
+        },
+        new BevandaStandard
+        {
+            ArticoloId = 11,
+            PersonalizzazioneId = 2,
+            DimensioneBicchiereId = 2,
+            Prezzo = 6.00m,
+            Disponibile = true,
+            SempreDisponibile = true,
+            Priorita = 1,
+            DataCreazione = DateTime.Now
+        },
+        new BevandaStandard
+        {
+            ArticoloId = 12,
+            PersonalizzazioneId = 1,
+            DimensioneBicchiereId = 1,
+            Prezzo = 4.50m,
+            Disponibile = true,
+            SempreDisponibile = true,
+            Priorita = 5,
+            DataCreazione = DateTime.Now
+        }
+    };
+
+            await _context.BevandaStandard.AddRangeAsync(bevande);
+            await _context.SaveChangesAsync();
+
+            // DEBUG: Verifica cosa c'è nel database
+            var allBevande = await _context.BevandaStandard.ToListAsync();
+            Console.WriteLine($"DEBUG - Bevande nel database: {allBevande.Count}");
+            foreach (var b in allBevande)
+            {
+                Console.WriteLine($"DEBUG - ArticoloId: {b.ArticoloId}, Priorita: {b.Priorita}, Disponibile: {b.Disponibile}");
+            }
+
+            // Act
+            var result = await _repository.GetPrimoPianoAsync();
+
+            // DEBUG: Verifica il risultato
+            var resultList = result.ToList();
+            Console.WriteLine($"DEBUG - Risultati GetPrimoPianoAsync: {resultList.Count}");
+            foreach (var item in resultList)
+            {
+                Console.WriteLine($"DEBUG - Result ArticoloId: {item.ArticoloId}, Priorita: {item.Priorita}");
+            }
+
+            // Assert
+            Assert.Equal(3, resultList.Count);
+            Assert.Equal(5, resultList[0].Priorita);
+            Assert.Equal(3, resultList[1].Priorita);
+            Assert.Equal(1, resultList[2].Priorita);
+        }
+
+        [Fact]
+        public async Task GetSecondoPianoAsync_ShouldReturnBevandeWhenAvailable()
+        {
+            // Arrange - Crea una bevanda in secondo piano
+            await CleanTableAsync<BevandaStandard>();
+
+            var bevandaSecondoPiano = new BevandaStandard
+            {
+                ArticoloId = 20,
+                PersonalizzazioneId = 1,
+                DimensioneBicchiereId = 1,
+                Prezzo = 5.00m,
+                Disponibile = false, // Secondo piano
+                SempreDisponibile = true, // Ma visibile
+                Priorita = 1,
+                DataCreazione = DateTime.Now
+            };
+
+            _context.BevandaStandard.Add(bevandaSecondoPiano);
+            await _context.SaveChangesAsync();
+
+            // Act
+            var result = await _repository.GetSecondoPianoAsync();
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Single(resultList);
+            Assert.False(resultList[0].Disponibile);
+            Assert.True(resultList[0].SempreDisponibile);
+            Assert.Equal(20, resultList[0].ArticoloId);
+        }
+
+        [Fact]
+        public async Task GetCardProdottiPrimoPianoAsync_ShouldNotReturnNonSempreDisponibili()
+        {
+            // Usa un repository ISOLATO per questo test specifico
+            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
+                .UseInMemoryDatabase(databaseName: $"Test_Isolated_{Guid.NewGuid()}")
+                .Options;
+
+            using var isolatedContext = new BubbleTeaContext(options);
+            var isolatedRepository = new BevandaStandardRepository(isolatedContext);
+
+            // Arrange - Setup dati PULITI
+            isolatedContext.Database.EnsureCreated();
+
+            var personalizzazione = new Personalizzazione
+            {
+                PersonalizzazioneId = 100,
+                Nome = "Test Non Visibile",
+                Descrizione = "Descrizione test",
+                DtCreazione = DateTime.Now
+            };
+
+            var bevandaNonVisibile = new BevandaStandard
+            {
+                ArticoloId = 30,
+                PersonalizzazioneId = 100,
+                DimensioneBicchiereId = 1,
+                Prezzo = 5.00m,
+                Disponibile = true,
+                SempreDisponibile = false, // ❌ NON visibile
+                Priorita = 1,
+                DataCreazione = DateTime.Now
+            };
+
+            isolatedContext.Personalizzazione.Add(personalizzazione);
+            isolatedContext.BevandaStandard.Add(bevandaNonVisibile);
+            await isolatedContext.SaveChangesAsync();
+
+            // Act
+            var result = await isolatedRepository.GetCardProdottiPrimoPianoAsync();
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Empty(resultList); // ✅ ORA funziona!
+        }
     }
 }

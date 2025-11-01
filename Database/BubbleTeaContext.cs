@@ -6,6 +6,10 @@ namespace Database;
 
 public partial class BubbleTeaContext : DbContext
 {
+    public BubbleTeaContext()
+    {
+    }
+
     public BubbleTeaContext(DbContextOptions<BubbleTeaContext> options)
         : base(options)
     {
@@ -691,13 +695,6 @@ public partial class BubbleTeaContext : DbContext
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
                 .HasColumnName("dt_creazione");
-            entity.Property(e => e.DtUpdate)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime")
-                .HasColumnName("dt_update");
-            entity.Property(e => e.IsDeleted)
-                .HasDefaultValue(true)
-                .HasColumnName("is_deleted");
             entity.Property(e => e.Nome)
                 .HasMaxLength(50)
                 .HasColumnName("nome");

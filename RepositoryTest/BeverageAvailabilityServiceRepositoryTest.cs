@@ -294,9 +294,7 @@ namespace RepositoryTest
             {
                 Nome = "Test Personalizzazione",
                 Descrizione = "Descrizione test personalizzazione",
-                DtCreazione = DateTime.Now,
-                DtUpdate = DateTime.Now,
-                IsDeleted = false
+                DtCreazione = DateTime.Now,                
             };
             _context.Personalizzazione.Add(personalizzazione);
             _context.SaveChanges();

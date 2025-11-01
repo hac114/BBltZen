@@ -3,96 +3,168 @@ using DTO;
 using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class UnitaDiMisuraController : ControllerBase
+    [AllowAnonymous]
+    public class UnitaDiMisuraController : SecureBaseController
     {
         private readonly IUnitaDiMisuraRepository _repository;
 
-        public UnitaDiMisuraController(IUnitaDiMisuraRepository repository)
+        public UnitaDiMisuraController(
+            IUnitaDiMisuraRepository repository,
+            IWebHostEnvironment environment,
+            ILogger<UnitaDiMisuraController> logger)
+            : base(environment, logger)
         {
             _repository = repository;
         }
 
         // GET: api/UnitaDiMisura
-        [HttpGet]
+        [HttpGet]        
         public async Task<ActionResult<IEnumerable<UnitaDiMisuraDTO>>> GetAll()
         {
-            var unita = await _repository.GetAllAsync();
-            return Ok(unita);
+            try
+            {
+                var unita = await _repository.GetAllAsync();
+                return Ok(unita);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero di tutte le unità di misura");
+                return SafeInternalError("Errore durante il recupero delle unità di misura");
+            }
         }
 
         // GET: api/UnitaDiMisura/5
-        [HttpGet("{id}")]
+        [HttpGet("{id}")]        
         public async Task<ActionResult<UnitaDiMisuraDTO>> GetById(int id)
         {
-            var unita = await _repository.GetByIdAsync(id);
-
-            if (unita == null)
+            try
             {
-                return NotFound();
-            }
+                if (id <= 0)
+                    return SafeBadRequest<UnitaDiMisuraDTO>("ID unità di misura non valido");
 
-            return Ok(unita);
+                var unita = await _repository.GetByIdAsync(id);
+
+                if (unita == null)
+                    return SafeNotFound<UnitaDiMisuraDTO>("Unità di misura");
+
+                return Ok(unita);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero dell'unità di misura {Id}", id);
+                return SafeInternalError("Errore durante il recupero dell'unità di misura");
+            }
         }
 
         // POST: api/UnitaDiMisura
         [HttpPost]
+        [Authorize(Roles = "admin")]
         public async Task<ActionResult<UnitaDiMisuraDTO>> Create(UnitaDiMisuraDTO unitaDto)
         {
-            if (!ModelState.IsValid)
+            try
             {
-                return BadRequest(ModelState);
+                if (!IsModelValid(unitaDto))
+                    return SafeBadRequest<UnitaDiMisuraDTO>("Dati unità di misura non validi");
+
+                await _repository.AddAsync(unitaDto);
+
+                // ✅ CORRETTO: usa Sigla invece di Nome
+                LogAuditTrail("CREATE_UNITA_MISURA", "UnitaDiMisura", unitaDto.UnitaMisuraId.ToString());
+                LogSecurityEvent("UnitaMisuraCreated", new
+                {
+                    UnitaId = unitaDto.UnitaMisuraId,
+                    Sigla = unitaDto.Sigla,
+                    Descrizione = unitaDto.Descrizione
+                });
+
+                return CreatedAtAction(nameof(GetById),
+                    new { id = unitaDto.UnitaMisuraId },
+                    unitaDto);
             }
-
-            await _repository.AddAsync(unitaDto);
-
-            return CreatedAtAction(nameof(GetById),
-                new { id = unitaDto.UnitaMisuraId },
-                unitaDto);
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la creazione dell'unità di misura");
+                return SafeInternalError("Errore durante la creazione dell'unità di misura");
+            }
         }
 
         // PUT: api/UnitaDiMisura/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UnitaDiMisuraDTO unitaDto)
+        [Authorize(Roles = "admin")]
+        public async Task<ActionResult> Update(int id, UnitaDiMisuraDTO unitaDto)
         {
-            if (id != unitaDto.UnitaMisuraId)
+            try
             {
-                return BadRequest();
-            }
+                if (id <= 0)
+                    return SafeBadRequest("ID unità di misura non valido");
 
-            if (!ModelState.IsValid)
+                if (id != unitaDto.UnitaMisuraId)
+                    return SafeBadRequest("ID unità di misura non corrispondente");
+
+                if (!IsModelValid(unitaDto))
+                    return SafeBadRequest("Dati unità di misura non validi");
+
+                var existing = await _repository.GetByIdAsync(id);
+                if (existing == null)
+                    return SafeNotFound("Unità di misura");
+
+                await _repository.UpdateAsync(unitaDto);
+
+                // ✅ CORRETTO: usa Sigla invece di Nome
+                LogAuditTrail("UPDATE_UNITA_MISURA", "UnitaDiMisura", unitaDto.UnitaMisuraId.ToString());
+                LogSecurityEvent("UnitaMisuraUpdated", new
+                {
+                    UnitaId = unitaDto.UnitaMisuraId,
+                    Sigla = unitaDto.Sigla,
+                    User = User.Identity?.Name
+                });
+
+                return NoContent();
+            }
+            catch (System.Exception ex)
             {
-                return BadRequest(ModelState);
+                _logger.LogError(ex, "Errore durante l'aggiornamento dell'unità di misura {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento dell'unità di misura");
             }
-
-            var existing = await _repository.GetByIdAsync(id);
-            if (existing == null)
-            {
-                return NotFound();
-            }
-
-            await _repository.UpdateAsync(unitaDto);
-
-            return NoContent();
         }
 
         // DELETE: api/UnitaDiMisura/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        [Authorize(Roles = "admin")]
+        public async Task<ActionResult> Delete(int id)
         {
-            var unita = await _repository.GetByIdAsync(id);
-            if (unita == null)
+            try
             {
-                return NotFound();
+                if (id <= 0)
+                    return SafeBadRequest("ID unità di misura non valido");
+
+                var unita = await _repository.GetByIdAsync(id);
+                if (unita == null)
+                    return SafeNotFound("Unità di misura");
+
+                await _repository.DeleteAsync(id);
+
+                // ✅ Audit trail per eliminazione
+                LogAuditTrail("DELETE_UNITA_MISURA", "UnitaDiMisura", id.ToString());
+                LogSecurityEvent("UnitaMisuraDeleted", new
+                {
+                    UnitaId = id,
+                    User = User.Identity?.Name
+                });
+
+                return NoContent();
             }
-
-            await _repository.DeleteAsync(id);
-
-            return NoContent();
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'eliminazione dell'unità di misura {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione dell'unità di misura");
+            }
         }
     }
 }

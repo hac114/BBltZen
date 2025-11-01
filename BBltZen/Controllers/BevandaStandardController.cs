@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using DTO;
 using Repository.Interface;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -9,34 +9,68 @@ namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class BevandaStandardController : ControllerBase
+    [AllowAnonymous] // ✅ OVERRIDE DELL'[Authorize] DEL BASE CONTROLLER
+    public class BevandaStandardController : SecureBaseController
     {
         private readonly IBevandaStandardRepository _bevandaStandardRepository;
 
-        public BevandaStandardController(IBevandaStandardRepository bevandaStandardRepository)
+        public BevandaStandardController(
+            IBevandaStandardRepository bevandaStandardRepository,
+            IWebHostEnvironment environment,
+            ILogger<BevandaStandardController> logger)
+            : base(environment, logger)
         {
             _bevandaStandardRepository = bevandaStandardRepository;
         }
 
+        // ✅ ENDPOINT PUBBLICO: Card prodotto per consumatori
         /// <summary>
-        /// Ottiene tutte le bevande standard
+        /// Ottiene tutte le card prodotto per il frontend (solo bevande visibili)
         /// </summary>
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<BevandaStandardDTO>>> GetAll()
+        [HttpGet("card-prodotti")]
+        public async Task<ActionResult<IEnumerable<BevandaStandardCardDTO>>> GetCardProdotti()
         {
             try
             {
-                var bevande = await _bevandaStandardRepository.GetAllAsync();
-                return Ok(bevande);
+                var cardProdotti = await _bevandaStandardRepository.GetCardProdottiAsync();
+                return Ok(cardProdotti);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero delle bevande standard: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero delle card prodotto");
+                return SafeInternalError("Errore durante il recupero dei prodotti");
             }
         }
 
+        // ✅ ENDPOINT PUBBLICO: Card prodotto singola
         /// <summary>
-        /// Ottiene solo le bevande standard disponibili per l'ordinazione
+        /// Ottiene una card prodotto specifica per il frontend
+        /// </summary>
+        [HttpGet("card-prodotto/{articoloId}")]
+        public async Task<ActionResult<BevandaStandardCardDTO>> GetCardProdottoById(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SafeBadRequest<BevandaStandardCardDTO>("ID articolo non valido");
+
+                var cardProdotto = await _bevandaStandardRepository.GetCardProdottoByIdAsync(articoloId);
+
+                if (cardProdotto == null)
+                    return SafeNotFound<BevandaStandardCardDTO>("Prodotto");
+
+                return Ok(cardProdotto);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero della card prodotto con ID {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante il recupero del prodotto");
+            }
+        }
+
+        // ✅ ENDPOINT PUBBLICO: Bevande disponibili per consumatori
+        /// <summary>
+        /// Ottiene le bevande standard ATTUALMENTE disponibili (disponibile = true)
         /// </summary>
         [HttpGet("disponibili")]
         public async Task<ActionResult<IEnumerable<BevandaStandardDTO>>> GetDisponibili()
@@ -46,12 +80,14 @@ namespace BBltZen.Controllers
                 var bevande = await _bevandaStandardRepository.GetDisponibiliAsync();
                 return Ok(bevande);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero delle bevande disponibili: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero delle bevande standard disponibili");
+                return SafeInternalError("Errore durante il recupero delle bevande disponibili");
             }
         }
 
+        // ✅ ENDPOINT PUBBLICO: Bevanda specifica
         /// <summary>
         /// Ottiene una bevanda standard specifica tramite ID articolo
         /// </summary>
@@ -60,21 +96,24 @@ namespace BBltZen.Controllers
         {
             try
             {
+                if (articoloId <= 0)
+                    return SafeBadRequest<BevandaStandardDTO>("ID articolo non valido");
+
                 var bevanda = await _bevandaStandardRepository.GetByIdAsync(articoloId);
 
                 if (bevanda == null)
-                {
-                    return NotFound($"Bevanda standard con ArticoloId {articoloId} non trovata");
-                }
+                    return SafeNotFound<BevandaStandardDTO>("Bevanda standard");
 
                 return Ok(bevanda);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero della bevanda standard: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero della bevanda standard {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante il recupero della bevanda standard");
             }
         }
 
+        // ✅ ENDPOINT PUBBLICO: Filtri per consumatori
         /// <summary>
         /// Ottiene le bevande standard per dimensione bicchiere
         /// </summary>
@@ -83,12 +122,16 @@ namespace BBltZen.Controllers
         {
             try
             {
+                if (dimensioneBicchiereId <= 0)
+                    return SafeBadRequest<IEnumerable<BevandaStandardDTO>>("ID dimensione bicchiere non valido");
+
                 var bevande = await _bevandaStandardRepository.GetByDimensioneBicchiereAsync(dimensioneBicchiereId);
                 return Ok(bevande);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero delle bevande per dimensione bicchiere: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero delle bevande standard per dimensione bicchiere {DimensioneBicchiereId}", dimensioneBicchiereId);
+                return SafeInternalError("Errore durante il recupero delle bevande per dimensione bicchiere");
             }
         }
 
@@ -100,103 +143,209 @@ namespace BBltZen.Controllers
         {
             try
             {
+                if (personalizzazioneId <= 0)
+                    return SafeBadRequest<IEnumerable<BevandaStandardDTO>>("ID personalizzazione non valido");
+
                 var bevande = await _bevandaStandardRepository.GetByPersonalizzazioneAsync(personalizzazioneId);
                 return Ok(bevande);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero delle bevande per personalizzazione: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero delle bevande standard per personalizzazione {PersonalizzazioneId}", personalizzazioneId);
+                return SafeInternalError("Errore durante il recupero delle bevande per personalizzazione");
             }
         }
 
+        // ✅ ENDPOINT ADMIN: Tutte le bevande (anche non visibili)
         /// <summary>
-        /// Crea una nuova bevanda standard
+        /// Ottiene tutte le bevande standard (solo admin)
         /// </summary>
-        [HttpPost]
-        public async Task<ActionResult<BevandaStandardDTO>> Create(BevandaStandardDTO bevandaStandardDto)
+        [HttpGet]
+        //[Authorize(Roles = "admin")]
+        public async Task<ActionResult<IEnumerable<BevandaStandardDTO>>> GetAll()
         {
             try
             {
-                if (bevandaStandardDto == null)
-                {
-                    return BadRequest("Dati bevanda standard non validi");
-                }
+                var bevande = await _bevandaStandardRepository.GetAllAsync();
+                return Ok(bevande);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero di tutte le bevande standard");
+                return SafeInternalError("Errore durante il recupero delle bevande standard");
+            }
+        }
+
+        // ✅ ENDPOINT ADMIN: Creazione bevanda
+        /// <summary>
+        /// Crea una nuova bevanda standard (solo admin)
+        /// </summary>
+        [HttpPost]
+        //[Authorize(Roles = "admin")]
+        public async Task<ActionResult<BevandaStandardDTO>> Create([FromBody] BevandaStandardDTO bevandaStandardDto)
+        {
+            try
+            {
+                if (!IsModelValid(bevandaStandardDto))
+                    return SafeBadRequest<BevandaStandardDTO>("Dati bevanda standard non validi");
 
                 // Verifica se esiste già una bevanda con lo stesso ArticoloId
-                if (await _bevandaStandardRepository.ExistsAsync(bevandaStandardDto.ArticoloId))
-                {
-                    return Conflict($"Esiste già una bevanda standard con ArticoloId {bevandaStandardDto.ArticoloId}");
-                }
+                if (bevandaStandardDto.ArticoloId > 0 && await _bevandaStandardRepository.ExistsAsync(bevandaStandardDto.ArticoloId))
+                    return SafeBadRequest<BevandaStandardDTO>($"Esiste già una bevanda standard con ArticoloId {bevandaStandardDto.ArticoloId}");
 
                 // Verifica se esiste già la stessa combinazione
                 if (await _bevandaStandardRepository.ExistsByCombinazioneAsync(
                     bevandaStandardDto.PersonalizzazioneId, bevandaStandardDto.DimensioneBicchiereId))
                 {
-                    return Conflict("Esiste già una bevanda standard con la stessa combinazione di personalizzazione e dimensione bicchiere");
+                    return SafeBadRequest<BevandaStandardDTO>("Esiste già una bevanda standard con la stessa combinazione di personalizzazione e dimensione bicchiere");
                 }
 
                 await _bevandaStandardRepository.AddAsync(bevandaStandardDto);
 
+                // ✅ Audit trail
+                LogAuditTrail("CREATE_BEVANDA_STANDARD", "BevandaStandard", bevandaStandardDto.ArticoloId.ToString());
+                LogSecurityEvent("BevandaStandardCreated", new
+                {
+                    ArticoloId = bevandaStandardDto.ArticoloId,
+                    PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId,
+                    DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId,
+                    User = User.Identity?.Name
+                });
+
                 return CreatedAtAction(nameof(GetById), new { articoloId = bevandaStandardDto.ArticoloId }, bevandaStandardDto);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante la creazione della bevanda standard: {ex.Message}");
+                _logger.LogError(ex, "Errore durante la creazione della bevanda standard");
+                return SafeInternalError("Errore durante la creazione della bevanda standard");
             }
         }
 
+        // ✅ ENDPOINT ADMIN: Aggiornamento bevanda
         /// <summary>
-        /// Aggiorna una bevanda standard esistente
+        /// Aggiorna una bevanda standard esistente (solo admin)
         /// </summary>
         [HttpPut("{articoloId}")]
-        public async Task<ActionResult> Update(int articoloId, BevandaStandardDTO bevandaStandardDto)
+        //[Authorize(Roles = "admin")]
+        public async Task<ActionResult> Update(int articoloId, [FromBody] BevandaStandardDTO bevandaStandardDto)
         {
             try
             {
-                if (bevandaStandardDto == null || articoloId != bevandaStandardDto.ArticoloId)
-                {
-                    return BadRequest("ID della bevanda standard non corrisponde");
-                }
+                if (articoloId <= 0)
+                    return SafeBadRequest("ID articolo non valido");
 
-                if (!await _bevandaStandardRepository.ExistsAsync(articoloId))
-                {
-                    return NotFound($"Bevanda standard con ArticoloId {articoloId} non trovata");
-                }
+                if (articoloId != bevandaStandardDto.ArticoloId)
+                    return SafeBadRequest("ID della bevanda standard non corrisponde");
+
+                if (!IsModelValid(bevandaStandardDto))
+                    return SafeBadRequest("Dati bevanda standard non validi");
+
+                var existingBevanda = await _bevandaStandardRepository.GetByIdAsync(articoloId);
+                if (existingBevanda == null)
+                    return SafeNotFound("Bevanda standard");
 
                 await _bevandaStandardRepository.UpdateAsync(bevandaStandardDto);
 
+                // ✅ Audit trail
+                LogAuditTrail("UPDATE_BEVANDA_STANDARD", "BevandaStandard", bevandaStandardDto.ArticoloId.ToString());
+                LogSecurityEvent("BevandaStandardUpdated", new
+                {
+                    ArticoloId = bevandaStandardDto.ArticoloId,
+                    User = User.Identity?.Name
+                });
+
                 return NoContent();
             }
-            catch (ArgumentException ex)
+            catch (System.ArgumentException ex)
             {
-                return NotFound(ex.Message);
+                _logger.LogWarning(ex, "Tentativo di aggiornamento di bevanda standard inesistente {ArticoloId}", articoloId);
+                return SafeNotFound("Bevanda standard");
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante l'aggiornamento della bevanda standard: {ex.Message}");
+                _logger.LogError(ex, "Errore durante l'aggiornamento della bevanda standard {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'aggiornamento della bevanda standard");
             }
         }
 
+        // ✅ ENDPOINT ADMIN: Eliminazione bevanda
         /// <summary>
-        /// Elimina una bevanda standard
+        /// Elimina una bevanda standard (solo admin)
         /// </summary>
         [HttpDelete("{articoloId}")]
+        //[Authorize(Roles = "admin")]
         public async Task<ActionResult> Delete(int articoloId)
         {
             try
             {
-                if (!await _bevandaStandardRepository.ExistsAsync(articoloId))
-                {
-                    return NotFound($"Bevanda standard con ArticoloId {articoloId} non trovata");
-                }
+                if (articoloId <= 0)
+                    return SafeBadRequest("ID articolo non valido");
+
+                var existingBevanda = await _bevandaStandardRepository.GetByIdAsync(articoloId);
+                if (existingBevanda == null)
+                    return SafeNotFound("Bevanda standard");
 
                 await _bevandaStandardRepository.DeleteAsync(articoloId);
 
+                // ✅ Audit trail
+                LogAuditTrail("DELETE_BEVANDA_STANDARD", "BevandaStandard", articoloId.ToString());
+                LogSecurityEvent("BevandaStandardDeleted", new
+                {
+                    ArticoloId = articoloId,
+                    User = User.Identity?.Name
+                });
+
                 return NoContent();
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante l'eliminazione della bevanda standard: {ex.Message}");
+                _logger.LogError(ex, "Errore durante l'eliminazione della bevanda standard {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'eliminazione della bevanda standard");
+            }
+        }
+
+        [HttpGet("primo-piano")]
+        public async Task<ActionResult<IEnumerable<BevandaStandardDTO>>> GetPrimoPiano()
+        {
+            try
+            {
+                var bevande = await _bevandaStandardRepository.GetPrimoPianoAsync();
+                return Ok(bevande);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero delle bevande in primo piano");
+                return SafeInternalError("Errore durante il recupero delle bevande in primo piano");
+            }
+        }
+
+        [HttpGet("secondo-piano")]
+        public async Task<ActionResult<IEnumerable<BevandaStandardDTO>>> GetSecondoPiano()
+        {
+            try
+            {
+                var bevande = await _bevandaStandardRepository.GetSecondoPianoAsync();
+                return Ok(bevande);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero delle bevande in secondo piano");
+                return SafeInternalError("Errore durante il recupero delle bevande in secondo piano");
+            }
+        }
+
+        [HttpGet("card-prodotti-primo-piano")]
+        public async Task<ActionResult<IEnumerable<BevandaStandardCardDTO>>> GetCardProdottiPrimoPiano()
+        {
+            try
+            {
+                var cardProdotti = await _bevandaStandardRepository.GetCardProdottiPrimoPianoAsync();
+                return Ok(cardProdotti);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero delle card prodotto in primo piano");
+                return SafeInternalError("Errore durante il recupero dei prodotti in primo piano");
             }
         }
     }

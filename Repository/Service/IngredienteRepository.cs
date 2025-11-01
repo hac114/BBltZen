@@ -18,28 +18,28 @@ namespace Repository.Service
             _context = context;
         }
 
+        // ✅ GET ALL: Solo per admin - mostra TUTTI gli ingredienti
         public async Task<IEnumerable<IngredienteDTO>> GetAllAsync()
         {
             return await _context.Ingrediente
-                .Where(i => i.Disponibile)  // 👈 SOFT-DELETE FILTER
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,
                     Nome = i.Ingrediente1,
                     CategoriaId = i.CategoriaId,
                     PrezzoAggiunto = i.PrezzoAggiunto,
-                    Disponibile = i.Disponibile,
+                    Disponibile = i.Disponibile,  // ✅ Mostra anche quelli non disponibili
                     DataInserimento = i.DataInserimento,
                     DataAggiornamento = i.DataAggiornamento
                 })
                 .ToListAsync();
         }
 
+        // ✅ GET BY ID: Cerca per ID indipendentemente dalla disponibilità
         public async Task<IngredienteDTO?> GetByIdAsync(int id)
         {
             var ingrediente = await _context.Ingrediente
-                .Where(i => i.IngredienteId == id && i.Disponibile)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(i => i.IngredienteId == id);  // ✅ Rimossa condizione Disponibile
 
             if (ingrediente == null) return null;
 
@@ -62,7 +62,7 @@ namespace Repository.Service
                 Ingrediente1 = ingredienteDto.Nome,
                 CategoriaId = ingredienteDto.CategoriaId,
                 PrezzoAggiunto = ingredienteDto.PrezzoAggiunto,
-                Disponibile = ingredienteDto.Disponibile,
+                Disponibile = ingredienteDto.Disponibile,  // ✅ USA il valore dal DTO
                 DataInserimento = DateTime.Now,
                 DataAggiornamento = DateTime.Now
             };
@@ -71,6 +71,7 @@ namespace Repository.Service
             await _context.SaveChangesAsync();
 
             ingredienteDto.IngredienteId = ingrediente.IngredienteId;
+            ingredienteDto.Disponibile = ingrediente.Disponibile;
             ingredienteDto.DataInserimento = ingrediente.DataInserimento;
             ingredienteDto.DataAggiornamento = ingrediente.DataAggiornamento;
         }
@@ -84,7 +85,7 @@ namespace Repository.Service
             ingrediente.Ingrediente1 = ingredienteDto.Nome;
             ingrediente.CategoriaId = ingredienteDto.CategoriaId;
             ingrediente.PrezzoAggiunto = ingredienteDto.PrezzoAggiunto;
-            ingrediente.Disponibile = ingredienteDto.Disponibile;
+            ingrediente.Disponibile = ingredienteDto.Disponibile;  // ✅ Aggiorna anche disponibilità
             ingrediente.DataAggiornamento = DateTime.Now;
 
             await _context.SaveChangesAsync();
@@ -92,12 +93,47 @@ namespace Repository.Service
             ingredienteDto.DataAggiornamento = ingrediente.DataAggiornamento;
         }
 
+        // ✅ NUOVO: HARD DELETE - Eliminazione definitiva
         public async Task DeleteAsync(int id)
         {
             var ingrediente = await _context.Ingrediente.FindAsync(id);
             if (ingrediente != null)
             {
-                ingrediente.Disponibile = false;  // 👈 SOFT DELETE
+                // ✅ Controlla se ci sono dipendenze prima di eliminare
+                var hasPersonalizzazioni = await _context.PersonalizzazioneIngrediente
+                    .AnyAsync(pi => pi.IngredienteId == id);
+
+                if (hasPersonalizzazioni)
+                {
+                    throw new InvalidOperationException(
+                        "Impossibile eliminare l'ingrediente perché è collegato a personalizzazioni."
+                    );
+                }
+
+                _context.Ingrediente.Remove(ingrediente);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // ✅ NUOVO: Toggle disponibilità
+        public async Task ToggleDisponibilitaAsync(int id)
+        {
+            var ingrediente = await _context.Ingrediente.FindAsync(id);
+            if (ingrediente != null)
+            {
+                ingrediente.Disponibile = !ingrediente.Disponibile;  // ✅ Inverte la disponibilità
+                ingrediente.DataAggiornamento = DateTime.Now;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // ✅ NUOVO: Imposta disponibilità specifica
+        public async Task SetDisponibilitaAsync(int id, bool disponibile)
+        {
+            var ingrediente = await _context.Ingrediente.FindAsync(id);
+            if (ingrediente != null)
+            {
+                ingrediente.Disponibile = disponibile;  // ✅ Imposta disponibilità specifica
                 ingrediente.DataAggiornamento = DateTime.Now;
                 await _context.SaveChangesAsync();
             }
@@ -105,7 +141,7 @@ namespace Repository.Service
 
         public async Task<bool> ExistsAsync(int id)
         {
-            return await _context.Ingrediente.AnyAsync(i => i.IngredienteId == id);
+            return await _context.Ingrediente.AnyAsync(i => i.IngredienteId == id);  // ✅ Rimossa condizione Disponibile
         }
 
         public async Task<IEnumerable<IngredienteDTO>> GetByCategoriaAsync(int categoriaId)
@@ -125,10 +161,11 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
+        // ✅ GET DISPONIBILI: Solo ingredienti DISPONIBILI
         public async Task<IEnumerable<IngredienteDTO>> GetDisponibiliAsync()
         {
             return await _context.Ingrediente
-                .Where(i => i.Disponibile)
+                .Where(i => i.Disponibile)  // ✅ Solo disponibili
                 .Select(i => new IngredienteDTO
                 {
                     IngredienteId = i.IngredienteId,

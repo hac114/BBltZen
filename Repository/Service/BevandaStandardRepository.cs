@@ -67,7 +67,7 @@ namespace Repository.Service
         {
             var bevandeStandard = await _context.BevandaStandard
                 .AsNoTracking()
-                .Where(bs => bs.SempreDisponibile) // SOLO bevande sempre disponibili
+                .Where(bs => bs.SempreDisponibile)
                 .ToListAsync();
 
             var dimensioniBicchieri = await _context.DimensioneBicchiere
@@ -111,7 +111,6 @@ namespace Repository.Service
 
             if (bevandaStandard == null) return null;
 
-            // Carica esplicitamente la dimensione bicchiere se necessario
             var dimensioneBicchiere = await _context.DimensioneBicchiere
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == bevandaStandard.DimensioneBicchiereId);
@@ -145,14 +144,14 @@ namespace Repository.Service
 
         public async Task<BevandaStandardDTO?> GetByArticoloIdAsync(int articoloId)
         {
-            return await GetByIdAsync(articoloId); // Alias per coerenza
+            return await GetByIdAsync(articoloId);
         }
 
         public async Task<IEnumerable<BevandaStandardDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId)
         {
             var bevandeStandard = await _context.BevandaStandard
                 .AsNoTracking()
-                .Where(bs => bs.DimensioneBicchiereId == dimensioneBicchiereId && (bs.Disponibile || bs.SempreDisponibile))
+                .Where(bs => bs.DimensioneBicchiereId == dimensioneBicchiereId && bs.SempreDisponibile)
                 .ToListAsync();
 
             var dimensioniBicchieri = await _context.DimensioneBicchiere
@@ -192,7 +191,7 @@ namespace Repository.Service
         {
             var bevandeStandard = await _context.BevandaStandard
                 .AsNoTracking()
-                .Where(bs => bs.PersonalizzazioneId == personalizzazioneId && bs.SempreDisponibile) // Solo quelle SEMPRE disponibili
+                .Where(bs => bs.PersonalizzazioneId == personalizzazioneId && bs.SempreDisponibile)
                 .ToListAsync();
 
             var dimensioniBicchieri = await _context.DimensioneBicchiere
@@ -296,6 +295,265 @@ namespace Repository.Service
             return await _context.BevandaStandard
                 .AnyAsync(bs => bs.PersonalizzazioneId == personalizzazioneId &&
                               bs.DimensioneBicchiereId == dimensioneBicchiereId);
+        }
+
+        // ✅ METODI PER CARD PRODOTTO
+        public async Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiAsync()
+        {
+            // 1. Recupera solo bevande SEMPRE disponibili
+            var bevandeStandard = await _context.BevandaStandard
+                .AsNoTracking()
+                .Where(bs => bs.SempreDisponibile)
+                .ToListAsync();
+
+            var risultati = new List<BevandaStandardCardDTO>();
+
+            foreach (var bevanda in bevandeStandard)
+            {
+                // 2. Carica dati correlati SEPARATAMENTE (senza Include)
+                var personalizzazione = await _context.Personalizzazione
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevanda.PersonalizzazioneId);
+
+                // 3. Carica ingredienti della personalizzazione
+                var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bevanda.PersonalizzazioneId);
+
+                // 4. Calcola prezzi per dimensioni
+                var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bevanda);
+
+                var cardDto = new BevandaStandardCardDTO
+                {
+                    ArticoloId = bevanda.ArticoloId,
+                    Nome = personalizzazione?.Nome ?? "Bevanda Standard",
+                    Descrizione = personalizzazione?.Descrizione,
+                    ImmagineUrl = bevanda.ImmagineUrl,
+                    Disponibile = bevanda.Disponibile,
+                    SempreDisponibile = bevanda.SempreDisponibile,
+                    Priorita = bevanda.Priorita,
+                    PrezziPerDimensioni = prezziPerDimensioni,
+                    Ingredienti = ingredienti
+                };
+
+                risultati.Add(cardDto);
+            }
+
+            return risultati.OrderByDescending(b => b.Priorita).ThenBy(b => b.Nome);
+        }
+
+        public async Task<BevandaStandardCardDTO?> GetCardProdottoByIdAsync(int articoloId)
+        {
+            // 1. Recupera bevanda (solo se SEMPRE disponibile)
+            var bevanda = await _context.BevandaStandard
+                .AsNoTracking()
+                .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId && bs.SempreDisponibile);
+
+            if (bevanda == null) return null;
+
+            // 2. Carica dati correlati SEPARATAMENTE
+            var personalizzazione = await _context.Personalizzazione
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevanda.PersonalizzazioneId);
+
+            // 3. Carica ingredienti
+            var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bevanda.PersonalizzazioneId);
+
+            // 4. Calcola prezzi
+            var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bevanda);
+
+            return new BevandaStandardCardDTO
+            {
+                ArticoloId = bevanda.ArticoloId,
+                Nome = personalizzazione?.Nome ?? "Bevanda Standard",
+                Descrizione = personalizzazione?.Descrizione,
+                ImmagineUrl = bevanda.ImmagineUrl,
+                Disponibile = bevanda.Disponibile,
+                SempreDisponibile = bevanda.SempreDisponibile,
+                Priorita = bevanda.Priorita,
+                PrezziPerDimensioni = prezziPerDimensioni,
+                Ingredienti = ingredienti
+            };
+        }
+
+        // ✅ METODI PRIVATI DI SUPPORTO
+        private async Task<List<string>> GetIngredientiByPersonalizzazioneAsync(int personalizzazioneId)
+        {
+            var ingredienti = await _context.PersonalizzazioneIngrediente
+                .AsNoTracking()
+                .Where(pi => pi.PersonalizzazioneId == personalizzazioneId)
+                .Join(_context.Ingrediente,
+                    pi => pi.IngredienteId,
+                    i => i.IngredienteId,
+                    (pi, i) => i.Ingrediente1)
+                .Where(nome => !string.IsNullOrEmpty(nome))
+                .ToListAsync();
+
+            return ingredienti;
+        }
+
+        private async Task<List<PrezzoDimensioneDTO>> CalcolaPrezziPerDimensioniAsync(BevandaStandard bevanda)
+        {
+            var dimensione = await _context.DimensioneBicchiere
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == bevanda.DimensioneBicchiereId);
+
+            if (dimensione == null)
+                return new List<PrezzoDimensioneDTO>();
+
+            var taxRateId = 1; // IVA standard
+            var aliquotaIva = await GetAliquotaIvaAsync(taxRateId);
+
+            // Calcola prezzo con moltiplicatore dimensione
+            var prezzoBase = bevanda.Prezzo * dimensione.Moltiplicatore;
+            var prezzoIva = CalcolaIva(prezzoBase, aliquotaIva);
+            var prezzoTotale = prezzoBase + prezzoIva;
+
+            return new List<PrezzoDimensioneDTO>
+            {
+                new PrezzoDimensioneDTO
+                {
+                    DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                    Sigla = dimensione.Sigla,
+                    Descrizione = $"{dimensione.Descrizione} {dimensione.Capienza}ml",
+                    PrezzoNetto = Math.Round(prezzoBase, 2),
+                    PrezzoIva = Math.Round(prezzoIva, 2),
+                    PrezzoTotale = Math.Round(prezzoTotale, 2),
+                    AliquotaIva = aliquotaIva
+                }
+            };
+        }
+
+        private async Task<decimal> GetAliquotaIvaAsync(int taxRateId)
+        {
+            var taxRate = await _context.TaxRates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(tr => tr.TaxRateId == taxRateId);
+
+            return taxRate?.Aliquota ?? 22.00m;
+        }
+
+        private decimal CalcolaIva(decimal prezzoNetto, decimal aliquotaIva)
+        {
+            return prezzoNetto * (aliquotaIva / 100);
+        }
+
+        public async Task<IEnumerable<BevandaStandardDTO>> GetPrimoPianoAsync()
+        {
+            var bevandeStandard = await _context.BevandaStandard
+                .AsNoTracking()
+                .Where(bs => bs.Disponibile && bs.SempreDisponibile)
+                .OrderByDescending(bs => bs.Priorita) // ORDINA PRIMA del ToListAsync!
+                .ThenBy(bs => bs.ArticoloId) // Ordinamento secondario per stabilità
+                .ToListAsync();
+
+            var dimensioniBicchieri = await _context.DimensioneBicchiere
+                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
+
+            // RIMUOVI l'OrderByDescending qui sotto, è già stato applicato sopra
+            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            {
+                ArticoloId = bs.ArticoloId,
+                PersonalizzazioneId = bs.PersonalizzazioneId,
+                DimensioneBicchiereId = bs.DimensioneBicchiereId,
+                Prezzo = bs.Prezzo,
+                ImmagineUrl = bs.ImmagineUrl,
+                Disponibile = bs.Disponibile,
+                SempreDisponibile = bs.SempreDisponibile,
+                Priorita = bs.Priorita,
+                DataCreazione = bs.DataCreazione,
+                DataAggiornamento = bs.DataAggiornamento,
+                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
+                    ? new DimensioneBicchiereDTO
+                    {
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                        Sigla = dimensione.Sigla,
+                        Descrizione = dimensione.Descrizione,
+                        Capienza = dimensione.Capienza,
+                        UnitaMisuraId = dimensione.UnitaMisuraId,
+                        PrezzoBase = dimensione.PrezzoBase,
+                        Moltiplicatore = dimensione.Moltiplicatore
+                    }
+                    : null
+            })
+            .ToList(); // Solo ToList, niente OrderBy qui
+        }
+
+        public async Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync()
+        {
+            var bevandeStandard = await _context.BevandaStandard
+                .AsNoTracking()
+                .Where(bs => bs.Disponibile && bs.SempreDisponibile) // Primo piano + visibili
+                .ToListAsync();
+
+            var risultati = new List<BevandaStandardCardDTO>();
+
+            foreach (var bevanda in bevandeStandard)
+            {
+                var personalizzazione = await _context.Personalizzazione
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevanda.PersonalizzazioneId);
+
+                var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bevanda.PersonalizzazioneId);
+                var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bevanda);
+
+                var cardDto = new BevandaStandardCardDTO
+                {
+                    ArticoloId = bevanda.ArticoloId,
+                    Nome = personalizzazione?.Nome ?? "Bevanda Standard",
+                    Descrizione = personalizzazione?.Descrizione,
+                    ImmagineUrl = bevanda.ImmagineUrl,
+                    Disponibile = bevanda.Disponibile,
+                    SempreDisponibile = bevanda.SempreDisponibile,
+                    Priorita = bevanda.Priorita,
+                    PrezziPerDimensioni = prezziPerDimensioni,
+                    Ingredienti = ingredienti
+                };
+
+                risultati.Add(cardDto);
+            }
+
+            return risultati.OrderByDescending(b => b.Priorita).ThenBy(b => b.Nome);
+        }
+
+        public async Task<IEnumerable<BevandaStandardDTO>> GetSecondoPianoAsync()
+        {
+            var bevandeStandard = await _context.BevandaStandard
+                .AsNoTracking()
+                .Where(bs => !bs.Disponibile && bs.SempreDisponibile) // Disponibile = false (secondo piano)
+                .OrderByDescending(bs => bs.Priorita) // Stesso ordinamento del primo piano
+                .ThenBy(bs => bs.ArticoloId) // Ordinamento secondario per stabilità
+                .ToListAsync();
+
+            var dimensioniBicchieri = await _context.DimensioneBicchiere
+                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
+
+            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            {
+                ArticoloId = bs.ArticoloId,
+                PersonalizzazioneId = bs.PersonalizzazioneId,
+                DimensioneBicchiereId = bs.DimensioneBicchiereId,
+                Prezzo = bs.Prezzo,
+                ImmagineUrl = bs.ImmagineUrl,
+                Disponibile = bs.Disponibile,
+                SempreDisponibile = bs.SempreDisponibile,
+                Priorita = bs.Priorita,
+                DataCreazione = bs.DataCreazione,
+                DataAggiornamento = bs.DataAggiornamento,
+                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
+                    ? new DimensioneBicchiereDTO
+                    {
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                        Sigla = dimensione.Sigla,
+                        Descrizione = dimensione.Descrizione,
+                        Capienza = dimensione.Capienza,
+                        UnitaMisuraId = dimensione.UnitaMisuraId,
+                        PrezzoBase = dimensione.PrezzoBase,
+                        Moltiplicatore = dimensione.Moltiplicatore
+                    }
+                    : null
+            })
+            .ToList(); // Solo ToList, niente OrderBy qui (già applicato sopra)
         }
     }
 }

@@ -14,7 +14,5 @@ namespace DTO
         public string Descrizione { get; set; } = null!;
 
         public DateTime DtCreazione { get; set; }
-        public DateTime DtUpdate { get; set; }
-        public bool IsDeleted { get; set; }
     }
 }

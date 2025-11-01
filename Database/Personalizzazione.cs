@@ -11,11 +11,7 @@ public partial class Personalizzazione
 
     public DateTime DtCreazione { get; set; }
 
-    public DateTime DtUpdate { get; set; }
-
     public string Descrizione { get; set; } = null!;
-
-    public bool IsDeleted { get; set; }
 
     public virtual ICollection<BevandaStandard> BevandaStandard { get; set; } = new List<BevandaStandard>();
 

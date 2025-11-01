@@ -21,31 +21,12 @@ namespace Repository.Service
         public async Task<IEnumerable<PersonalizzazioneDTO>> GetAllAsync()
         {
             return await _context.Personalizzazione
-                .Where(p => !p.IsDeleted)
                 .Select(p => new PersonalizzazioneDTO
                 {
                     PersonalizzazioneId = p.PersonalizzazioneId,
                     Nome = p.Nome,
                     Descrizione = p.Descrizione,
-                    DtCreazione = p.DtCreazione,
-                    DtUpdate = p.DtUpdate,
-                    IsDeleted = p.IsDeleted
-                })
-                .ToListAsync();
-        }
-
-        public async Task<IEnumerable<PersonalizzazioneDTO>> GetAttiveAsync()
-        {
-            return await _context.Personalizzazione
-                .Where(p => !p.IsDeleted)
-                .Select(p => new PersonalizzazioneDTO
-                {
-                    PersonalizzazioneId = p.PersonalizzazioneId,
-                    Nome = p.Nome,
-                    Descrizione = p.Descrizione,
-                    DtCreazione = p.DtCreazione,
-                    DtUpdate = p.DtUpdate,
-                    IsDeleted = p.IsDeleted
+                    DtCreazione = p.DtCreazione
                 })
                 .ToListAsync();
         }
@@ -53,7 +34,7 @@ namespace Repository.Service
         public async Task<PersonalizzazioneDTO?> GetByIdAsync(int id)
         {
             var personalizzazione = await _context.Personalizzazione
-                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == id && !p.IsDeleted);
+                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == id);
 
             if (personalizzazione == null) return null;
 
@@ -62,9 +43,7 @@ namespace Repository.Service
                 PersonalizzazioneId = personalizzazione.PersonalizzazioneId,
                 Nome = personalizzazione.Nome,
                 Descrizione = personalizzazione.Descrizione,
-                DtCreazione = personalizzazione.DtCreazione,
-                DtUpdate = personalizzazione.DtUpdate,
-                IsDeleted = personalizzazione.IsDeleted
+                DtCreazione = personalizzazione.DtCreazione
             };
         }
 
@@ -74,9 +53,7 @@ namespace Repository.Service
             {
                 Nome = personalizzazioneDto.Nome,
                 Descrizione = personalizzazioneDto.Descrizione,
-                DtCreazione = DateTime.Now,
-                DtUpdate = DateTime.Now,
-                IsDeleted = false
+                DtCreazione = DateTime.Now
             };
 
             _context.Personalizzazione.Add(personalizzazione);
@@ -84,8 +61,6 @@ namespace Repository.Service
 
             personalizzazioneDto.PersonalizzazioneId = personalizzazione.PersonalizzazioneId;
             personalizzazioneDto.DtCreazione = personalizzazione.DtCreazione;
-            personalizzazioneDto.DtUpdate = personalizzazione.DtUpdate;
-            personalizzazioneDto.IsDeleted = personalizzazione.IsDeleted;
         }
 
         public async Task UpdateAsync(PersonalizzazioneDTO personalizzazioneDto)
@@ -96,11 +71,8 @@ namespace Repository.Service
 
             personalizzazione.Nome = personalizzazioneDto.Nome;
             personalizzazione.Descrizione = personalizzazioneDto.Descrizione;
-            personalizzazione.DtUpdate = DateTime.Now;
 
             await _context.SaveChangesAsync();
-
-            personalizzazioneDto.DtUpdate = personalizzazione.DtUpdate;
         }
 
         public async Task DeleteAsync(int id)
@@ -108,8 +80,21 @@ namespace Repository.Service
             var personalizzazione = await _context.Personalizzazione.FindAsync(id);
             if (personalizzazione != null)
             {
-                personalizzazione.IsDeleted = true;  // SOFT DELETE
-                personalizzazione.DtUpdate = DateTime.Now;
+                // ✅ Controlla TUTTE le possibili dipendenze
+                var hasBevandeStandard = await _context.BevandaStandard
+                    .AnyAsync(bs => bs.PersonalizzazioneId == id);
+
+                var hasIngredienti = await _context.PersonalizzazioneIngrediente
+                    .AnyAsync(pi => pi.PersonalizzazioneId == id);
+
+                if (hasBevandeStandard || hasIngredienti)
+                {
+                    throw new InvalidOperationException(
+                        "Impossibile eliminare la personalizzazione perché è collegata a bevande standard o ingredienti."
+                    );
+                }
+
+                _context.Personalizzazione.Remove(personalizzazione);
                 await _context.SaveChangesAsync();
             }
         }
@@ -117,13 +102,13 @@ namespace Repository.Service
         public async Task<bool> ExistsAsync(int id)
         {
             return await _context.Personalizzazione
-                .AnyAsync(p => p.PersonalizzazioneId == id && !p.IsDeleted);
+                .AnyAsync(p => p.PersonalizzazioneId == id);
         }
 
         public async Task<bool> ExistsByNameAsync(string nome)
         {
             return await _context.Personalizzazione
-                .AnyAsync(p => p.Nome == nome && !p.IsDeleted);
+                .AnyAsync(p => p.Nome == nome);
         }
     }
 }

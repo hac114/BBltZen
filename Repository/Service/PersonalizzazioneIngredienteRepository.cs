@@ -142,18 +142,7 @@ namespace Repository.Service
             }
         }
 
-        public async Task DeleteByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId)
-        {
-            var personalizzazioneIngrediente = await _context.PersonalizzazioneIngrediente
-                .FirstOrDefaultAsync(pi => pi.PersonalizzazioneId == personalizzazioneId &&
-                                         pi.IngredienteId == ingredienteId);
-
-            if (personalizzazioneIngrediente != null)
-            {
-                _context.PersonalizzazioneIngrediente.Remove(personalizzazioneIngrediente);
-                await _context.SaveChangesAsync();
-            }
-        }
+        // ❌ RIMOSSO: DeleteByPersonalizzazioneAndIngredienteAsync
 
         public async Task<bool> ExistsAsync(int id)
         {

@@ -17,5 +17,10 @@ namespace Repository.Interface
         Task DeleteAsync(int articoloId);
         Task<bool> ExistsAsync(int articoloId);
         Task<bool> ExistsByCombinazioneAsync(int personalizzazioneId, int dimensioneBicchiereId);
+        Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiAsync();
+        Task<BevandaStandardCardDTO?> GetCardProdottoByIdAsync(int articoloId);
+        Task<IEnumerable<BevandaStandardDTO>> GetPrimoPianoAsync();
+        Task<IEnumerable<BevandaStandardDTO>> GetSecondoPianoAsync();
+        Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync();
     }
 }

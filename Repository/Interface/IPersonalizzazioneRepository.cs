@@ -7,7 +7,6 @@ namespace Repository.Interface
     public interface IPersonalizzazioneRepository
     {
         Task<IEnumerable<PersonalizzazioneDTO>> GetAllAsync();
-        Task<IEnumerable<PersonalizzazioneDTO>> GetAttiveAsync();
         Task<PersonalizzazioneDTO?> GetByIdAsync(int id);
         Task AddAsync(PersonalizzazioneDTO personalizzazioneDto);
         Task UpdateAsync(PersonalizzazioneDTO personalizzazioneDto);

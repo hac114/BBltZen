@@ -84,7 +84,7 @@ namespace BBltZen
                 app.UseSwaggerUI();
             }
 
-            app.UseHttpsRedirection();
+            //app.UseHttpsRedirection();
 
             // ✅ MIDDLEWARE IN ORDINE CORRETTO
             app.UseAuthentication();
