@@ -1,19 +1,24 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using DTO;
 using Repository.Interface;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class DolceController : ControllerBase
+    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    public class DolceController : SecureBaseController
     {
         private readonly IDolceRepository _repository;
 
-        public DolceController(IDolceRepository repository)
+        public DolceController(
+            IDolceRepository repository,
+            IWebHostEnvironment environment,
+            ILogger<DolceController> logger)
+            : base(environment, logger)
         {
             _repository = repository;
         }
@@ -22,6 +27,7 @@ namespace BBltZen.Controllers
         /// Ottiene tutti i dolci
         /// </summary>
         [HttpGet]
+        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetAll()
         {
             try
@@ -29,9 +35,10 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetAllAsync();
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero dei dolci: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero di tutti i dolci");
+                return SafeInternalError("Errore durante il recupero dei dolci");
             }
         }
 
@@ -39,22 +46,25 @@ namespace BBltZen.Controllers
         /// Ottiene un dolce specifico tramite ID articolo
         /// </summary>
         [HttpGet("{articoloId}")]
+        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
         public async Task<ActionResult<DolceDTO>> GetById(int articoloId)
         {
             try
             {
+                if (articoloId <= 0)
+                    return SafeBadRequest<DolceDTO>("ID articolo non valido");
+
                 var result = await _repository.GetByIdAsync(articoloId);
 
                 if (result == null)
-                {
-                    return NotFound($"Dolce con ArticoloId {articoloId} non trovato");
-                }
+                    return SafeNotFound<DolceDTO>("Dolce");
 
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero del dolce: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero del dolce {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante il recupero del dolce");
             }
         }
 
@@ -62,6 +72,7 @@ namespace BBltZen.Controllers
         /// Ottiene solo i dolci disponibili
         /// </summary>
         [HttpGet("disponibili")]
+        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetDisponibili()
         {
             try
@@ -69,9 +80,10 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetDisponibiliAsync();
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero dei dolci disponibili: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero dei dolci disponibili");
+                return SafeInternalError("Errore durante il recupero dei dolci disponibili");
             }
         }
 
@@ -79,16 +91,21 @@ namespace BBltZen.Controllers
         /// Ottiene i dolci per priorità
         /// </summary>
         [HttpGet("priorita/{priorita}")]
+        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetByPriorita(int priorita)
         {
             try
             {
+                if (priorita <= 0)
+                    return SafeBadRequest<IEnumerable<DolceDTO>>("Priorità non valida");
+
                 var result = await _repository.GetByPrioritaAsync(priorita);
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante il recupero dei dolci per priorità: {ex.Message}");
+                _logger.LogError(ex, "Errore durante il recupero dei dolci per priorità {Priorita}", priorita);
+                return SafeInternalError("Errore durante il recupero dei dolci per priorità");
             }
         }
 
@@ -96,28 +113,46 @@ namespace BBltZen.Controllers
         /// Crea un nuovo dolce
         /// </summary>
         [HttpPost]
+        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
         public async Task<ActionResult<DolceDTO>> Create(DolceDTO dolceDto)
         {
             try
             {
-                if (dolceDto == null)
-                {
-                    return BadRequest("Dati dolce non validi");
-                }
+                if (!IsModelValid(dolceDto))
+                    return SafeBadRequest<DolceDTO>("Dati dolce non validi");
 
-                // Verifica se esiste già un dolce con lo stesso ArticoloId
-                if (await _repository.ExistsAsync(dolceDto.ArticoloId))
-                {
-                    return Conflict($"Esiste già un dolce con ArticoloId {dolceDto.ArticoloId}");
-                }
+                // ⚠️ CORREZIONE: Il client NON deve specificare ArticoloId
+                if (dolceDto.ArticoloId > 0)
+                    return SafeBadRequest<DolceDTO>("Non specificare ArticoloId - verrà generato automaticamente");
+
+                // ⚠️ CORREZIONE: Verifica se esiste già un dolce con lo stesso nome
+                // (opzionale, ma utile per prevenire duplicati)
+                var existingDolci = await _repository.GetAllAsync();
+                if (existingDolci.Any(d => d.Nome?.ToLower() == dolceDto.Nome?.ToLower()))
+                    return Conflict($"Esiste già un dolce con il nome '{dolceDto.Nome}'");
 
                 await _repository.AddAsync(dolceDto);
 
-                return CreatedAtAction(nameof(GetById), new { articoloId = dolceDto.ArticoloId }, dolceDto);
+                // ✅ Audit trail
+                LogAuditTrail("CREATE_DOLCE", "Dolce", dolceDto.ArticoloId.ToString());
+                LogSecurityEvent("DolceCreated", new
+                {
+                    ArticoloId = dolceDto.ArticoloId,
+                    Nome = dolceDto.Nome,
+                    Prezzo = dolceDto.Prezzo,
+                    Disponibile = dolceDto.Disponibile,
+                    Priorita = dolceDto.Priorita
+                });
+
+                return CreatedAtAction(nameof(GetById),
+                    new { articoloId = dolceDto.ArticoloId },
+                    dolceDto);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante la creazione del dolce: {ex.Message}");
+                _logger.LogError(ex, "Errore durante la creazione del dolce");
+                return SafeInternalError("Errore durante la creazione del dolce");
             }
         }
 
@@ -125,31 +160,52 @@ namespace BBltZen.Controllers
         /// Aggiorna un dolce esistente
         /// </summary>
         [HttpPut("{articoloId}")]
+        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
         public async Task<ActionResult> Update(int articoloId, DolceDTO dolceDto)
         {
             try
             {
-                if (dolceDto == null || articoloId != dolceDto.ArticoloId)
-                {
-                    return BadRequest("ID del dolce non corrisponde");
-                }
+                if (articoloId <= 0)
+                    return SafeBadRequest("ID articolo non valido");
 
-                if (!await _repository.ExistsAsync(articoloId))
-                {
-                    return NotFound($"Dolce con ArticoloId {articoloId} non trovato");
-                }
+                if (articoloId != dolceDto.ArticoloId)
+                    return SafeBadRequest("ID articolo non corrispondente");
+
+                if (!IsModelValid(dolceDto))
+                    return SafeBadRequest("Dati dolce non validi");
+
+                var existing = await _repository.GetByIdAsync(articoloId);
+                if (existing == null)
+                    return SafeNotFound("Dolce");
+
+                // ⚠️ CORREZIONE: Verifica duplicati nome (escludendo il corrente)
+                var allDolci = await _repository.GetAllAsync();
+                if (allDolci.Any(d => d.ArticoloId != articoloId && d.Nome?.ToLower() == dolceDto.Nome?.ToLower()))
+                    return Conflict($"Esiste già un altro dolce con il nome '{dolceDto.Nome}'");
 
                 await _repository.UpdateAsync(dolceDto);
 
+                // ✅ Audit trail
+                LogAuditTrail("UPDATE_DOLCE", "Dolce", dolceDto.ArticoloId.ToString());
+                LogSecurityEvent("DolceUpdated", new
+                {
+                    ArticoloId = dolceDto.ArticoloId,
+                    Nome = dolceDto.Nome,
+                    User = User.Identity?.Name
+                });
+
                 return NoContent();
             }
-            catch (ArgumentException ex)
+            catch (System.ArgumentException ex)
             {
-                return NotFound(ex.Message);
+                _logger.LogWarning(ex, "Tentativo di aggiornamento di un dolce non trovato {ArticoloId}", articoloId);
+                return SafeNotFound("Dolce");
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante l'aggiornamento del dolce: {ex.Message}");
+                _logger.LogError(ex, "Errore durante l'aggiornamento del dolce {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'aggiornamento del dolce");
             }
         }
 
@@ -157,22 +213,35 @@ namespace BBltZen.Controllers
         /// Elimina un dolce
         /// </summary>
         [HttpDelete("{articoloId}")]
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
         public async Task<ActionResult> Delete(int articoloId)
         {
             try
             {
-                if (!await _repository.ExistsAsync(articoloId))
-                {
-                    return NotFound($"Dolce con ArticoloId {articoloId} non trovato");
-                }
+                if (articoloId <= 0)
+                    return SafeBadRequest("ID articolo non valido");
+
+                var existing = await _repository.GetByIdAsync(articoloId);
+                if (existing == null)
+                    return SafeNotFound("Dolce");
 
                 await _repository.DeleteAsync(articoloId);
 
+                // ✅ Audit trail
+                LogAuditTrail("DELETE_DOLCE", "Dolce", articoloId.ToString());
+                LogSecurityEvent("DolceDeleted", new
+                {
+                    ArticoloId = articoloId,
+                    User = User.Identity?.Name
+                });
+
                 return NoContent();
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                return StatusCode(500, $"Errore durante l'eliminazione del dolce: {ex.Message}");
+                _logger.LogError(ex, "Errore durante l'eliminazione del dolce {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'eliminazione del dolce");
             }
         }
     }

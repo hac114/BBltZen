@@ -32,14 +32,24 @@ namespace RepositoryTest
             _context.Database.EnsureDeleted();
             _context.Database.EnsureCreated();
 
-            // Crea Articoli
+            // ✅ CORRETTO: Crea prima gli Articoli SENZA specificare ArticoloId
             var articoli = new List<Articolo>
             {
-                new Articolo { ArticoloId = 1, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new Articolo { ArticoloId = 2, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new Articolo { ArticoloId = 3, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new Articolo { ArticoloId = 4, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+                new Articolo { Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
             };
+
+            // Salva per generare gli ArticoloId automaticamente
+            _context.Articolo.AddRange(articoli);
+            _context.SaveChanges();
+
+            // ✅ CORRETTO: Ora abbiamo gli ArticoloId generati
+            var articoloId1 = articoli[0].ArticoloId;
+            var articoloId2 = articoli[1].ArticoloId;
+            var articoloId3 = articoli[2].ArticoloId;
+            var articoloId4 = articoli[3].ArticoloId;
 
             // Crea Personalizzazioni - SOLO campi esistenti
             var personalizzazioni = new List<Personalizzazione>
@@ -92,12 +102,12 @@ namespace RepositoryTest
                 }
             };
 
-            // Crea Bevande Standard
+            // ✅ CORRETTO: Crea Bevande Standard con ArticoloId generati automaticamente
             var bevandeStandard = new List<BevandaStandard>
             {
                 new BevandaStandard
                 {
-                    ArticoloId = 1,
+                    ArticoloId = articoloId1, // ✅ USA ArticoloId generato
                     PersonalizzazioneId = 1,
                     DimensioneBicchiereId = 1,
                     Prezzo = 5.00m,
@@ -110,7 +120,7 @@ namespace RepositoryTest
                 },
                 new BevandaStandard
                 {
-                    ArticoloId = 2,
+                    ArticoloId = articoloId2, // ✅ USA ArticoloId generato
                     PersonalizzazioneId = 2,
                     DimensioneBicchiereId = 2,
                     Prezzo = 6.00m,
@@ -123,7 +133,7 @@ namespace RepositoryTest
                 },
                 new BevandaStandard
                 {
-                    ArticoloId = 3,
+                    ArticoloId = articoloId3, // ✅ USA ArticoloId generato
                     PersonalizzazioneId = 1,
                     DimensioneBicchiereId = 1,
                     Prezzo = 4.50m,
@@ -137,7 +147,6 @@ namespace RepositoryTest
             };
 
             _context.UnitaDiMisura.AddRange(unitaDiMisura);
-            _context.Articolo.AddRange(articoli);
             _context.Personalizzazione.AddRange(personalizzazioni);
             _context.DimensioneBicchiere.AddRange(dimensioniBicchiere);
             _context.BevandaStandard.AddRange(bevandeStandard);
@@ -244,7 +253,7 @@ namespace RepositoryTest
             // Arrange
             var newBevanda = new BevandaStandardDTO
             {
-                ArticoloId = 4,
+                // ❌ RIMUOVI ArticoloId - viene generato automaticamente!
                 PersonalizzazioneId = 1,
                 DimensioneBicchiereId = 2,
                 Prezzo = 7.00m,
@@ -258,12 +267,18 @@ namespace RepositoryTest
             await _repository.AddAsync(newBevanda);
 
             // Assert
-            var result = await _repository.GetByIdAsync(4);
+            // ✅ Ora usa newBevanda.ArticoloId che è stato generato dal repository
+            var result = await _repository.GetByIdAsync(newBevanda.ArticoloId);
             Assert.NotNull(result);
             Assert.Equal(7.00m, result.Prezzo);
             Assert.True(result.Disponibile);
+            Assert.False(result.SempreDisponibile); // ✅ Aggiungi questa verifica
             Assert.NotNull(result.DataCreazione);
             Assert.NotNull(result.DataAggiornamento);
+
+            // ✅ Verifica che l'ArticoloId sia stato effettivamente generato
+            Assert.True(newBevanda.ArticoloId > 0);
+            Assert.Equal(newBevanda.ArticoloId, result.ArticoloId);
         }
 
         [Fact]

@@ -229,9 +229,21 @@ namespace Repository.Service
 
         public async Task AddAsync(BevandaStandardDTO bevandaStandardDto)
         {
+            // ✅ CORREZIONE: Prima crea il record in ARTICOLO
+            var articolo = new Articolo
+            {
+                Tipo = "BEVANDA_STANDARD",
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
+            };
+
+            _context.Articolo.Add(articolo);
+            await _context.SaveChangesAsync(); // Salva per ottenere l'ID generato
+
+            // ✅ CORREZIONE: Poi crea la bevanda standard con l'ArticoloId generato
             var bevandaStandard = new BevandaStandard
             {
-                ArticoloId = bevandaStandardDto.ArticoloId,
+                ArticoloId = articolo.ArticoloId, // ✅ USA ArticoloId generato automaticamente
                 PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId,
                 DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId,
                 Prezzo = bevandaStandardDto.Prezzo,
@@ -246,6 +258,8 @@ namespace Repository.Service
             _context.BevandaStandard.Add(bevandaStandard);
             await _context.SaveChangesAsync();
 
+            // Aggiorna il DTO con i valori del database
+            bevandaStandardDto.ArticoloId = bevandaStandard.ArticoloId;
             bevandaStandardDto.DataCreazione = bevandaStandard.DataCreazione;
             bevandaStandardDto.DataAggiornamento = bevandaStandard.DataAggiornamento;
         }

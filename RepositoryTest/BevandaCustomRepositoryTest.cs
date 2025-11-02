@@ -32,15 +32,15 @@ namespace RepositoryTest
             _context.Database.EnsureDeleted();
             _context.Database.EnsureCreated();
 
-            // Crea Articoli
+            // ✅ CORRETTO: Crea prima gli Articoli
             var articoli = new List<Articolo>
             {
-                new Articolo { ArticoloId = 1, Tipo = "BC", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new Articolo { ArticoloId = 2, Tipo = "BC", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new Articolo { ArticoloId = 3, Tipo = "BC", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+                new Articolo { ArticoloId = 1, Tipo = "BEVANDA_CUSTOM", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { ArticoloId = 2, Tipo = "BEVANDA_CUSTOM", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { ArticoloId = 3, Tipo = "BEVANDA_CUSTOM", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
             };
 
-            // Crea Personalizzazioni Custom
+            // ✅ CORRETTO: Crea Personalizzazioni Custom
             var personalizzazioniCustom = new List<PersonalizzazioneCustom>
             {
                 new PersonalizzazioneCustom
@@ -63,7 +63,7 @@ namespace RepositoryTest
                 }
             };
 
-            // Crea Bevande Custom
+            // ✅ CORRETTO: Crea Bevande Custom con ArticoloId esistenti
             var bevandeCustom = new List<BevandaCustom>
             {
                 new BevandaCustom
@@ -165,8 +165,7 @@ namespace RepositoryTest
             // Arrange
             var newBevandaCustom = new BevandaCustomDTO
             {
-                BevandaCustomId = 4,
-                ArticoloId = 4,
+                // ✅ CORRETTO: NESSUN ID specificato - vengono generati automaticamente
                 PersCustomId = 2,
                 Prezzo = 7.00m
             };
@@ -175,7 +174,11 @@ namespace RepositoryTest
             await _repository.AddAsync(newBevandaCustom);
 
             // Assert
-            var result = await _repository.GetByIdAsync(4);
+            // ✅ CORRETTO: Usa gli ID generati dal repository
+            Assert.True(newBevandaCustom.BevandaCustomId > 0);
+            Assert.True(newBevandaCustom.ArticoloId > 0);
+
+            var result = await _repository.GetByIdAsync(newBevandaCustom.BevandaCustomId);
             Assert.NotNull(result);
             Assert.Equal(7.00m, result.Prezzo);
             Assert.Equal(2, result.PersCustomId);
@@ -186,13 +189,17 @@ namespace RepositoryTest
         [Fact]
         public async Task UpdateAsync_ShouldUpdateExistingBevandaCustom()
         {
-            // Arrange
+            // Arrange - Prima recupera l'entità esistente per verifica
+            var existing = await _repository.GetByIdAsync(1);
+            Assert.NotNull(existing);
+
             var updateDto = new BevandaCustomDTO
             {
-                BevandaCustomId = 1,
-                ArticoloId = 1,
-                PersCustomId = 2,
-                Prezzo = 6.00m
+                // ✅ CORRETTO: Mantiene gli ID esistenti
+                BevandaCustomId = existing.BevandaCustomId,
+                ArticoloId = existing.ArticoloId,
+                PersCustomId = 2,  // Cambia solo questo campo
+                Prezzo = 6.00m     // E questo campo
             };
 
             // Act
@@ -203,6 +210,8 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.Equal(6.00m, result.Prezzo);
             Assert.Equal(2, result.PersCustomId);
+            // ✅ CORRETTO: Verifica che ArticoloId non sia cambiato
+            Assert.Equal(existing.ArticoloId, result.ArticoloId);
         }
 
         [Fact]
@@ -227,6 +236,16 @@ namespace RepositoryTest
         }
 
         [Fact]
+        public async Task ExistsAsync_WithNonExistingId_ShouldReturnFalse()
+        {
+            // Act
+            var result = await _repository.ExistsAsync(999);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
         public async Task ExistsByArticoloIdAsync_WithExistingArticoloId_ShouldReturnTrue()
         {
             // Act
@@ -237,6 +256,16 @@ namespace RepositoryTest
         }
 
         [Fact]
+        public async Task ExistsByArticoloIdAsync_WithNonExistingArticoloId_ShouldReturnFalse()
+        {
+            // Act
+            var result = await _repository.ExistsByArticoloIdAsync(999);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
         public async Task ExistsByPersCustomIdAsync_WithExistingPersCustomId_ShouldReturnTrue()
         {
             // Act
@@ -244,6 +273,16 @@ namespace RepositoryTest
 
             // Assert
             Assert.True(result);
+        }
+
+        [Fact]
+        public async Task ExistsByPersCustomIdAsync_WithNonExistingPersCustomId_ShouldReturnFalse()
+        {
+            // Act
+            var result = await _repository.ExistsByPersCustomIdAsync(999);
+
+            // Assert
+            Assert.False(result);
         }
     }
 }

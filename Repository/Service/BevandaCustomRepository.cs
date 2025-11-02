@@ -91,10 +91,22 @@ namespace Repository.Service
 
         public async Task AddAsync(BevandaCustomDTO bevandaCustomDto)
         {
+            // ✅ CORREZIONE: Prima crea il record in ARTICOLO
+            var articolo = new Articolo
+            {
+                Tipo = "BEVANDA_CUSTOM",
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
+            };
+
+            _context.Articolo.Add(articolo);
+            await _context.SaveChangesAsync(); // Salva per ottenere l'ID generato
+
+            // ✅ CORREZIONE: Poi crea la bevanda custom con gli ID generati
             var bevandaCustom = new BevandaCustom
             {
-                BevandaCustomId = bevandaCustomDto.BevandaCustomId,
-                ArticoloId = bevandaCustomDto.ArticoloId,
+                BevandaCustomId = 0, // ✅ Lascia che il database generi l'ID
+                ArticoloId = articolo.ArticoloId, // ✅ USA ArticoloId generato automaticamente
                 PersCustomId = bevandaCustomDto.PersCustomId,
                 Prezzo = bevandaCustomDto.Prezzo,
                 DataCreazione = DateTime.Now,
@@ -104,6 +116,9 @@ namespace Repository.Service
             _context.BevandaCustom.Add(bevandaCustom);
             await _context.SaveChangesAsync();
 
+            // Aggiorna il DTO con i valori del database
+            bevandaCustomDto.BevandaCustomId = bevandaCustom.BevandaCustomId;
+            bevandaCustomDto.ArticoloId = bevandaCustom.ArticoloId;
             bevandaCustomDto.DataCreazione = bevandaCustom.DataCreazione;
             bevandaCustomDto.DataAggiornamento = bevandaCustom.DataAggiornamento;
         }
