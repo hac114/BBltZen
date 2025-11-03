@@ -77,4 +77,47 @@ namespace DTO
         [Range(0, 9999999)]
         public long Amount { get; set; }
     }
+
+    // ✅ DTO AGGIUNTIVI CHE ERANO NEL CONTROLLER
+    public class ConfirmPaymentRequestDTO
+    {
+        [Required]
+        public string PaymentIntentId { get; set; }
+    }
+
+    public class RefundPaymentRequestDTO
+    {
+        [Required]
+        public string PaymentIntentId { get; set; }
+
+        public string Reason { get; set; } = "requested_by_customer";
+    }
+
+    public class SimulatePaymentRequestDTO
+    {
+        [Required]
+        public int OrdineId { get; set; }
+
+        [Required]
+        [Range(1, int.MaxValue)]
+        public long Amount { get; set; }
+
+        public string Currency { get; set; } = "eur";
+
+        public string Description { get; set; }
+
+        [EmailAddress]
+        public string CustomerEmail { get; set; }
+
+        public bool AutoConfirm { get; set; } = true;
+    }
+
+    // ✅ DTO PER LO STATO PAGAMENTO (se necessario)
+    public class PaymentStatusResponseDTO
+    {
+        public string PaymentIntentId { get; set; }
+        public string Status { get; set; }
+        public string Message { get; set; }
+        public DateTime? LastUpdated { get; set; }
+    }
 }
