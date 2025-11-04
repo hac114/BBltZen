@@ -88,7 +88,7 @@ namespace RepositoryTest
                     StatoOrdineId = 1,
                     StatoPagamentoId = 1,
                     Totale = 16.81m,
-                    Priorita = null
+                    Priorita = 1
                 },
                 new Ordine
                 {

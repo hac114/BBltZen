@@ -19,7 +19,7 @@ public partial class Ordine
 
     public decimal Totale { get; set; }
 
-    public int? Priorita { get; set; }
+    public int Priorita { get; set; }
 
     public virtual Cliente Cliente { get; set; } = null!;
 

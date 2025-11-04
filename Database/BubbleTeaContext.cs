@@ -118,7 +118,7 @@ public partial class BubbleTeaContext : DbContext
     public virtual DbSet<VwStatisticheRecenti> VwStatisticheRecenti { get; set; }
 
     public virtual DbSet<VwTempiStato> VwTempiStato { get; set; }
-
+   
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Articolo>(entity =>
@@ -661,7 +661,7 @@ public partial class BubbleTeaContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("data_creazione");
             entity.Property(e => e.Priorita)
-                .HasDefaultValue(0)
+                .HasDefaultValue(1)
                 .HasColumnName("priorita");
             entity.Property(e => e.StatoOrdineId)
                 .HasDefaultValue(1)

@@ -73,7 +73,7 @@ namespace RepositoryTest
                     StatoOrdineId = 1,
                     StatoPagamentoId = 1,
                     Totale = 16.81m,
-                    Priorita = null
+                    Priorita = 1
                 },
                 new Ordine
                 {
@@ -95,7 +95,7 @@ namespace RepositoryTest
                     StatoOrdineId = 1,
                     StatoPagamentoId = 1,
                     Totale = 12.30m,
-                    Priorita = null
+                    Priorita = 1
                 }
             };
 
@@ -186,7 +186,7 @@ namespace RepositoryTest
                 StatoOrdineId = 1,
                 StatoPagamentoId = 1,
                 Totale = 18.75m,
-                Priorita = null
+                Priorita = 1
             };
 
             // Act
@@ -270,7 +270,7 @@ namespace RepositoryTest
                 StatoOrdineId = 1,
                 StatoPagamentoId = 1,
                 Totale = 10.00m,
-                Priorita = null
+                Priorita = 1
             };
 
             // Act & Assert

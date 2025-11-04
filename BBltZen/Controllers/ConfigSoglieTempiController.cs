@@ -1,83 +1,217 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// BBltZen/Controllers/ConfigSoglieTempiController.cs
+using Microsoft.AspNetCore.Mvc;
 using DTO;
 using Repository.Interface;
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ConfigSoglieTempiController : ControllerBase
+    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    public class ConfigSoglieTempiController : SecureBaseController
     {
         private readonly IConfigSoglieTempiRepository _repository;
 
-        public ConfigSoglieTempiController(IConfigSoglieTempiRepository repository)
+        public ConfigSoglieTempiController(
+            IConfigSoglieTempiRepository repository,
+            IWebHostEnvironment environment,
+            ILogger<ConfigSoglieTempiController> logger)
+            : base(environment, logger)
         {
             _repository = repository;
         }
 
+        // GET: api/ConfigSoglieTempi
         [HttpGet]
+        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
         public async Task<ActionResult<IEnumerable<ConfigSoglieTempiDTO>>> GetAll()
         {
-            var result = await _repository.GetAllAsync();
-            return Ok(result);
+            try
+            {
+                var configSoglieTempi = await _repository.GetAllAsync();
+                return Ok(configSoglieTempi);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero di tutte le configurazioni soglie tempi");
+                return SafeInternalError("Errore durante il recupero delle configurazioni");
+            }
         }
 
-        [HttpGet("{sogliaId}")]
-        public async Task<ActionResult<ConfigSoglieTempiDTO>> GetById(int sogliaId)
+        // GET: api/ConfigSoglieTempi/5
+        [HttpGet("{id}")]
+        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
+        public async Task<ActionResult<ConfigSoglieTempiDTO>> GetById(int id)
         {
-            var result = await _repository.GetByIdAsync(sogliaId);
+            try
+            {
+                if (id <= 0)
+                    return SafeBadRequest<ConfigSoglieTempiDTO>("ID soglia non valido");
 
-            if (result == null)
-                return NotFound();
+                var configSoglieTempi = await _repository.GetByIdAsync(id);
 
-            return Ok(result);
+                if (configSoglieTempi == null)
+                    return SafeNotFound<ConfigSoglieTempiDTO>("Configurazione soglie tempi");
+
+                return Ok(configSoglieTempi);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero della configurazione soglie tempi {Id}", id);
+                return SafeInternalError("Errore durante il recupero della configurazione");
+            }
         }
 
+        // GET: api/ConfigSoglieTempi/stato-ordine/5
         [HttpGet("stato-ordine/{statoOrdineId}")]
+        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
         public async Task<ActionResult<ConfigSoglieTempiDTO>> GetByStatoOrdineId(int statoOrdineId)
         {
-            var result = await _repository.GetByStatoOrdineIdAsync(statoOrdineId);
+            try
+            {
+                if (statoOrdineId <= 0)
+                    return SafeBadRequest<ConfigSoglieTempiDTO>("ID stato ordine non valido");
 
-            if (result == null)
-                return NotFound();
+                var configSoglieTempi = await _repository.GetByStatoOrdineIdAsync(statoOrdineId);
 
-            return Ok(result);
+                if (configSoglieTempi == null)
+                    return SafeNotFound<ConfigSoglieTempiDTO>("Configurazione soglie tempi per stato ordine");
+
+                return Ok(configSoglieTempi);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero della configurazione per stato ordine {StatoOrdineId}", statoOrdineId);
+                return SafeInternalError("Errore durante il recupero della configurazione");
+            }
         }
 
+        // POST: api/ConfigSoglieTempi
         [HttpPost]
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult<ConfigSoglieTempiDTO>> Create(ConfigSoglieTempiDTO configSoglieTempiDto)
         {
-            // Verifica se esiste già una configurazione per questo stato ordine
-            if (await _repository.ExistsByStatoOrdineIdAsync(configSoglieTempiDto.StatoOrdineId))
+            try
             {
-                return BadRequest("Esiste già una configurazione per questo stato ordine.");
-            }
+                if (!IsModelValid(configSoglieTempiDto))
+                    return SafeBadRequest<ConfigSoglieTempiDTO>("Dati configurazione non validi");
 
-            await _repository.AddAsync(configSoglieTempiDto);
-            return CreatedAtAction(nameof(GetById), new { sogliaId = configSoglieTempiDto.SogliaId }, configSoglieTempiDto);
+                // Verifica se esiste già una configurazione per questo stato ordine
+                if (await _repository.ExistsByStatoOrdineIdAsync(configSoglieTempiDto.StatoOrdineId))
+                {
+                    return SafeBadRequest<ConfigSoglieTempiDTO>("Esiste già una configurazione per questo stato ordine");
+                }
+
+                // Imposta l'utente di aggiornamento
+                configSoglieTempiDto.UtenteAggiornamento = User.Identity?.Name ?? "System";
+
+                await _repository.AddAsync(configSoglieTempiDto);
+
+                // ✅ Audit trail
+                LogAuditTrail("CREATE_CONFIG_SOGLIE_TEMPI", "ConfigSoglieTempi", configSoglieTempiDto.SogliaId.ToString());
+                LogSecurityEvent("ConfigSoglieTempiCreated", new
+                {
+                    SogliaId = configSoglieTempiDto.SogliaId,
+                    StatoOrdineId = configSoglieTempiDto.StatoOrdineId,
+                    SogliaAttenzione = configSoglieTempiDto.SogliaAttenzione,
+                    SogliaCritico = configSoglieTempiDto.SogliaCritico,
+                    User = User.Identity?.Name
+                });
+
+                return CreatedAtAction(nameof(GetById),
+                    new { id = configSoglieTempiDto.SogliaId },
+                    configSoglieTempiDto);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la creazione della configurazione soglie tempi");
+                return SafeInternalError("Errore durante la creazione della configurazione");
+            }
         }
 
-        [HttpPut("{sogliaId}")]
-        public async Task<ActionResult> Update(int sogliaId, ConfigSoglieTempiDTO configSoglieTempiDto)
+        // PUT: api/ConfigSoglieTempi/5
+        [HttpPut("{id}")]
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        public async Task<ActionResult> Update(int id, ConfigSoglieTempiDTO configSoglieTempiDto)
         {
-            // Verifica se esiste già un'altra configurazione per questo stato ordine
-            if (await _repository.ExistsByStatoOrdineIdAsync(configSoglieTempiDto.StatoOrdineId, sogliaId))
+            try
             {
-                return BadRequest("Esiste già un'altra configurazione per questo stato ordine.");
-            }
+                if (id <= 0)
+                    return SafeBadRequest("ID soglia non valido");
 
-            await _repository.UpdateAsync(configSoglieTempiDto);
-            return NoContent();
+                if (id != configSoglieTempiDto.SogliaId)
+                    return SafeBadRequest("ID soglia non corrispondente");
+
+                if (!IsModelValid(configSoglieTempiDto))
+                    return SafeBadRequest("Dati configurazione non validi");
+
+                var existing = await _repository.GetByIdAsync(id);
+                if (existing == null)
+                    return SafeNotFound("Configurazione soglie tempi");
+
+                // Verifica se esiste già un'altra configurazione per questo stato ordine
+                if (await _repository.ExistsByStatoOrdineIdAsync(configSoglieTempiDto.StatoOrdineId, id))
+                {
+                    return SafeBadRequest("Esiste già un'altra configurazione per questo stato ordine");
+                }
+
+                // Imposta l'utente di aggiornamento
+                configSoglieTempiDto.UtenteAggiornamento = User.Identity?.Name ?? "System";
+
+                await _repository.UpdateAsync(configSoglieTempiDto);
+
+                // ✅ Audit trail
+                LogAuditTrail("UPDATE_CONFIG_SOGLIE_TEMPI", "ConfigSoglieTempi", configSoglieTempiDto.SogliaId.ToString());
+                LogSecurityEvent("ConfigSoglieTempiUpdated", new
+                {
+                    SogliaId = configSoglieTempiDto.SogliaId,
+                    StatoOrdineId = configSoglieTempiDto.StatoOrdineId,
+                    User = User.Identity?.Name
+                });
+
+                return NoContent();
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'aggiornamento della configurazione soglie tempi {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento della configurazione");
+            }
         }
 
-        [HttpDelete("{sogliaId}")]
-        public async Task<ActionResult> Delete(int sogliaId)
+        // DELETE: api/ConfigSoglieTempi/5
+        [HttpDelete("{id}")]
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        public async Task<ActionResult> Delete(int id)
         {
-            await _repository.DeleteAsync(sogliaId);
-            return NoContent();
+            try
+            {
+                if (id <= 0)
+                    return SafeBadRequest("ID soglia non valido");
+
+                var configSoglieTempi = await _repository.GetByIdAsync(id);
+                if (configSoglieTempi == null)
+                    return SafeNotFound("Configurazione soglie tempi");
+
+                await _repository.DeleteAsync(id);
+
+                // ✅ Audit trail
+                LogAuditTrail("DELETE_CONFIG_SOGLIE_TEMPI", "ConfigSoglieTempi", id.ToString());
+                LogSecurityEvent("ConfigSoglieTempiDeleted", new
+                {
+                    SogliaId = id,
+                    User = User.Identity?.Name
+                });
+
+                return NoContent();
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'eliminazione della configurazione soglie tempi {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione della configurazione");
+            }
         }
     }
 }
