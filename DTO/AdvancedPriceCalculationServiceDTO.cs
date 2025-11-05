@@ -164,4 +164,45 @@ namespace DTO
         [Range(0.01, 15000)]
         public decimal ImportoTotale { get; set; }
     }
+
+    // ✅ DTO AGGIUNTIVI PER IL CONTROLLER
+    public class DiscountRequestDTO
+    {
+        [Required]
+        [Range(0.01, 10000)]
+        public decimal Prezzo { get; set; }
+
+        [Required]
+        [Range(0, 100)]
+        public decimal PercentualeSconto { get; set; }
+    }
+
+    public class ValidationRequestDTO
+    {
+        [Required]
+        public int ArticoloId { get; set; }
+
+        [Required]
+        [StringLength(10)]
+        public string TipoArticolo { get; set; } = string.Empty;
+
+        [Required]
+        [Range(0.01, 10000)]
+        public decimal PrezzoCalcolato { get; set; }
+    }
+
+    public class AdvancedBatchCalculationRequestDTO
+    {
+        public List<int> BevandeStandardIds { get; set; } = new List<int>();
+        public List<int> BevandeCustomIds { get; set; } = new List<int>();
+        public List<int> DolciIds { get; set; } = new List<int>();
+    }
+
+    public class AdvancedBatchCalculationResponseDTO
+    {
+        public Dictionary<int, decimal> BevandeStandardPrezzi { get; set; } = new Dictionary<int, decimal>();
+        public Dictionary<int, decimal> BevandeCustomPrezzi { get; set; } = new Dictionary<int, decimal>();
+        public Dictionary<int, decimal> DolciPrezzi { get; set; } = new Dictionary<int, decimal>();
+        public List<string> Errori { get; set; } = new List<string>();
+    }
 }
