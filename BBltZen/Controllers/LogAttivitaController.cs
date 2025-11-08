@@ -4,78 +4,329 @@ using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class LogAttivitaController : ControllerBase
+    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    public class LogAttivitaController : SecureBaseController
     {
         private readonly ILogAttivitaRepository _repository;
 
-        public LogAttivitaController(ILogAttivitaRepository repository)
+        public LogAttivitaController(
+            ILogAttivitaRepository repository,
+            IWebHostEnvironment environment,
+            ILogger<LogAttivitaController> logger)
+            : base(environment, logger)
         {
             _repository = repository;
         }
 
         [HttpGet]
+        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetAll()
         {
-            var result = await _repository.GetAllAsync();
-            return Ok(result);
+            try
+            {
+                var result = await _repository.GetAllAsync();
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_ALL_LOG_ATTIVITA", "LogAttivita", "All");
+
+                return Ok(result);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero di tutti i log attività");
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nel recupero dei log attività: {ex.Message}"
+                        : "Errore interno nel recupero dei log attività"
+                );
+            }
         }
 
         [HttpGet("{logId}")]
+        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<LogAttivitaDTO>> GetById(int logId)
         {
-            var result = await _repository.GetByIdAsync(logId);
+            try
+            {
+                if (logId <= 0)
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? "ID log attività non valido: deve essere maggiore di 0"
+                            : "ID log attività non valido"
+                    );
 
-            if (result == null)
-                return NotFound();
+                var result = await _repository.GetByIdAsync(logId);
 
-            return Ok(result);
+                if (result == null)
+                    return SafeNotFound(
+                        _environment.IsDevelopment()
+                            ? $"Log attività con ID {logId} non trovato"
+                            : "Log attività non trovato"
+                    );
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_LOG_ATTIVITA_BY_ID", "LogAttivita", logId.ToString());
+
+                return Ok(result);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero log attività {LogId}", logId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nel recupero log attività {logId}: {ex.Message}"
+                        : "Errore interno nel recupero log attività"
+                );
+            }
         }
 
         [HttpGet("tipo-attivita/{tipoAttivita}")]
+        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetByTipoAttivita(string tipoAttivita)
         {
-            var result = await _repository.GetByTipoAttivitaAsync(tipoAttivita);
-            return Ok(result);
+            try
+            {
+                if (string.IsNullOrWhiteSpace(tipoAttivita))
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? "Tipo attività non valido: non può essere vuoto"
+                            : "Tipo attività non valido"
+                    );
+
+                var result = await _repository.GetByTipoAttivitaAsync(tipoAttivita);
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_LOG_ATTIVITA_BY_TIPO", "LogAttivita", tipoAttivita);
+
+                return Ok(result);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero log attività per tipo {TipoAttivita}", tipoAttivita);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nel recupero log attività per tipo {tipoAttivita}: {ex.Message}"
+                        : "Errore interno nel recupero log attività per tipo"
+                );
+            }
         }
 
         [HttpGet("periodo")]
+        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetByPeriodo([FromQuery] DateTime dataInizio, [FromQuery] DateTime dataFine)
         {
-            var result = await _repository.GetByPeriodoAsync(dataInizio, dataFine);
-            return Ok(result);
+            try
+            {
+                if (dataInizio > dataFine)
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? $"Data inizio ({dataInizio:yyyy-MM-dd}) non può essere successiva alla data fine ({dataFine:yyyy-MM-dd})"
+                            : "Intervallo date non valido"
+                    );
+
+                var result = await _repository.GetByPeriodoAsync(dataInizio, dataFine);
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_LOG_ATTIVITA_BY_PERIODO", "LogAttivita", $"{dataInizio:yyyy-MM-dd}_{dataFine:yyyy-MM-dd}");
+
+                return Ok(result);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero log attività per periodo {DataInizio} - {DataFine}", dataInizio, dataFine);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nel recupero log attività per periodo {dataInizio:yyyy-MM-dd} - {dataFine:yyyy-MM-dd}: {ex.Message}"
+                        : "Errore interno nel recupero log attività per periodo"
+                );
+            }
         }
 
         [HttpGet("statistiche/numero-attivita")]
+        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<int>> GetNumeroAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
         {
-            var result = await _repository.GetNumeroAttivitaAsync(dataInizio, dataFine);
-            return Ok(result);
+            try
+            {
+                if (dataInizio.HasValue && dataFine.HasValue && dataInizio > dataFine)
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? "Data inizio non può essere successiva alla data fine"
+                            : "Intervallo date non valido"
+                    );
+
+                var result = await _repository.GetNumeroAttivitaAsync(dataInizio, dataFine);
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_NUMERO_ATTIVITA_STATISTICHE", "LogAttivita",
+                    $"Inizio: {dataInizio?.ToString("yyyy-MM-dd") ?? "null"}, Fine: {dataFine?.ToString("yyyy-MM-dd") ?? "null"}");
+
+                return Ok(result);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero statistiche numero attività");
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nel recupero statistiche numero attività: {ex.Message}"
+                        : "Errore interno nel recupero statistiche attività"
+                );
+            }
         }
 
         [HttpPost]
-        public async Task<ActionResult<LogAttivitaDTO>> Create(LogAttivitaDTO logAttivitaDto)
+        //[Authorize(Roles = "admin,system")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<LogAttivitaDTO>> Create([FromBody] LogAttivitaDTO logAttivitaDto)
         {
-            await _repository.AddAsync(logAttivitaDto);
-            return CreatedAtAction(nameof(GetById), new { logId = logAttivitaDto.LogId }, logAttivitaDto);
+            try
+            {
+                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
+                if (!IsModelValid(logAttivitaDto))
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? "Dati log attività non validi: modello di binding fallito"
+                            : "Dati log attività non validi"
+                    );
+
+                await _repository.AddAsync(logAttivitaDto);
+
+                // ✅ Log per audit e sicurezza
+                LogAuditTrail("CREATE_LOG_ATTIVITA", "LogAttivita", logAttivitaDto.LogId.ToString());
+                LogSecurityEvent("LogAttivitaCreated", new
+                {
+                    LogId = logAttivitaDto.LogId,
+                    TipoAttivita = logAttivitaDto.TipoAttivita,
+                    Descrizione = logAttivitaDto.Descrizione,
+                    User = User.Identity?.Name ?? "System",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                return CreatedAtAction(nameof(GetById), new { logId = logAttivitaDto.LogId }, logAttivitaDto);
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella creazione log attività");
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nella creazione log attività: {ex.Message}"
+                        : "Errore interno nella creazione log attività"
+                );
+            }
         }
 
         [HttpPut("{logId}")]
-        public async Task<ActionResult> Update(int logId, LogAttivitaDTO logAttivitaDto)
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult> Update(int logId, [FromBody] LogAttivitaDTO logAttivitaDto)
         {
-            await _repository.UpdateAsync(logAttivitaDto);
-            return NoContent();
+            try
+            {
+                if (logId <= 0)
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? "ID log attività non valido: deve essere maggiore di 0"
+                            : "ID log attività non valido"
+                    );
+
+                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
+                if (!IsModelValid(logAttivitaDto))
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? "Dati log attività non validi: modello di binding fallito"
+                            : "Dati log attività non validi"
+                    );
+
+                if (logAttivitaDto.LogId != logId)
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? $"ID log attività non corrispondente: URL={logId}, Body={logAttivitaDto.LogId}"
+                            : "Identificativi non corrispondenti"
+                    );
+
+                // Verifica esistenza
+                var exists = await _repository.ExistsAsync(logId);
+                if (!exists)
+                    return SafeNotFound(
+                        _environment.IsDevelopment()
+                            ? $"Log attività con ID {logId} non trovato per l'aggiornamento"
+                            : "Log attività non trovato"
+                    );
+
+                await _repository.UpdateAsync(logAttivitaDto);
+
+                // ✅ Log per audit e sicurezza
+                LogAuditTrail("UPDATE_LOG_ATTIVITA", "LogAttivita", logId.ToString());
+                LogSecurityEvent("LogAttivitaUpdated", new
+                {
+                    LogId = logId,
+                    User = User.Identity?.Name ?? "Unknown",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                return NoContent();
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nell'aggiornamento log attività {LogId}", logId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nell'aggiornamento log attività {logId}: {ex.Message}"
+                        : "Errore interno nell'aggiornamento log attività"
+                );
+            }
         }
 
         [HttpDelete("{logId}")]
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult> Delete(int logId)
         {
-            await _repository.DeleteAsync(logId);
-            return NoContent();
+            try
+            {
+                if (logId <= 0)
+                    return SafeBadRequest(
+                        _environment.IsDevelopment()
+                            ? "ID log attività non valido: deve essere maggiore di 0"
+                            : "ID log attività non valido"
+                    );
+
+                // Verifica esistenza
+                var exists = await _repository.ExistsAsync(logId);
+                if (!exists)
+                    return SafeNotFound(
+                        _environment.IsDevelopment()
+                            ? $"Log attività con ID {logId} non trovato per l'eliminazione"
+                            : "Log attività non trovato"
+                    );
+
+                await _repository.DeleteAsync(logId);
+
+                // ✅ Log per audit e sicurezza
+                LogAuditTrail("DELETE_LOG_ATTIVITA", "LogAttivita", logId.ToString());
+                LogSecurityEvent("LogAttivitaDeleted", new
+                {
+                    LogId = logId,
+                    User = User.Identity?.Name ?? "Unknown",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                return NoContent();
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nell'eliminazione log attività {LogId}", logId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore nell'eliminazione log attività {logId}: {ex.Message}"
+                        : "Errore interno nell'eliminazione log attività"
+                );
+            }
         }
     }
 }
