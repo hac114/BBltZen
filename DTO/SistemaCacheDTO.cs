@@ -171,4 +171,17 @@ namespace DTO
         public TimeSpan TempoMedioAccesso { get; set; }
         public DateTime DataRaccolta { get; set; }
     }
+
+    // ✅ DTO AGGIUNTI DAL CONTROLLER
+    public class CacheSetRequest
+    {
+        public object Valore { get; set; } = new();
+        public TimeSpan? Durata { get; set; }
+    }
+
+    public class BulkSetRequest
+    {
+        public Dictionary<string, object> Valori { get; set; } = new();
+        public TimeSpan? Durata { get; set; }
+    }
 }

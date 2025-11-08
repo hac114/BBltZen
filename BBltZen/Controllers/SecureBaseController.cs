@@ -19,7 +19,7 @@ namespace BBltZen.Controllers
             _logger = logger;
         }
 
-        // ✅ METODI PER ActionResult<T>
+        // ✅ METODI PER ActionResult<T> (GENERICI)
         protected ActionResult<T> SafeNotFound<T>(string entity = "Risorsa")
         {
             if (_environment.IsDevelopment())
@@ -34,6 +34,20 @@ namespace BBltZen.Controllers
                 return BadRequest(message);
             else
                 return BadRequest("Richiesta non valida");
+        }
+
+        protected ActionResult<T> SafeInternalError<T>(string message)
+        {
+            if (_environment.IsDevelopment())
+                return StatusCode(500, message);
+            else
+                return StatusCode(500, "Si è verificato un errore. Riprova più tardi.");
+        }
+
+        // ✅ Per metodi che restituiscono DTO specifici
+        protected ActionResult<T> SafeBadRequest<T>(T resultDto) where T : class
+        {
+            return BadRequest(resultDto);
         }
 
         // ✅ Per metodi che non restituiscono dati (void)
