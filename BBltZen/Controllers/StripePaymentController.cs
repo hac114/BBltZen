@@ -3,6 +3,8 @@ using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Repository.Interface;
+using Microsoft.EntityFrameworkCore;
+using Database;
 
 namespace BBltZen.Controllers
 {
@@ -12,33 +14,43 @@ namespace BBltZen.Controllers
     public class StripePaymentController : SecureBaseController
     {
         private readonly IStripeServiceRepository _stripeService;
+        private readonly BubbleTeaContext _context;
 
         public StripePaymentController(
             IStripeServiceRepository stripeService,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<StripePaymentController> logger)
             : base(environment, logger)
         {
             _stripeService = stripeService;
+            _context = context;
         }
 
         /// <summary>
         /// Crea un PaymentIntent per un ordine
         /// </summary>
-        /// <param name="request">Dati per il pagamento</param>
-        /// <returns>ClientSecret per completare il pagamento</returns>
         [HttpPost("create-payment-intent")]
         [ProducesResponseType(typeof(StripePaymentResponseDTO), 200)]
         [ProducesResponseType(400)]
         [ProducesResponseType(500)]
+        //[Authorize(Roles = "cliente,admin")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<StripePaymentResponseDTO>> CreatePaymentIntent([FromBody] StripePaymentRequestDTO request)
         {
             try
             {
                 _logger.LogInformation("Creazione PaymentIntent per ordine {OrdineId}", request.OrdineId);
 
+                // ✅ Validazione modello
                 if (!IsModelValid(request))
                     return SafeBadRequest<StripePaymentResponseDTO>("Dati pagamento non validi");
+
+                // ✅ CORREZIONE: Usa OrdineId invece di Id
+                var ordineEsistente = await _context.Ordine
+                    .AnyAsync(o => o.OrdineId == request.OrdineId);
+
+                if (!ordineEsistente)
+                    return SafeNotFound<StripePaymentResponseDTO>("Ordine");
 
                 var result = await _stripeService.CreatePaymentIntentAsync(request);
 
@@ -50,7 +62,7 @@ namespace BBltZen.Controllers
                     OrdineId = request.OrdineId,
                     Amount = request.Amount,
                     Currency = request.Currency,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous"
                 });
 
                 _logger.LogInformation("PaymentIntent creato con successo per ordine {OrdineId}", request.OrdineId);
@@ -59,30 +71,34 @@ namespace BBltZen.Controllers
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "Ordine non trovato: {OrdineId}", request.OrdineId);
+                _logger.LogWarning(ex, "Argomento non valido per ordine {OrdineId}", request.OrdineId);
                 return SafeBadRequest<StripePaymentResponseDTO>(ex.Message);
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Errore database durante creazione pagamento per ordine {OrdineId}", request.OrdineId);
+                return SafeInternalError<StripePaymentResponseDTO>("Errore di sistema durante la creazione del pagamento");
             }
             catch (ApplicationException ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione del PaymentIntent per ordine {OrdineId}", request.OrdineId);
+                _logger.LogError(ex, "Errore applicazione durante creazione PaymentIntent per ordine {OrdineId}", request.OrdineId);
                 return SafeBadRequest<StripePaymentResponseDTO>(ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore interno durante la creazione del PaymentIntent per ordine {OrdineId}", request.OrdineId);
-                return SafeInternalError("Errore durante la creazione del pagamento");
+                _logger.LogError(ex, "Errore interno durante creazione PaymentIntent per ordine {OrdineId}", request.OrdineId);
+                return SafeInternalError<StripePaymentResponseDTO>("Errore durante la creazione del pagamento");
             }
         }
 
         /// <summary>
         /// Conferma un pagamento completato
         /// </summary>
-        /// <param name="request">Dati conferma pagamento</param>
-        /// <returns>Esito della conferma</returns>
         [HttpPost("confirm-payment")]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
         [ProducesResponseType(500)]
+        //[Authorize(Roles = "admin,sistema")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult> ConfirmPayment([FromBody] ConfirmPaymentRequestDTO request)
         {
             try
@@ -101,7 +117,7 @@ namespace BBltZen.Controllers
                     LogSecurityEvent("PaymentConfirmed", new
                     {
                         PaymentIntentId = request.PaymentIntentId,
-                        User = User.Identity?.Name
+                        User = User.Identity?.Name ?? "Anonymous"
                     });
 
                     _logger.LogInformation("Pagamento confermato con successo per {PaymentIntentId}", request.PaymentIntentId);
@@ -117,15 +133,20 @@ namespace BBltZen.Controllers
                     return SafeBadRequest("Impossibile confermare il pagamento");
                 }
             }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Errore database durante conferma pagamento {PaymentIntentId}", request.PaymentIntentId);
+                return SafeInternalError("Errore di sistema durante la conferma del pagamento");
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la conferma del pagamento {PaymentIntentId}", request.PaymentIntentId);
+                _logger.LogError(ex, "Errore durante conferma pagamento {PaymentIntentId}", request.PaymentIntentId);
                 return SafeInternalError("Errore durante la conferma del pagamento");
             }
         }
 
         /// <summary>
-        /// Gestisce i webhook da Stripe (per pagamenti completati, falliti, etc.)
+        /// Gestisce i webhook da Stripe
         /// </summary>
         [HttpPost("webhook")]
         [ProducesResponseType(200)]
@@ -136,11 +157,18 @@ namespace BBltZen.Controllers
             try
             {
                 var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
-                var signature = Request.Headers["Stripe-Signature"];
+
+                // ✅ Controllo signature header
+                var signatureHeader = Request.Headers["Stripe-Signature"].FirstOrDefault();
+                if (string.IsNullOrEmpty(signatureHeader))
+                {
+                    _logger.LogWarning("Webhook Stripe chiamato senza signature header");
+                    return SafeBadRequest("Missing Stripe-Signature header");
+                }
 
                 _logger.LogInformation("Webhook ricevuto da Stripe");
 
-                var result = await _stripeService.HandleWebhookAsync(json, signature);
+                var result = await _stripeService.HandleWebhookAsync(json, signatureHeader);
 
                 if (result)
                 {
@@ -155,8 +183,12 @@ namespace BBltZen.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'elaborazione del webhook Stripe");
-                return SafeBadRequest("Webhook non valido");
+                _logger.LogError(ex, "Errore durante elaborazione webhook Stripe");
+                return SafeBadRequest(
+                    _environment.IsDevelopment()
+                        ? $"Errore webhook: {ex.Message}"
+                        : "Webhook non valido"
+                );
             }
         }
 
@@ -167,7 +199,7 @@ namespace BBltZen.Controllers
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
         [ProducesResponseType(500)]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult> RefundPayment([FromBody] RefundPaymentRequestDTO request)
         {
             try
@@ -187,7 +219,7 @@ namespace BBltZen.Controllers
                     {
                         PaymentIntentId = request.PaymentIntentId,
                         Reason = request.Reason,
-                        User = User.Identity?.Name
+                        User = User.Identity?.Name ?? "Anonymous"
                     });
 
                     _logger.LogInformation("Rimborso effettuato con successo per {PaymentIntentId}", request.PaymentIntentId);
@@ -203,9 +235,14 @@ namespace BBltZen.Controllers
                     return SafeBadRequest("Impossibile processare il rimborso");
                 }
             }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Errore database durante rimborso {PaymentIntentId}", request.PaymentIntentId);
+                return SafeInternalError("Errore di sistema durante il rimborso");
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il rimborso per {PaymentIntentId}", request.PaymentIntentId);
+                _logger.LogError(ex, "Errore durante rimborso {PaymentIntentId}", request.PaymentIntentId);
                 return SafeInternalError("Errore durante il rimborso");
             }
         }
@@ -214,28 +251,29 @@ namespace BBltZen.Controllers
         /// Verifica lo stato di un pagamento
         /// </summary>
         [HttpGet("payment-status/{paymentIntentId}")]
-        [ProducesResponseType(200)]
+        [ProducesResponseType(typeof(PaymentStatusResponseDTO), 200)]
         [ProducesResponseType(400)]
         [ProducesResponseType(404)]
         [ProducesResponseType(500)]
-        public async Task<ActionResult> GetPaymentStatus(string paymentIntentId)
+        [AllowAnonymous] // ✅ PER TEST CON SWAGGER
+        public ActionResult<PaymentStatusResponseDTO> GetPaymentStatus(string paymentIntentId)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(paymentIntentId))
-                    return SafeBadRequest("ID pagamento non valido");
+                    return SafeBadRequest<PaymentStatusResponseDTO>("ID pagamento non valido");
 
                 _logger.LogInformation("Richiesta stato pagamento per {PaymentIntentId}", paymentIntentId);
 
-                // ✅ Questo è un endpoint di esempio - implementa la logica specifica
-                // Per ora restituiamo un placeholder che differenzia i messaggi
-                var statusInfo = new
+                // ✅ CORREZIONE: Metodo sincrono per evitare warning CS1998
+                var statusInfo = new PaymentStatusResponseDTO
                 {
-                    paymentIntentId = paymentIntentId,
-                    status = "unknown",
-                    message = _environment.IsDevelopment()
+                    PaymentIntentId = paymentIntentId,
+                    Status = "unknown",
+                    Message = _environment.IsDevelopment()
                         ? "Implementa la logica di recupero stato dal database"
-                        : "Stato pagamento non disponibile"
+                        : "Stato pagamento non disponibile",
+                    LastUpdated = DateTime.UtcNow
                 };
 
                 // ✅ Audit trail per consultazione stato
@@ -245,8 +283,8 @@ namespace BBltZen.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dello stato per {PaymentIntentId}", paymentIntentId);
-                return SafeInternalError("Errore durante il recupero dello stato pagamento");
+                _logger.LogError(ex, "Errore durante recupero stato per {PaymentIntentId}", paymentIntentId);
+                return SafeInternalError<PaymentStatusResponseDTO>("Errore durante il recupero dello stato pagamento");
             }
         }
 
@@ -257,7 +295,7 @@ namespace BBltZen.Controllers
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
         [ProducesResponseType(403)]
-        //[Authorize(Roles = "admin,developer")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin,developer")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult> SimulatePayment([FromBody] SimulatePaymentRequestDTO request)
         {
             try
@@ -274,14 +312,21 @@ namespace BBltZen.Controllers
 
                 _logger.LogInformation("Simulazione pagamento per ordine {OrdineId}", request.OrdineId);
 
+                // ✅ CORREZIONE: Usa OrdineId invece di Id
+                var ordineEsistente = await _context.Ordine
+                    .AnyAsync(o => o.OrdineId == request.OrdineId);
+
+                if (!ordineEsistente)
+                    return SafeNotFound("Ordine");
+
                 // Crea una richiesta di pagamento simulata
                 var paymentRequest = new StripePaymentRequestDTO
                 {
                     OrdineId = request.OrdineId,
                     Amount = request.Amount,
                     Currency = request.Currency,
-                    Description = request.Description,
-                    CustomerEmail = request.CustomerEmail
+                    Description = request.Description ?? $"Ordine simulato #{request.OrdineId}",
+                    CustomerEmail = request.CustomerEmail ?? "test@example.com"
                 };
 
                 var result = await _stripeService.CreatePaymentIntentAsync(paymentRequest);
@@ -300,7 +345,7 @@ namespace BBltZen.Controllers
                     OrdineId = request.OrdineId,
                     Amount = request.Amount,
                     AutoConfirm = request.AutoConfirm,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous"
                 });
 
                 return Ok(new
@@ -311,9 +356,14 @@ namespace BBltZen.Controllers
                     autoConfirmed = request.AutoConfirm
                 });
             }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Errore database durante simulazione pagamento ordine {OrdineId}", request.OrdineId);
+                return SafeInternalError("Errore di sistema durante la simulazione del pagamento");
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la simulazione del pagamento per ordine {OrdineId}", request.OrdineId);
+                _logger.LogError(ex, "Errore durante simulazione pagamento ordine {OrdineId}", request.OrdineId);
                 return SafeInternalError("Errore durante la simulazione del pagamento");
             }
         }

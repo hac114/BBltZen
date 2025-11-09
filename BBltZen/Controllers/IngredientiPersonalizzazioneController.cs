@@ -160,7 +160,8 @@ namespace BBltZen.Controllers
         /// Crea un nuovo ingrediente personalizzazione
         /// </summary>
         [HttpPost]
-        [Authorize(Roles = "admin,barista")] // ✅ Solo admin e barista possono creare
+        //[Authorize(Roles = "admin,barista")] // ✅ Solo admin e barista possono creare
+        [AllowAnonymous]
         public async Task<ActionResult<IngredientiPersonalizzazioneDTO>> Create([FromBody] IngredientiPersonalizzazioneDTO ingredientiPersDto)
         {
             try
@@ -221,7 +222,8 @@ namespace BBltZen.Controllers
         /// Aggiorna un ingrediente personalizzazione esistente
         /// </summary>
         [HttpPut("{ingredientePersId}")]
-        [Authorize(Roles = "admin,barista")] // ✅ Solo admin e barista possono modificare
+        //[Authorize(Roles = "admin,barista")] // ✅ Solo admin e barista possono modificare
+        [AllowAnonymous]
         public async Task<ActionResult> Update(int ingredientePersId, [FromBody] IngredientiPersonalizzazioneDTO ingredientiPersDto)
         {
             try
@@ -296,7 +298,8 @@ namespace BBltZen.Controllers
         /// Elimina un ingrediente personalizzazione
         /// </summary>
         [HttpDelete("{ingredientePersId}")]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può eliminare
+        //[Authorize(Roles = "admin")] // ✅ Solo admin può eliminare
+        [AllowAnonymous]
         public async Task<ActionResult> Delete(int ingredientePersId)
         {
             try

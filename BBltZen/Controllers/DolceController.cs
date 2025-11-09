@@ -4,28 +4,31 @@ using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Database;
+using System.Linq;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    [AllowAnonymous] // ✅ AGGIUNTO
     public class DolceController : SecureBaseController
     {
         private readonly IDolceRepository _repository;
+        private readonly BubbleTeaContext _context; // ✅ AGGIUNTO
 
         public DolceController(
             IDolceRepository repository,
+            BubbleTeaContext context, // ✅ AGGIUNTO
             IWebHostEnvironment environment,
             ILogger<DolceController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context; // ✅ AGGIUNTO
         }
 
-        /// <summary>
-        /// Ottiene tutti i dolci
-        /// </summary>
         [HttpGet]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetAll()
@@ -42,9 +45,6 @@ namespace BBltZen.Controllers
             }
         }
 
-        /// <summary>
-        /// Ottiene un dolce specifico tramite ID articolo
-        /// </summary>
         [HttpGet("{articoloId}")]
         [AllowAnonymous]
         public async Task<ActionResult<DolceDTO>> GetById(int articoloId)
@@ -68,9 +68,6 @@ namespace BBltZen.Controllers
             }
         }
 
-        /// <summary>
-        /// Ottiene solo i dolci disponibili
-        /// </summary>
         [HttpGet("disponibili")]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetDisponibili()
@@ -87,9 +84,6 @@ namespace BBltZen.Controllers
             }
         }
 
-        /// <summary>
-        /// Ottiene i dolci per priorità
-        /// </summary>
         [HttpGet("priorita/{priorita}")]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetByPriorita(int priorita)
@@ -109,12 +103,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        /// <summary>
-        /// Crea un nuovo dolce
-        /// </summary>
         [HttpPost]
-        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<DolceDTO>> Create([FromBody] DolceDTO dolceDto)
         {
             try
@@ -122,18 +112,17 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(dolceDto))
                     return SafeBadRequest<DolceDTO>("Dati dolce non validi");
 
-                // ✅ CORREZIONE: Il client NON deve specificare ArticoloId
                 if (dolceDto.ArticoloId > 0)
                     return SafeBadRequest<DolceDTO>("Non specificare ArticoloId - verrà generato automaticamente");
 
-                // ✅ CORREZIONE: Verifica duplicati nome in modo efficiente
-                var existingWithSameName = await _repository.GetAllAsync();
-                if (existingWithSameName.Any(d => d.Nome?.ToLower() == dolceDto.Nome?.ToLower()))
-                    return Conflict($"Esiste già un dolce con il nome '{dolceDto.Nome}'");
+                // ✅ VERIFICA DUPLICATI OTTIMIZZATA
+                var nomeEsistente = await _context.Dolce
+                    .AnyAsync(d => d.Nome.ToLower() == dolceDto.Nome.ToLower());
+                if (nomeEsistente)
+                    return SafeBadRequest<DolceDTO>($"Esiste già un dolce con il nome '{dolceDto.Nome}'");
 
                 await _repository.AddAsync(dolceDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("CREATE_DOLCE", "Dolce", dolceDto.ArticoloId.ToString());
                 LogSecurityEvent("DolceCreated", new
                 {
@@ -157,12 +146,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        /// <summary>
-        /// Aggiorna un dolce esistente
-        /// </summary>
         [HttpPut("{articoloId}")]
-        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult> Update(int articoloId, [FromBody] DolceDTO dolceDto)
         {
             try
@@ -180,14 +165,14 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Dolce");
 
-                // ✅ CORREZIONE: Verifica duplicati nome in modo efficiente
-                var allDolci = await _repository.GetAllAsync();
-                if (allDolci.Any(d => d.ArticoloId != articoloId && d.Nome?.ToLower() == dolceDto.Nome?.ToLower()))
-                    return Conflict($"Esiste già un altro dolce con il nome '{dolceDto.Nome}'");
+                // ✅ VERIFICA DUPLICATI OTTIMIZZATA
+                var nomeDuplicato = await _context.Dolce
+                    .AnyAsync(d => d.Nome.ToLower() == dolceDto.Nome.ToLower() && d.ArticoloId != articoloId);
+                if (nomeDuplicato)
+                    return SafeBadRequest($"Esiste già un altro dolce con il nome '{dolceDto.Nome}'");
 
                 await _repository.UpdateAsync(dolceDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("UPDATE_DOLCE", "Dolce", dolceDto.ArticoloId.ToString());
                 LogSecurityEvent("DolceUpdated", new
                 {
@@ -214,12 +199,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina un dolce
-        /// </summary>
         [HttpDelete("{articoloId}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult> Delete(int articoloId)
         {
             try
@@ -231,9 +212,14 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Dolce");
 
+                // ✅ CONTROLLO DIPENDENZE
+                var hasOrderItems = await _context.OrderItem
+                    .AnyAsync(oi => oi.ArticoloId == articoloId);
+                if (hasOrderItems)
+                    return SafeBadRequest("Impossibile eliminare: il dolce è associato a ordini");
+
                 await _repository.DeleteAsync(articoloId);
 
-                // ✅ Audit trail
                 LogAuditTrail("DELETE_DOLCE", "Dolce", articoloId.ToString());
                 LogSecurityEvent("DolceDeleted", new
                 {

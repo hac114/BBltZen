@@ -4,23 +4,28 @@ using DTO;
 using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Database;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    [AllowAnonymous] // ✅ AGGIUNTO
     public class BevandaStandardController : SecureBaseController
     {
         private readonly IBevandaStandardRepository _repository;
+        private readonly BubbleTeaContext _context; // ✅ AGGIUNTO
 
         public BevandaStandardController(
             IBevandaStandardRepository repository,
+            BubbleTeaContext context, // ✅ AGGIUNTO
             IWebHostEnvironment environment,
             ILogger<BevandaStandardController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context; // ✅ AGGIUNTO
         }
 
         // ✅ ENDPOINT PUBBLICO: Card prodotto per consumatori
@@ -36,7 +41,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle card prodotto");
-                return SafeInternalError<IEnumerable<BevandaStandardCardDTO>>("Errore durante il recupero dei prodotti");
+                return SafeInternalError("Errore durante il recupero dei prodotti");
             }
         }
 
@@ -60,7 +65,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero della card prodotto {ArticoloId}", articoloId);
-                return SafeInternalError<BevandaStandardCardDTO>("Errore durante il recupero del prodotto");
+                return SafeInternalError("Errore durante il recupero del prodotto");
             }
         }
 
@@ -77,7 +82,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle bevande standard disponibili");
-                return SafeInternalError<IEnumerable<BevandaStandardDTO>>("Errore durante il recupero delle bevande disponibili");
+                return SafeInternalError("Errore durante il recupero delle bevande disponibili");
             }
         }
 
@@ -101,7 +106,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero della bevanda standard {ArticoloId}", articoloId);
-                return SafeInternalError<BevandaStandardDTO>("Errore durante il recupero della bevanda standard");
+                return SafeInternalError("Errore durante il recupero della bevanda standard");
             }
         }
 
@@ -121,7 +126,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle bevande per dimensione {DimensioneBicchiereId}", dimensioneBicchiereId);
-                return SafeInternalError<IEnumerable<BevandaStandardDTO>>("Errore durante il recupero delle bevande per dimensione");
+                return SafeInternalError("Errore durante il recupero delle bevande per dimensione");
             }
         }
 
@@ -141,7 +146,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle bevande per personalizzazione {PersonalizzazioneId}", personalizzazioneId);
-                return SafeInternalError<IEnumerable<BevandaStandardDTO>>("Errore durante il recupero delle bevande per personalizzazione");
+                return SafeInternalError("Errore durante il recupero delle bevande per personalizzazione");
             }
         }
 
@@ -158,7 +163,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle bevande in primo piano");
-                return SafeInternalError<IEnumerable<BevandaStandardDTO>>("Errore durante il recupero delle bevande in primo piano");
+                return SafeInternalError("Errore durante il recupero delle bevande in primo piano");
             }
         }
 
@@ -175,7 +180,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle bevande in secondo piano");
-                return SafeInternalError<IEnumerable<BevandaStandardDTO>>("Errore durante il recupero delle bevande in secondo piano");
+                return SafeInternalError("Errore durante il recupero delle bevande in secondo piano");
             }
         }
 
@@ -192,14 +197,14 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle card prodotto in primo piano");
-                return SafeInternalError<IEnumerable<BevandaStandardCardDTO>>("Errore durante il recupero dei prodotti in primo piano");
+                return SafeInternalError("Errore durante il recupero dei prodotti in primo piano");
             }
         }
 
         // ✅ ENDPOINT ADMIN: Tutte le bevande
         [HttpGet]
         //[Authorize(Roles = "admin")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<BevandaStandardDTO>>> GetAll()
         {
             try
@@ -213,14 +218,14 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutte le bevande standard");
-                return SafeInternalError<IEnumerable<BevandaStandardDTO>>("Errore durante il recupero delle bevande standard");
+                return SafeInternalError("Errore durante il recupero delle bevande standard");
             }
         }
 
         // ✅ ENDPOINT ADMIN: Creazione bevanda
         [HttpPost]
         //[Authorize(Roles = "admin")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<BevandaStandardDTO>> Create([FromBody] BevandaStandardDTO bevandaStandardDto)
         {
             try
@@ -228,11 +233,9 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(bevandaStandardDto))
                     return SafeBadRequest<BevandaStandardDTO>("Dati bevanda standard non validi");
 
-                // ✅ MANTENUTO: Verifica se esiste già una bevanda con lo stesso ArticoloId
                 if (bevandaStandardDto.ArticoloId > 0 && await _repository.ExistsAsync(bevandaStandardDto.ArticoloId))
                     return SafeBadRequest<BevandaStandardDTO>($"Esiste già una bevanda standard con ArticoloId {bevandaStandardDto.ArticoloId}");
 
-                // ✅ MANTENUTO: Verifica se esiste già la stessa combinazione
                 if (await _repository.ExistsByCombinazioneAsync(
                     bevandaStandardDto.PersonalizzazioneId, bevandaStandardDto.DimensioneBicchiereId))
                 {
@@ -247,7 +250,8 @@ namespace BBltZen.Controllers
                     ArticoloId = bevandaStandardDto.ArticoloId,
                     PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId,
                     DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return CreatedAtAction(nameof(GetById), new { articoloId = bevandaStandardDto.ArticoloId }, bevandaStandardDto);
@@ -255,14 +259,14 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione della bevanda standard");
-                return SafeInternalError<BevandaStandardDTO>("Errore durante la creazione della bevanda standard");
+                return SafeInternalError("Errore durante la creazione della bevanda standard");
             }
         }
 
         // ✅ ENDPOINT ADMIN: Aggiornamento bevanda
         [HttpPut("{articoloId}")]
         //[Authorize(Roles = "admin")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult> Update(int articoloId, [FromBody] BevandaStandardDTO bevandaStandardDto)
         {
             try
@@ -286,7 +290,8 @@ namespace BBltZen.Controllers
                 LogSecurityEvent("BevandaStandardUpdated", new
                 {
                     ArticoloId = bevandaStandardDto.ArticoloId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return NoContent();
@@ -306,7 +311,7 @@ namespace BBltZen.Controllers
         // ✅ ENDPOINT ADMIN: Eliminazione bevanda
         [HttpDelete("{articoloId}")]
         //[Authorize(Roles = "admin")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult> Delete(int articoloId)
         {
             try
@@ -318,13 +323,21 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Bevanda standard");
 
+                // ✅ AGGIUNTO: CONTROLLO DIPENDENZE
+                var hasOrderItems = await _context.OrderItem
+                    .AnyAsync(oi => oi.ArticoloId == articoloId);
+
+                if (hasOrderItems)
+                    return SafeBadRequest("Impossibile eliminare: la bevanda è associata a ordini");
+
                 await _repository.DeleteAsync(articoloId);
 
                 LogAuditTrail("DELETE_BEVANDA_STANDARD", "BevandaStandard", articoloId.ToString());
                 LogSecurityEvent("BevandaStandardDeleted", new
                 {
                     ArticoloId = articoloId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return NoContent();

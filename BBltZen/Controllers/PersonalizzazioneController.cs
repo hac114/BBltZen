@@ -1,9 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Database;
 using DTO;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 
 namespace BBltZen.Controllers
 {
@@ -13,14 +15,17 @@ namespace BBltZen.Controllers
     public class PersonalizzazioneController : SecureBaseController
     {
         private readonly IPersonalizzazioneRepository _personalizzazioneRepository;
+        private readonly BubbleTeaContext _context;
 
         public PersonalizzazioneController(
             IPersonalizzazioneRepository personalizzazioneRepository,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<PersonalizzazioneController> logger)
             : base(environment, logger)
         {
             _personalizzazioneRepository = personalizzazioneRepository;
+            _context = context;
         }
 
         // GET: api/Personalizzazione
@@ -66,7 +71,7 @@ namespace BBltZen.Controllers
         // POST: api/Personalizzazione
         //[Authorize(Roles = "admin")]
         [HttpPost]
-        public async Task<ActionResult<PersonalizzazioneDTO>> Create(PersonalizzazioneDTO personalizzazioneDto)
+        public async Task<ActionResult<PersonalizzazioneDTO>> Create([FromBody] PersonalizzazioneDTO personalizzazioneDto)
         {
             try
             {
@@ -87,7 +92,8 @@ namespace BBltZen.Controllers
                 LogSecurityEvent("PersonalizzazioneCreated", new
                 {
                     PersonalizzazioneId = personalizzazioneDto.PersonalizzazioneId,
-                    Nome = personalizzazioneDto.Nome
+                    Nome = personalizzazioneDto.Nome,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return CreatedAtAction(nameof(GetById), new { id = personalizzazioneDto.PersonalizzazioneId }, personalizzazioneDto);
@@ -102,7 +108,7 @@ namespace BBltZen.Controllers
         // PUT: api/Personalizzazione/{id}
         //[Authorize(Roles = "admin")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, PersonalizzazioneDTO personalizzazioneDto)
+        public async Task<IActionResult> Update(int id, [FromBody] PersonalizzazioneDTO personalizzazioneDto)
         {
             try
             {
@@ -137,7 +143,8 @@ namespace BBltZen.Controllers
                 {
                     PersonalizzazioneId = personalizzazioneDto.PersonalizzazioneId,
                     Nome = personalizzazioneDto.Nome,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
@@ -204,32 +211,37 @@ namespace BBltZen.Controllers
 
                 var existingPersonalizzazione = await _personalizzazioneRepository.GetByIdAsync(id);
                 if (existingPersonalizzazione == null)
-                {
                     return SafeNotFound("Personalizzazione");
-                }
+
+                // ✅ CONTROLLO DIPENDENZE
+                var hasDipendenti = await _context.PersonalizzazioneIngrediente
+                    .AnyAsync(pi => pi.PersonalizzazioneId == id);
+
+                if (hasDipendenti)
+                    return SafeBadRequest("Impossibile eliminare: la personalizzazione ha ingredienti associati");
 
                 await _personalizzazioneRepository.DeleteAsync(id);
 
                 // ✅ Audit trail
-                LogAuditTrail("HARD_DELETE_PERSONALIZZAZIONE", "Personalizzazione", id.ToString());
-                LogSecurityEvent("PersonalizzazioneHardDeleted", new
+                LogAuditTrail("DELETE_PERSONALIZZAZIONE", "Personalizzazione", id.ToString());
+                LogSecurityEvent("PersonalizzazioneDeleted", new
                 {
                     PersonalizzazioneId = id,
                     Nome = existingPersonalizzazione.Nome,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
             }
             catch (System.InvalidOperationException ex)
             {
-                // ✅ Gestione specifica per dipendenze
                 _logger.LogWarning(ex, "Tentativo di eliminazione personalizzazione {Id} con dipendenze", id);
                 return SafeBadRequest(ex.Message);
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione definitiva della personalizzazione con ID {Id}", id);
+                _logger.LogError(ex, "Errore durante l'eliminazione della personalizzazione con ID {Id}", id);
                 return SafeInternalError("Errore durante l'eliminazione della personalizzazione");
             }
         }

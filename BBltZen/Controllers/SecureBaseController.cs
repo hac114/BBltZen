@@ -7,7 +7,7 @@ namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize]
+    //[Authorize] // ✅ Commentato per testing Swagger
     public abstract class SecureBaseController : ControllerBase
     {
         protected readonly IWebHostEnvironment _environment;
@@ -75,20 +75,26 @@ namespace BBltZen.Controllers
                 return StatusCode(500, "Si è verificato un errore. Riprova più tardi.");
         }
 
-        // ✅ Logging sicurezza
-        protected void LogSecurityEvent(string action, object details = null)
+        // ✅ CORRETTO: Logging sicurezza con parametro nullable esplicito
+        protected void LogSecurityEvent(string action, object? details = null)
         {
+            string user = User.Identity?.Name ?? "Anonymous";
+            string detailsText = details?.ToString() ?? "No details";
+
             _logger.LogInformation(
                 "SECURITY: {Action} - User: {User} - Details: {Details}",
-                action, User.Identity?.Name, details
+                action, user, detailsText
             );
         }
 
         protected void LogAuditTrail(string operation, string entityType, string entityId)
         {
+            string user = User.Identity?.Name ?? "Anonymous";
+            string safeEntityId = entityId ?? "Unknown";
+
             _logger.LogInformation(
                 "AUDIT: {Operation} - Entity: {Entity} - ID: {EntityId} - User: {User} - Time: {Timestamp}",
-                operation, entityType, entityId, User.Identity?.Name, DateTime.UtcNow
+                operation, entityType, safeEntityId, user, DateTime.UtcNow
             );
         }
 
@@ -115,11 +121,24 @@ namespace BBltZen.Controllers
             return isValid;
         }
 
-        // ✅ Aggiungiamo GetCurrentUserId
-        protected int GetCurrentUserId()
+        // ✅ CORRETTO: GetCurrentUserId con gestione null
+        protected int? GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst("sub") ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-            return userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId) ? userId : 0;
+
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+            {
+                return userId;
+            }
+
+            _logger.LogWarning("Current user ID not found or invalid");
+            return null;
+        }
+
+        // ✅ Metodo aggiuntivo per ottenere l'ID con fallback
+        protected int GetCurrentUserIdOrDefault(int defaultValue = 0)
+        {
+            return GetCurrentUserId() ?? defaultValue;
         }
     }
 }

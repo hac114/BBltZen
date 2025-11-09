@@ -1,10 +1,14 @@
-﻿// BBltZen/Controllers/StatoPagamentoController.cs
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using DTO;
 using Repository.Interface;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Database;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -14,36 +18,45 @@ namespace BBltZen.Controllers
     public class StatoPagamentoController : SecureBaseController
     {
         private readonly IStatoPagamentoRepository _repository;
+        private readonly BubbleTeaContext _context;
 
         public StatoPagamentoController(
             IStatoPagamentoRepository repository,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<StatoPagamentoController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context;
         }
 
-        // GET: api/StatoPagamento
         [HttpGet]
-        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<StatoPagamentoDTO>>> GetAll()
         {
             try
             {
                 var statiPagamento = await _repository.GetAllAsync();
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_ALL_STATI_PAGAMENTO", "StatoPagamento", "All");
+
                 return Ok(statiPagamento);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti gli stati pagamento");
-                return SafeInternalError("Errore durante il recupero degli stati pagamento");
+                return SafeInternalError<IEnumerable<StatoPagamentoDTO>>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero degli stati pagamento: {ex.Message}"
+                        : "Errore interno nel recupero stati pagamento"
+                );
             }
         }
 
-        // GET: api/StatoPagamento/5
         [HttpGet("{id}")]
-        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<StatoPagamentoDTO>> GetById(int id)
         {
             try
@@ -56,18 +69,24 @@ namespace BBltZen.Controllers
                 if (statoPagamento == null)
                     return SafeNotFound<StatoPagamentoDTO>("Stato pagamento");
 
+                // ✅ Log per audit
+                LogAuditTrail("GET_STATO_PAGAMENTO_BY_ID", "StatoPagamento", id.ToString());
+
                 return Ok(statoPagamento);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dello stato pagamento {Id}", id);
-                return SafeInternalError("Errore durante il recupero dello stato pagamento");
+                return SafeInternalError<StatoPagamentoDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero dello stato pagamento {id}: {ex.Message}"
+                        : "Errore interno nel recupero stato pagamento"
+                );
             }
         }
 
-        // GET: api/StatoPagamento/nome/{nomeStatoPagamento}
         [HttpGet("nome/{nomeStatoPagamento}")]
-        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<StatoPagamentoDTO>> GetByNome(string nomeStatoPagamento)
         {
             try
@@ -80,56 +99,90 @@ namespace BBltZen.Controllers
                 if (statoPagamento == null)
                     return SafeNotFound<StatoPagamentoDTO>("Stato pagamento");
 
+                // ✅ Log per audit
+                LogAuditTrail("GET_STATO_PAGAMENTO_BY_NOME", "StatoPagamento", nomeStatoPagamento);
+
                 return Ok(statoPagamento);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dello stato pagamento per nome {Nome}", nomeStatoPagamento);
-                return SafeInternalError("Errore durante il recupero dello stato pagamento");
+                return SafeInternalError<StatoPagamentoDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero dello stato pagamento per nome {nomeStatoPagamento}: {ex.Message}"
+                        : "Errore interno nel recupero stato pagamento per nome"
+                );
             }
         }
 
-        // POST: api/StatoPagamento
         [HttpPost]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        public async Task<ActionResult<StatoPagamentoDTO>> Create(StatoPagamentoDTO statoPagamentoDto)
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<StatoPagamentoDTO>> Create([FromBody] StatoPagamentoDTO statoPagamentoDto)
         {
             try
             {
                 if (!IsModelValid(statoPagamentoDto))
                     return SafeBadRequest<StatoPagamentoDTO>("Dati stato pagamento non validi");
 
-                // Verifica se esiste già uno stato con lo stesso nome
-                var existing = await _repository.GetByNomeAsync(statoPagamentoDto.StatoPagamento1);
-                if (existing != null)
+                // ✅ Controlli avanzati con BubbleTeaContext
+                var nomeEsistente = await _context.StatoPagamento
+                    .AnyAsync(s => s.StatoPagamento1 == statoPagamentoDto.StatoPagamento1);
+                if (nomeEsistente)
                     return SafeBadRequest<StatoPagamentoDTO>("Esiste già uno stato pagamento con questo nome");
+
+                // Verifica se esiste già uno stato con lo stesso ID
+                if (statoPagamentoDto.StatoPagamentoId > 0 && await _repository.ExistsAsync(statoPagamentoDto.StatoPagamentoId))
+                    return SafeBadRequest<StatoPagamentoDTO>("Esiste già uno stato pagamento con questo ID");
 
                 await _repository.AddAsync(statoPagamentoDto);
 
-                // ✅ Audit trail
+                // ✅ Audit trail e security event
                 LogAuditTrail("CREATE_STATO_PAGAMENTO", "StatoPagamento", statoPagamentoDto.StatoPagamentoId.ToString());
                 LogSecurityEvent("StatoPagamentoCreated", new
                 {
                     StatoPagamentoId = statoPagamentoDto.StatoPagamentoId,
                     Nome = statoPagamentoDto.StatoPagamento1,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return CreatedAtAction(nameof(GetById),
                     new { id = statoPagamentoDto.StatoPagamentoId },
                     statoPagamentoDto);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nella creazione stato pagamento");
+                return SafeInternalError<StatoPagamentoDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nella creazione stato pagamento: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nella creazione stato pagamento"
+                );
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nella creazione stato pagamento");
+                return SafeBadRequest<StatoPagamentoDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dello stato pagamento");
-                return SafeInternalError("Errore durante la creazione dello stato pagamento");
+                return SafeInternalError<StatoPagamentoDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante la creazione dello stato pagamento: {ex.Message}"
+                        : "Errore interno nella creazione stato pagamento"
+                );
             }
         }
 
-        // PUT: api/StatoPagamento/5
         [HttpPut("{id}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        public async Task<ActionResult> Update(int id, StatoPagamentoDTO statoPagamentoDto)
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult> Update(int id, [FromBody] StatoPagamentoDTO statoPagamentoDto)
         {
             try
             {
@@ -146,34 +199,59 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Stato pagamento");
 
-                // Verifica se esiste già un altro stato con lo stesso nome
-                var existingByName = await _repository.GetByNomeAsync(statoPagamentoDto.StatoPagamento1);
-                if (existingByName != null && existingByName.StatoPagamentoId != id)
-                    return SafeBadRequest("Esiste già uno stato pagamento con questo nome");
+                // ✅ Controlli avanzati con BubbleTeaContext
+                var nomeEsistenteAltro = await _context.StatoPagamento
+                    .AnyAsync(s => s.StatoPagamento1 == statoPagamentoDto.StatoPagamento1 && s.StatoPagamentoId != id);
+                if (nomeEsistenteAltro)
+                    return SafeBadRequest("Esiste già un altro stato pagamento con questo nome");
 
                 await _repository.UpdateAsync(statoPagamentoDto);
 
-                // ✅ Audit trail
+                // ✅ Audit trail e security event
                 LogAuditTrail("UPDATE_STATO_PAGAMENTO", "StatoPagamento", statoPagamentoDto.StatoPagamentoId.ToString());
                 LogSecurityEvent("StatoPagamentoUpdated", new
                 {
                     StatoPagamentoId = statoPagamentoDto.StatoPagamentoId,
                     Nome = statoPagamentoDto.StatoPagamento1,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    Changes = $"Nome: {existing.StatoPagamento1} → {statoPagamentoDto.StatoPagamento1}"
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nell'aggiornamento stato pagamento {Id}", id);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'aggiornamento stato pagamento {id}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'aggiornamento stato pagamento"
+                );
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nell'aggiornamento stato pagamento {Id}", id);
+                return SafeBadRequest(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dello stato pagamento {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dello stato pagamento");
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante l'aggiornamento dello stato pagamento {id}: {ex.Message}"
+                        : "Errore interno nell'aggiornamento stato pagamento"
+                );
             }
         }
 
-        // DELETE: api/StatoPagamento/5
         [HttpDelete("{id}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult> Delete(int id)
         {
             try
@@ -185,22 +263,43 @@ namespace BBltZen.Controllers
                 if (statoPagamento == null)
                     return SafeNotFound("Stato pagamento");
 
+                // ✅ Controlli avanzati con BubbleTeaContext - Verifica se ci sono ordini collegati
+                var ordiniCollegati = await _context.Ordine
+                    .AnyAsync(o => o.StatoPagamentoId == id);
+                if (ordiniCollegati)
+                    return SafeBadRequest("Impossibile eliminare: esistono ordini collegati a questo stato pagamento");
+
                 await _repository.DeleteAsync(id);
 
-                // ✅ Audit trail
+                // ✅ Audit trail e security event
                 LogAuditTrail("DELETE_STATO_PAGAMENTO", "StatoPagamento", id.ToString());
                 LogSecurityEvent("StatoPagamentoDeleted", new
                 {
                     StatoPagamentoId = id,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nell'eliminazione stato pagamento {Id}", id);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'eliminazione stato pagamento {id}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'eliminazione stato pagamento"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione dello stato pagamento {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione dello stato pagamento");
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante l'eliminazione dello stato pagamento {id}: {ex.Message}"
+                        : "Errore interno nell'eliminazione stato pagamento"
+                );
             }
         }
     }

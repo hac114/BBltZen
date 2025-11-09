@@ -71,4 +71,40 @@ namespace DTO
 
         public DateTime DataAggiornamento { get; set; }
     }
+
+    public class StatusChangeRequestDTO
+    {
+        [Required(ErrorMessage = "Il nuovo stato è obbligatorio")]
+        [StringLength(50, ErrorMessage = "Il nuovo stato non può superare 50 caratteri")]
+        public string NuovoStato { get; set; } = null!;
+    }
+
+    public class CreateNotificationRequestDTO
+    {
+        [Required(ErrorMessage = "Il tipo notifica è obbligatorio")]
+        [StringLength(50, ErrorMessage = "Il tipo notifica non può superare 50 caratteri")]
+        public string Tipo { get; set; } = null!;
+
+        [Required(ErrorMessage = "Il titolo è obbligatorio")]
+        [StringLength(200, ErrorMessage = "Il titolo non può superare 200 caratteri")]
+        public string Titolo { get; set; } = null!;
+
+        [Required(ErrorMessage = "Il messaggio è obbligatorio")]
+        [StringLength(1000, ErrorMessage = "Il messaggio non può superare 1000 caratteri")]
+        public string Messaggio { get; set; } = null!;
+
+        [Required(ErrorMessage = "La priorità è obbligatoria")]
+        [RegularExpression("^(Alta|Media|Bassa)$", ErrorMessage = "Priorità non valida. Valori consentiti: Alta, Media, Bassa")]
+        public string Priorita { get; set; } = "Media";
+    }
+
+    public class SystemAlertRequestDTO
+    {
+        [Required(ErrorMessage = "Il messaggio è obbligatorio")]
+        [StringLength(1000, ErrorMessage = "Il messaggio non può superare 1000 caratteri")]
+        public string Messaggio { get; set; } = null!;
+
+        [RegularExpression("^(Alta|Media|Bassa)$", ErrorMessage = "Priorità non valida. Valori consentiti: Alta, Media, Bassa")]
+        public string Priorita { get; set; } = "Media";
+    }
 }

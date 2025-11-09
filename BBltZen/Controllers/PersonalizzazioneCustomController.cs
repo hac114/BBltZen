@@ -4,28 +4,33 @@ using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Database;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    [AllowAnonymous] // ✅ AGGIUNTO
     public class PersonalizzazioneCustomController : SecureBaseController
     {
         private readonly IPersonalizzazioneCustomRepository _repository;
+        private readonly BubbleTeaContext _context; // ✅ AGGIUNTO
 
         public PersonalizzazioneCustomController(
             IPersonalizzazioneCustomRepository repository,
+            BubbleTeaContext context, // ✅ AGGIUNTO
             IWebHostEnvironment environment,
             ILogger<PersonalizzazioneCustomController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context; // ✅ AGGIUNTO
         }
 
         // GET: api/PersonalizzazioneCustom
         [HttpGet]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<PersonalizzazioneCustomDTO>>> GetAll()
         {
             try
@@ -42,7 +47,7 @@ namespace BBltZen.Controllers
 
         // GET: api/PersonalizzazioneCustom/5
         [HttpGet("{persCustomId}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<PersonalizzazioneCustomDTO>> GetById(int persCustomId)
         {
             try
@@ -66,7 +71,7 @@ namespace BBltZen.Controllers
 
         // GET: api/PersonalizzazioneCustom/dimensione-bicchiere/5
         [HttpGet("dimensione-bicchiere/{dimensioneBicchiereId}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<PersonalizzazioneCustomDTO>>> GetByDimensioneBicchiere(int dimensioneBicchiereId)
         {
             try
@@ -86,7 +91,7 @@ namespace BBltZen.Controllers
 
         // GET: api/PersonalizzazioneCustom/grado-dolcezza/3
         [HttpGet("grado-dolcezza/{gradoDolcezza}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<PersonalizzazioneCustomDTO>>> GetByGradoDolcezza(byte gradoDolcezza)
         {
             try
@@ -106,9 +111,9 @@ namespace BBltZen.Controllers
 
         // POST: api/PersonalizzazioneCustom
         [HttpPost]
-        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult<PersonalizzazioneCustomDTO>> Create(PersonalizzazioneCustomDTO personalizzazioneCustomDto)
+        //[Authorize(Roles = "admin,barista")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PersonalizzazioneCustomDTO>> Create([FromBody] PersonalizzazioneCustomDTO personalizzazioneCustomDto) // ✅ AGGIUNTO [FromBody]
         {
             try
             {
@@ -117,13 +122,14 @@ namespace BBltZen.Controllers
 
                 await _repository.AddAsync(personalizzazioneCustomDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("CREATE_PERSONALIZZAZIONE_CUSTOM", "PersonalizzazioneCustom", personalizzazioneCustomDto.PersCustomId.ToString());
                 LogSecurityEvent("PersonalizzazioneCustomCreated", new
                 {
                     PersCustomId = personalizzazioneCustomDto.PersCustomId,
                     Nome = personalizzazioneCustomDto.Nome,
-                    GradoDolcezza = personalizzazioneCustomDto.GradoDolcezza
+                    GradoDolcezza = personalizzazioneCustomDto.GradoDolcezza,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return CreatedAtAction(nameof(GetById),
@@ -139,9 +145,9 @@ namespace BBltZen.Controllers
 
         // PUT: api/PersonalizzazioneCustom/5
         [HttpPut("{persCustomId}")]
-        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult> Update(int persCustomId, PersonalizzazioneCustomDTO personalizzazioneCustomDto)
+        //[Authorize(Roles = "admin,barista")]
+        [AllowAnonymous]
+        public async Task<ActionResult> Update(int persCustomId, [FromBody] PersonalizzazioneCustomDTO personalizzazioneCustomDto) // ✅ AGGIUNTO [FromBody]
         {
             try
             {
@@ -160,12 +166,12 @@ namespace BBltZen.Controllers
 
                 await _repository.UpdateAsync(personalizzazioneCustomDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("UPDATE_PERSONALIZZAZIONE_CUSTOM", "PersonalizzazioneCustom", personalizzazioneCustomDto.PersCustomId.ToString());
                 LogSecurityEvent("PersonalizzazioneCustomUpdated", new
                 {
                     PersCustomId = personalizzazioneCustomDto.PersCustomId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return NoContent();
@@ -179,8 +185,8 @@ namespace BBltZen.Controllers
 
         // DELETE: api/PersonalizzazioneCustom/5
         [HttpDelete("{persCustomId}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
+        //[Authorize(Roles = "admin")]
+        [AllowAnonymous]
         public async Task<ActionResult> Delete(int persCustomId)
         {
             try
@@ -192,14 +198,21 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Personalizzazione custom");
 
+                // ✅ AGGIUNTO: CONTROLLO DIPENDENZE
+                var hasBevandeCustom = await _context.BevandaCustom
+                    .AnyAsync(bc => bc.PersCustomId == persCustomId);
+
+                if (hasBevandeCustom)
+                    return SafeBadRequest("Impossibile eliminare: la personalizzazione è utilizzata in bevande custom");
+
                 await _repository.DeleteAsync(persCustomId);
 
-                // ✅ Audit trail
                 LogAuditTrail("DELETE_PERSONALIZZAZIONE_CUSTOM", "PersonalizzazioneCustom", persCustomId.ToString());
                 LogSecurityEvent("PersonalizzazioneCustomDeleted", new
                 {
                     PersCustomId = persCustomId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return NoContent();

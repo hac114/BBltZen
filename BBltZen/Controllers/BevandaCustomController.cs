@@ -4,28 +4,32 @@ using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Database;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    [AllowAnonymous] // ✅ AGGIUNTO
     public class BevandaCustomController : SecureBaseController
     {
         private readonly IBevandaCustomRepository _repository;
+        private readonly BubbleTeaContext _context; // ✅ AGGIUNTO
 
         public BevandaCustomController(
             IBevandaCustomRepository repository,
+            BubbleTeaContext context, // ✅ AGGIUNTO
             IWebHostEnvironment environment,
             ILogger<BevandaCustomController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context; // ✅ AGGIUNTO
         }
 
-        // GET: api/BevandaCustom
         [HttpGet]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<BevandaCustomDTO>>> GetAll()
         {
             try
@@ -40,9 +44,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        // GET: api/BevandaCustom/5
         [HttpGet("{bevandaCustomId}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<BevandaCustomDTO>> GetById(int bevandaCustomId)
         {
             try
@@ -51,7 +54,6 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<BevandaCustomDTO>("ID bevanda custom non valido");
 
                 var result = await _repository.GetByIdAsync(bevandaCustomId);
-
                 if (result == null)
                     return SafeNotFound<BevandaCustomDTO>("Bevanda custom");
 
@@ -64,9 +66,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        // GET: api/BevandaCustom/articolo/5
         [HttpGet("articolo/{articoloId}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<BevandaCustomDTO>> GetByArticoloId(int articoloId)
         {
             try
@@ -75,7 +76,6 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<BevandaCustomDTO>("ID articolo non valido");
 
                 var result = await _repository.GetByArticoloIdAsync(articoloId);
-
                 if (result == null)
                     return SafeNotFound<BevandaCustomDTO>("Bevanda custom per articolo");
 
@@ -88,9 +88,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        // GET: api/BevandaCustom/personalizzazione-custom/5
         [HttpGet("personalizzazione-custom/{persCustomId}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<BevandaCustomDTO>>> GetByPersCustomId(int persCustomId)
         {
             try
@@ -108,38 +107,41 @@ namespace BBltZen.Controllers
             }
         }
 
-        // POST: api/BevandaCustom
         [HttpPost]
-        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult<BevandaCustomDTO>> Create(BevandaCustomDTO bevandaCustomDto)
+        [AllowAnonymous]
+        public async Task<ActionResult<BevandaCustomDTO>> Create([FromBody] BevandaCustomDTO bevandaCustomDto) // ✅ AGGIUNTO [FromBody]
         {
             try
             {
                 if (!IsModelValid(bevandaCustomDto))
                     return SafeBadRequest<BevandaCustomDTO>("Dati bevanda custom non validi");
 
-                // ⚠️ CORREZIONE: Il client NON deve specificare ArticoloId/BevandaCustomId
                 if (bevandaCustomDto.ArticoloId > 0)
                     return SafeBadRequest<BevandaCustomDTO>("Non specificare ArticoloId - verrà generato automaticamente");
 
                 if (bevandaCustomDto.BevandaCustomId > 0)
                     return SafeBadRequest<BevandaCustomDTO>("Non specificare BevandaCustomId - verrà generato automaticamente");
 
-                // ⚠️ CORREZIONE: Verifica se esiste già la stessa personalizzazione custom
+                // ✅ VERIFICA ESISTENZA PERSONALIZZAZIONE CUSTOM
+                var persCustomEsiste = await _context.PersonalizzazioneCustom
+                    .AnyAsync(p => p.PersCustomId == bevandaCustomDto.PersCustomId);
+                if (!persCustomEsiste)
+                    return SafeBadRequest<BevandaCustomDTO>("Personalizzazione custom non trovata");
+
                 if (await _repository.ExistsByPersCustomIdAsync(bevandaCustomDto.PersCustomId))
-                    return Conflict($"Esiste già una bevanda custom per la personalizzazione {bevandaCustomDto.PersCustomId}");
+                    return SafeBadRequest<BevandaCustomDTO>($"Esiste già una bevanda custom per la personalizzazione {bevandaCustomDto.PersCustomId}");
 
                 await _repository.AddAsync(bevandaCustomDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("CREATE_BEVANDA_CUSTOM", "BevandaCustom", bevandaCustomDto.BevandaCustomId.ToString());
                 LogSecurityEvent("BevandaCustomCreated", new
                 {
                     BevandaCustomId = bevandaCustomDto.BevandaCustomId,
                     ArticoloId = bevandaCustomDto.ArticoloId,
                     PersCustomId = bevandaCustomDto.PersCustomId,
-                    Prezzo = bevandaCustomDto.Prezzo
+                    Prezzo = bevandaCustomDto.Prezzo,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return CreatedAtAction(nameof(GetById),
@@ -153,11 +155,9 @@ namespace BBltZen.Controllers
             }
         }
 
-        // PUT: api/BevandaCustom/5
         [HttpPut("{bevandaCustomId}")]
-        //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult> Update(int bevandaCustomId, BevandaCustomDTO bevandaCustomDto)
+        [AllowAnonymous]
+        public async Task<ActionResult> Update(int bevandaCustomId, [FromBody] BevandaCustomDTO bevandaCustomDto) // ✅ AGGIUNTO [FromBody]
         {
             try
             {
@@ -174,26 +174,26 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Bevanda custom");
 
-                // ⚠️ CORREZIONE: Verifica che l'ArticoloId non venga modificato
                 if (existing.ArticoloId != bevandaCustomDto.ArticoloId)
                     return SafeBadRequest("Non è possibile modificare l'ArticoloId");
 
+                // ✅ VERIFICA ESISTENZA PERSONALIZZAZIONE CUSTOM
+                var persCustomEsiste = await _context.PersonalizzazioneCustom
+                    .AnyAsync(p => p.PersCustomId == bevandaCustomDto.PersCustomId);
+                if (!persCustomEsiste)
+                    return SafeBadRequest("Personalizzazione custom non trovata");
+
                 await _repository.UpdateAsync(bevandaCustomDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("UPDATE_BEVANDA_CUSTOM", "BevandaCustom", bevandaCustomDto.BevandaCustomId.ToString());
                 LogSecurityEvent("BevandaCustomUpdated", new
                 {
                     BevandaCustomId = bevandaCustomDto.BevandaCustomId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return NoContent();
-            }
-            catch (System.ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Tentativo di aggiornamento di una bevanda custom non trovata {BevandaCustomId}", bevandaCustomId);
-                return SafeNotFound("Bevanda custom");
             }
             catch (System.Exception ex)
             {
@@ -202,10 +202,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        // DELETE: api/BevandaCustom/5
         [HttpDelete("{bevandaCustomId}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult> Delete(int bevandaCustomId)
         {
             try
@@ -217,14 +215,20 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Bevanda custom");
 
+                // ✅ CONTROLLO DIPENDENZE
+                var hasOrderItems = await _context.OrderItem
+                    .AnyAsync(oi => oi.ArticoloId == existing.ArticoloId);
+                if (hasOrderItems)
+                    return SafeBadRequest("Impossibile eliminare: la bevanda è associata a ordini");
+
                 await _repository.DeleteAsync(bevandaCustomId);
 
-                // ✅ Audit trail
                 LogAuditTrail("DELETE_BEVANDA_CUSTOM", "BevandaCustom", bevandaCustomId.ToString());
                 LogSecurityEvent("BevandaCustomDeleted", new
                 {
                     BevandaCustomId = bevandaCustomId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
                 });
 
                 return NoContent();

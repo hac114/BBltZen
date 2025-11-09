@@ -4,27 +4,33 @@ using Repository.Interface;
 using DTO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Database;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [AllowAnonymous] // ✅ Protezione di default per tutte le operazioni
+    [AllowAnonymous]
     public class PersonalizzazioneIngredienteController : SecureBaseController
     {
         private readonly IPersonalizzazioneIngredienteRepository _personalizzazioneIngredienteRepository;
+        private readonly BubbleTeaContext _context; // ✅ AGGIUNTO
 
         public PersonalizzazioneIngredienteController(
             IPersonalizzazioneIngredienteRepository personalizzazioneIngredienteRepository,
+            BubbleTeaContext context, // ✅ AGGIUNTO
             IWebHostEnvironment environment,
             ILogger<PersonalizzazioneIngredienteController> logger)
             : base(environment, logger)
         {
             _personalizzazioneIngredienteRepository = personalizzazioneIngredienteRepository;
+            _context = context; // ✅ AGGIUNTO
         }
 
         // GET: api/PersonalizzazioneIngrediente
-        [HttpGet]        
+        [HttpGet]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<IEnumerable<PersonalizzazioneIngredienteDTO>>> GetAll()
         {
             try
@@ -40,7 +46,8 @@ namespace BBltZen.Controllers
         }
 
         // GET: api/PersonalizzazioneIngrediente/5
-        [HttpGet("{id}")]       
+        [HttpGet("{id}")]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<PersonalizzazioneIngredienteDTO>> GetById(int id)
         {
             try
@@ -63,7 +70,8 @@ namespace BBltZen.Controllers
         }
 
         // GET: api/PersonalizzazioneIngrediente/personalizzazione/5
-        [HttpGet("personalizzazione/{personalizzazioneId}")]        
+        [HttpGet("personalizzazione/{personalizzazioneId}")]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<IEnumerable<PersonalizzazioneIngredienteDTO>>> GetByPersonalizzazioneId(int personalizzazioneId)
         {
             try
@@ -82,7 +90,8 @@ namespace BBltZen.Controllers
         }
 
         // GET: api/PersonalizzazioneIngrediente/ingrediente/5
-        [HttpGet("ingrediente/{ingredienteId}")]        
+        [HttpGet("ingrediente/{ingredienteId}")]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<IEnumerable<PersonalizzazioneIngredienteDTO>>> GetByIngredienteId(int ingredienteId)
         {
             try
@@ -101,7 +110,8 @@ namespace BBltZen.Controllers
         }
 
         // GET: api/PersonalizzazioneIngrediente/personalizzazione/5/ingrediente/5
-        [HttpGet("personalizzazione/{personalizzazioneId}/ingrediente/{ingredienteId}")]        
+        [HttpGet("personalizzazione/{personalizzazioneId}/ingrediente/{ingredienteId}")]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<PersonalizzazioneIngredienteDTO>> GetByPersonalizzazioneAndIngrediente(int personalizzazioneId, int ingredienteId)
         {
             try
@@ -125,8 +135,8 @@ namespace BBltZen.Controllers
 
         // POST: api/PersonalizzazioneIngrediente
         [HttpPost]
-        //[Authorize(Roles = "admin")] // ✅ Solo admin e manager possono creare associazioni
-        public async Task<ActionResult<PersonalizzazioneIngredienteDTO>> Create(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
+        //[Authorize(Roles = "admin")]
+        public async Task<ActionResult<PersonalizzazioneIngredienteDTO>> Create([FromBody] PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
         {
             try
             {
@@ -143,14 +153,14 @@ namespace BBltZen.Controllers
 
                 await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("CREATE_PERSONALIZZAZIONE_INGREDIENTE", "PersonalizzazioneIngrediente", personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId.ToString());
                 LogSecurityEvent("PersonalizzazioneIngredienteCreated", new
                 {
                     PersonalizzazioneIngredienteId = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId,
                     PersonalizzazioneId = personalizzazioneIngredienteDto.PersonalizzazioneId,
                     IngredienteId = personalizzazioneIngredienteDto.IngredienteId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return CreatedAtAction(nameof(GetById), new { id = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId }, personalizzazioneIngredienteDto);
@@ -164,8 +174,8 @@ namespace BBltZen.Controllers
 
         // PUT: api/PersonalizzazioneIngrediente/5
         [HttpPut("{id}")]
-        //[Authorize(Roles = "admin")] // ✅ Solo admin e manager possono modificare associazioni
-        public async Task<IActionResult> Update(int id, PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
+        //[Authorize(Roles = "admin")]
+        public async Task<IActionResult> Update(int id, [FromBody] PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
         {
             try
             {
@@ -184,12 +194,12 @@ namespace BBltZen.Controllers
 
                 await _personalizzazioneIngredienteRepository.UpdateAsync(personalizzazioneIngredienteDto);
 
-                // ✅ Audit trail
                 LogAuditTrail("UPDATE_PERSONALIZZAZIONE_INGREDIENTE", "PersonalizzazioneIngrediente", personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId.ToString());
                 LogSecurityEvent("PersonalizzazioneIngredienteUpdated", new
                 {
                     PersonalizzazioneIngredienteId = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
@@ -208,7 +218,7 @@ namespace BBltZen.Controllers
 
         // DELETE: api/PersonalizzazioneIngrediente/5
         [HttpDelete("{id}")]
-        //[Authorize(Roles = "admin")] // ✅ Solo admin e manager possono eliminare associazioni
+        //[Authorize(Roles = "admin")]
         public async Task<IActionResult> Delete(int id)
         {
             try
@@ -222,12 +232,12 @@ namespace BBltZen.Controllers
 
                 await _personalizzazioneIngredienteRepository.DeleteAsync(id);
 
-                // ✅ Audit trail
                 LogAuditTrail("DELETE_PERSONALIZZAZIONE_INGREDIENTE", "PersonalizzazioneIngrediente", id.ToString());
                 LogSecurityEvent("PersonalizzazioneIngredienteDeleted", new
                 {
                     PersonalizzazioneIngredienteId = id,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
@@ -237,10 +247,11 @@ namespace BBltZen.Controllers
                 _logger.LogError(ex, "Errore durante l'eliminazione dell'associazione personalizzazione-ingrediente {Id}", id);
                 return SafeInternalError("Errore durante l'eliminazione dell'associazione");
             }
-        }        
+        }
 
         // GET: api/PersonalizzazioneIngrediente/exists/{id}
-        [HttpGet("exists/{id}")]        
+        [HttpGet("exists/{id}")]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<bool>> Exists(int id)
         {
             try
@@ -259,7 +270,8 @@ namespace BBltZen.Controllers
         }
 
         // GET: api/PersonalizzazioneIngrediente/exists/personalizzazione/5/ingrediente/{id}
-        [HttpGet("exists/personalizzazione/{personalizzazioneId}/ingrediente/{ingredienteId}")]        
+        [HttpGet("exists/personalizzazione/{personalizzazioneId}/ingrediente/{ingredienteId}")]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<bool>> ExistsByPersonalizzazioneAndIngrediente(int personalizzazioneId, int ingredienteId)
         {
             try
@@ -278,7 +290,8 @@ namespace BBltZen.Controllers
         }
 
         // GET: api/PersonalizzazioneIngrediente/count/personalizzazione/{id}
-        [HttpGet("count/personalizzazione/{personalizzazioneId}")]        
+        [HttpGet("count/personalizzazione/{personalizzazioneId}")]
+        [AllowAnonymous] // ✅ AGGIUNTO
         public async Task<ActionResult<int>> GetCountByPersonalizzazione(int personalizzazioneId)
         {
             try

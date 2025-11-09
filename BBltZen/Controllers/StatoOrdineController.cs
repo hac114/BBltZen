@@ -1,9 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using DTO;
 using Repository.Interface;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Database;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -13,36 +18,45 @@ namespace BBltZen.Controllers
     public class StatoOrdineController : SecureBaseController
     {
         private readonly IStatoOrdineRepository _repository;
+        private readonly BubbleTeaContext _context;
 
         public StatoOrdineController(
             IStatoOrdineRepository repository,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<StatoOrdineController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context;
         }
 
-        // GET: api/StatoOrdine
         [HttpGet]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<StatoOrdineDTO>>> GetAll()
         {
             try
             {
                 var result = await _repository.GetAllAsync();
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_ALL_STATI_ORDINE", "StatoOrdine", "All");
+
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti gli stati ordine");
-                return SafeInternalError("Errore durante il recupero degli stati ordine");
+                return SafeInternalError<IEnumerable<StatoOrdineDTO>>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero degli stati ordine: {ex.Message}"
+                        : "Errore interno nel recupero stati ordine"
+                );
             }
         }
 
-        // GET: api/StatoOrdine/5
         [HttpGet("{statoOrdineId}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<StatoOrdineDTO>> GetById(int statoOrdineId)
         {
             try
@@ -55,18 +69,24 @@ namespace BBltZen.Controllers
                 if (result == null)
                     return SafeNotFound<StatoOrdineDTO>("Stato ordine");
 
+                // ✅ Log per audit
+                LogAuditTrail("GET_STATO_ORDINE_BY_ID", "StatoOrdine", statoOrdineId.ToString());
+
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dello stato ordine {StatoOrdineId}", statoOrdineId);
-                return SafeInternalError("Errore durante il recupero dello stato ordine");
+                return SafeInternalError<StatoOrdineDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero dello stato ordine {statoOrdineId}: {ex.Message}"
+                        : "Errore interno nel recupero stato ordine"
+                );
             }
         }
 
-        // GET: api/StatoOrdine/nome/In%20Preparazione
         [HttpGet("nome/{nomeStatoOrdine}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<StatoOrdineDTO>> GetByNome(string nomeStatoOrdine)
         {
             try
@@ -79,97 +99,139 @@ namespace BBltZen.Controllers
                 if (result == null)
                     return SafeNotFound<StatoOrdineDTO>("Stato ordine con il nome specificato");
 
+                // ✅ Log per audit
+                LogAuditTrail("GET_STATO_ORDINE_BY_NOME", "StatoOrdine", nomeStatoOrdine);
+
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dello stato ordine per nome {NomeStatoOrdine}", nomeStatoOrdine);
-                return SafeInternalError("Errore durante il recupero dello stato ordine per nome");
+                return SafeInternalError<StatoOrdineDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero dello stato ordine per nome {nomeStatoOrdine}: {ex.Message}"
+                        : "Errore interno nel recupero stato ordine per nome"
+                );
             }
         }
 
-        // GET: api/StatoOrdine/terminali
         [HttpGet("terminali")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<StatoOrdineDTO>>> GetStatiTerminali()
         {
             try
             {
                 var result = await _repository.GetStatiTerminaliAsync();
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_STATI_ORDINE_TERMINALI", "StatoOrdine", $"Count: {result?.Count()}");
+
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli stati ordine terminali");
-                return SafeInternalError("Errore durante il recupero degli stati ordine terminali");
+                return SafeInternalError<IEnumerable<StatoOrdineDTO>>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero degli stati ordine terminali: {ex.Message}"
+                        : "Errore interno nel recupero stati ordine terminali"
+                );
             }
         }
 
-        // GET: api/StatoOrdine/non-terminali
         [HttpGet("non-terminali")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<StatoOrdineDTO>>> GetStatiNonTerminali()
         {
             try
             {
                 var result = await _repository.GetStatiNonTerminaliAsync();
+
+                // ✅ Log per audit
+                LogAuditTrail("GET_STATI_ORDINE_NON_TERMINALI", "StatoOrdine", $"Count: {result?.Count()}");
+
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli stati ordine non terminali");
-                return SafeInternalError("Errore durante il recupero degli stati ordine non terminali");
+                return SafeInternalError<IEnumerable<StatoOrdineDTO>>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero degli stati ordine non terminali: {ex.Message}"
+                        : "Errore interno nel recupero stati ordine non terminali"
+                );
             }
         }
 
-        // POST: api/StatoOrdine
         [HttpPost]
         //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult<StatoOrdineDTO>> Create(StatoOrdineDTO statoOrdineDto)
+        public async Task<ActionResult<StatoOrdineDTO>> Create([FromBody] StatoOrdineDTO statoOrdineDto)
         {
             try
             {
                 if (!IsModelValid(statoOrdineDto))
                     return SafeBadRequest<StatoOrdineDTO>("Dati stato ordine non validi");
 
+                // ✅ Controlli avanzati con BubbleTeaContext
+                var nomeEsistente = await _context.StatoOrdine
+                    .AnyAsync(s => s.StatoOrdine1 == statoOrdineDto.StatoOrdine1);
+                if (nomeEsistente)
+                    return SafeBadRequest<StatoOrdineDTO>("Esiste già uno stato ordine con questo nome");
+
                 // Verifica se esiste già uno stato ordine con lo stesso ID
                 if (statoOrdineDto.StatoOrdineId > 0 && await _repository.ExistsAsync(statoOrdineDto.StatoOrdineId))
-                    return Conflict($"Esiste già uno stato ordine con ID {statoOrdineDto.StatoOrdineId}");
-
-                // Verifica se esiste già uno stato ordine con lo stesso nome
-                var existingByName = await _repository.GetByNomeAsync(statoOrdineDto.StatoOrdine1);
-                if (existingByName != null)
-                    return Conflict($"Esiste già uno stato ordine con il nome '{statoOrdineDto.StatoOrdine1}'");
+                    return SafeBadRequest<StatoOrdineDTO>("Esiste già uno stato ordine con questo ID");
 
                 await _repository.AddAsync(statoOrdineDto);
 
-                // ✅ Audit trail
+                // ✅ Audit trail e security event
                 LogAuditTrail("CREATE_STATO_ORDINE", "StatoOrdine", statoOrdineDto.StatoOrdineId.ToString());
                 LogSecurityEvent("StatoOrdineCreated", new
                 {
                     StatoOrdineId = statoOrdineDto.StatoOrdineId,
                     Nome = statoOrdineDto.StatoOrdine1,
                     Terminale = statoOrdineDto.Terminale,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return CreatedAtAction(nameof(GetById),
                     new { statoOrdineId = statoOrdineDto.StatoOrdineId },
                     statoOrdineDto);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nella creazione stato ordine");
+                return SafeInternalError<StatoOrdineDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nella creazione stato ordine: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nella creazione stato ordine"
+                );
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nella creazione stato ordine");
+                return SafeBadRequest<StatoOrdineDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dello stato ordine");
-                return SafeInternalError("Errore durante la creazione dello stato ordine");
+                return SafeInternalError<StatoOrdineDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante la creazione dello stato ordine: {ex.Message}"
+                        : "Errore interno nella creazione stato ordine"
+                );
             }
         }
 
-        // PUT: api/StatoOrdine/5
         [HttpPut("{statoOrdineId}")]
         //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult> Update(int statoOrdineId, StatoOrdineDTO statoOrdineDto)
+        public async Task<ActionResult> Update(int statoOrdineId, [FromBody] StatoOrdineDTO statoOrdineDto)
         {
             try
             {
@@ -186,40 +248,60 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Stato ordine");
 
-                // Verifica se esiste già un altro stato ordine con lo stesso nome (escludendo il corrente)
-                var existingByName = await _repository.GetByNomeAsync(statoOrdineDto.StatoOrdine1);
-                if (existingByName != null && existingByName.StatoOrdineId != statoOrdineId)
-                    return Conflict($"Esiste già un altro stato ordine con il nome '{statoOrdineDto.StatoOrdine1}'");
+                // ✅ Controlli avanzati con BubbleTeaContext
+                var nomeEsistenteAltro = await _context.StatoOrdine
+                    .AnyAsync(s => s.StatoOrdine1 == statoOrdineDto.StatoOrdine1 && s.StatoOrdineId != statoOrdineId);
+                if (nomeEsistenteAltro)
+                    return SafeBadRequest("Esiste già un altro stato ordine con questo nome");
 
                 await _repository.UpdateAsync(statoOrdineDto);
 
-                // ✅ Audit trail
+                // ✅ Audit trail e security event
                 LogAuditTrail("UPDATE_STATO_ORDINE", "StatoOrdine", statoOrdineDto.StatoOrdineId.ToString());
                 LogSecurityEvent("StatoOrdineUpdated", new
                 {
                     StatoOrdineId = statoOrdineDto.StatoOrdineId,
                     Nome = statoOrdineDto.StatoOrdine1,
-                    User = User.Identity?.Name
+                    Terminale = statoOrdineDto.Terminale,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    Changes = $"Nome: {existing.StatoOrdine1} → {statoOrdineDto.StatoOrdine1}, Terminale: {existing.Terminale} → {statoOrdineDto.Terminale}"
                 });
 
                 return NoContent();
             }
-            catch (System.ArgumentException ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogWarning(ex, "Tentativo di aggiornamento di uno stato ordine non trovato {StatoOrdineId}", statoOrdineId);
-                return SafeNotFound("Stato ordine");
+                _logger.LogError(dbEx, "Errore database nell'aggiornamento stato ordine {StatoOrdineId}", statoOrdineId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'aggiornamento stato ordine {statoOrdineId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'aggiornamento stato ordine"
+                );
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nell'aggiornamento stato ordine {StatoOrdineId}", statoOrdineId);
+                return SafeBadRequest(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dello stato ordine {StatoOrdineId}", statoOrdineId);
-                return SafeInternalError("Errore durante l'aggiornamento dello stato ordine");
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante l'aggiornamento dello stato ordine {statoOrdineId}: {ex.Message}"
+                        : "Errore interno nell'aggiornamento stato ordine"
+                );
             }
         }
 
-        // DELETE: api/StatoOrdine/5
         [HttpDelete("{statoOrdineId}")]
         //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
         public async Task<ActionResult> Delete(int statoOrdineId)
         {
             try
@@ -231,22 +313,43 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Stato ordine");
 
+                // ✅ Controlli avanzati con BubbleTeaContext - Verifica se ci sono ordini collegati
+                var ordiniCollegati = await _context.Ordine
+                    .AnyAsync(o => o.StatoOrdineId == statoOrdineId);
+                if (ordiniCollegati)
+                    return SafeBadRequest("Impossibile eliminare: esistono ordini collegati a questo stato");
+
                 await _repository.DeleteAsync(statoOrdineId);
 
-                // ✅ Audit trail
+                // ✅ Audit trail e security event
                 LogAuditTrail("DELETE_STATO_ORDINE", "StatoOrdine", statoOrdineId.ToString());
                 LogSecurityEvent("StatoOrdineDeleted", new
                 {
                     StatoOrdineId = statoOrdineId,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nell'eliminazione stato ordine {StatoOrdineId}", statoOrdineId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'eliminazione stato ordine {statoOrdineId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'eliminazione stato ordine"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione dello stato ordine {StatoOrdineId}", statoOrdineId);
-                return SafeInternalError("Errore durante l'eliminazione dello stato ordine");
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante l'eliminazione dello stato ordine {statoOrdineId}: {ex.Message}"
+                        : "Errore interno nell'eliminazione stato ordine"
+                );
             }
         }
     }

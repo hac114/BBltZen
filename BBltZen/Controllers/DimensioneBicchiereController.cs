@@ -71,7 +71,7 @@ namespace BBltZen.Controllers
 
         // POST: api/DimensioneBicchiere
         [HttpPost]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può creare dimensioni
+        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<DimensioneBicchiereDTO>> Create([FromBody] DimensioneBicchiereDTO dimensioneDto)
         {
             try
@@ -128,7 +128,7 @@ namespace BBltZen.Controllers
 
         // PUT: api/DimensioneBicchiere/5
         [HttpPut("{id}")]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può modificare dimensioni
+        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult> Update(int id, [FromBody] DimensioneBicchiereDTO dimensioneDto)
         {
             try
@@ -197,7 +197,7 @@ namespace BBltZen.Controllers
 
         // DELETE: api/DimensioneBicchiere/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può cancellare dimensioni
+        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult> Delete(int id)
         {
             try

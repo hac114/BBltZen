@@ -62,5 +62,5 @@ namespace DTO
         public decimal Differenza { get; set; }
 
         public DateTime DataAggiornamento { get; set; }
-    }
+    }    
 }
