@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Database;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -16,18 +18,21 @@ namespace BBltZen.Controllers
     public class LogAttivitaController : SecureBaseController
     {
         private readonly ILogAttivitaRepository _repository;
+        private readonly BubbleTeaContext _context;
 
         public LogAttivitaController(
             ILogAttivitaRepository repository,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<LogAttivitaController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context;
         }
 
         [HttpGet]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetAll()
         {
             try
@@ -39,10 +44,10 @@ namespace BBltZen.Controllers
 
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutti i log attività");
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<LogAttivitaDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero dei log attività: {ex.Message}"
                         : "Errore interno nel recupero dei log attività"
@@ -51,13 +56,13 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("{logId}")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<LogAttivitaDTO>> GetById(int logId)
         {
             try
             {
                 if (logId <= 0)
-                    return SafeBadRequest(
+                    return SafeBadRequest<LogAttivitaDTO>(
                         _environment.IsDevelopment()
                             ? "ID log attività non valido: deve essere maggiore di 0"
                             : "ID log attività non valido"
@@ -66,7 +71,7 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetByIdAsync(logId);
 
                 if (result == null)
-                    return SafeNotFound(
+                    return SafeNotFound<LogAttivitaDTO>(
                         _environment.IsDevelopment()
                             ? $"Log attività con ID {logId} non trovato"
                             : "Log attività non trovato"
@@ -77,10 +82,10 @@ namespace BBltZen.Controllers
 
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log attività {LogId}", logId);
-                return SafeInternalError(
+                return SafeInternalError<LogAttivitaDTO>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero log attività {logId}: {ex.Message}"
                         : "Errore interno nel recupero log attività"
@@ -89,13 +94,13 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("tipo-attivita/{tipoAttivita}")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetByTipoAttivita(string tipoAttivita)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(tipoAttivita))
-                    return SafeBadRequest(
+                    return SafeBadRequest<IEnumerable<LogAttivitaDTO>>(
                         _environment.IsDevelopment()
                             ? "Tipo attività non valido: non può essere vuoto"
                             : "Tipo attività non valido"
@@ -108,10 +113,10 @@ namespace BBltZen.Controllers
 
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log attività per tipo {TipoAttivita}", tipoAttivita);
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<LogAttivitaDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero log attività per tipo {tipoAttivita}: {ex.Message}"
                         : "Errore interno nel recupero log attività per tipo"
@@ -120,13 +125,13 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("periodo")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetByPeriodo([FromQuery] DateTime dataInizio, [FromQuery] DateTime dataFine)
         {
             try
             {
                 if (dataInizio > dataFine)
-                    return SafeBadRequest(
+                    return SafeBadRequest<IEnumerable<LogAttivitaDTO>>(
                         _environment.IsDevelopment()
                             ? $"Data inizio ({dataInizio:yyyy-MM-dd}) non può essere successiva alla data fine ({dataFine:yyyy-MM-dd})"
                             : "Intervallo date non valido"
@@ -139,10 +144,10 @@ namespace BBltZen.Controllers
 
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log attività per periodo {DataInizio} - {DataFine}", dataInizio, dataFine);
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<LogAttivitaDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero log attività per periodo {dataInizio:yyyy-MM-dd} - {dataFine:yyyy-MM-dd}: {ex.Message}"
                         : "Errore interno nel recupero log attività per periodo"
@@ -151,13 +156,13 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("statistiche/numero-attivita")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<int>> GetNumeroAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
         {
             try
             {
                 if (dataInizio.HasValue && dataFine.HasValue && dataInizio > dataFine)
-                    return SafeBadRequest(
+                    return SafeBadRequest<int>(
                         _environment.IsDevelopment()
                             ? "Data inizio non può essere successiva alla data fine"
                             : "Intervallo date non valido"
@@ -171,10 +176,10 @@ namespace BBltZen.Controllers
 
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero statistiche numero attività");
-                return SafeInternalError(
+                return SafeInternalError<int>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero statistiche numero attività: {ex.Message}"
                         : "Errore interno nel recupero statistiche attività"
@@ -190,11 +195,20 @@ namespace BBltZen.Controllers
             {
                 // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
                 if (!IsModelValid(logAttivitaDto))
-                    return SafeBadRequest(
+                    return SafeBadRequest<LogAttivitaDTO>(
                         _environment.IsDevelopment()
                             ? "Dati log attività non validi: modello di binding fallito"
                             : "Dati log attività non validi"
                     );
+
+                // ✅ Controlli avanzati con BubbleTeaContext
+                var tipoAttivitaEsistente = await _context.LogAttivita
+                    .AnyAsync(l => l.TipoAttivita == logAttivitaDto.TipoAttivita);
+
+                if (!tipoAttivitaEsistente)
+                {
+                    _logger.LogWarning("Tentativo di creazione log con tipo attività non esistente: {TipoAttivita}", logAttivitaDto.TipoAttivita);
+                }
 
                 await _repository.AddAsync(logAttivitaDto);
 
@@ -206,15 +220,34 @@ namespace BBltZen.Controllers
                     TipoAttivita = logAttivitaDto.TipoAttivita,
                     Descrizione = logAttivitaDto.Descrizione,
                     User = User.Identity?.Name ?? "System",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return CreatedAtAction(nameof(GetById), new { logId = logAttivitaDto.LogId }, logAttivitaDto);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nella creazione log attività");
+                return SafeInternalError<LogAttivitaDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nella creazione log attività: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nella creazione log attività"
+                );
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nella creazione log attività");
+                return SafeBadRequest<LogAttivitaDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella creazione log attività");
-                return SafeInternalError(
+                return SafeInternalError<LogAttivitaDTO>(
                     _environment.IsDevelopment()
                         ? $"Errore nella creazione log attività: {ex.Message}"
                         : "Errore interno nella creazione log attività"
@@ -267,12 +300,32 @@ namespace BBltZen.Controllers
                 {
                     LogId = logId,
                     User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    Changes = $"Tipo: {logAttivitaDto.TipoAttivita}, Descrizione: {logAttivitaDto.Descrizione}"
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nell'aggiornamento log attività {LogId}", logId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'aggiornamento log attività {logId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'aggiornamento log attività"
+                );
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nell'aggiornamento log attività {LogId}", logId);
+                return SafeBadRequest(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'aggiornamento log attività {LogId}", logId);
                 return SafeInternalError(
@@ -313,12 +366,22 @@ namespace BBltZen.Controllers
                 {
                     LogId = logId,
                     User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nell'eliminazione log attività {LogId}", logId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'eliminazione log attività {logId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'eliminazione log attività"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'eliminazione log attività {LogId}", logId);
                 return SafeInternalError(

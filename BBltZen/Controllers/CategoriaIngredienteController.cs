@@ -4,6 +4,7 @@ using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -13,17 +14,21 @@ namespace BBltZen.Controllers
     public class CategoriaIngredienteController : SecureBaseController
     {
         private readonly ICategoriaIngredienteRepository _repository;
+        private readonly Database.BubbleTeaContext _context;
 
         public CategoriaIngredienteController(
             ICategoriaIngredienteRepository repository,
+            Database.BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<CategoriaIngredienteController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context;
         }
 
         [HttpGet]
+        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
         public async Task<ActionResult<IEnumerable<CategoriaIngredienteDTO>>> GetAll()
         {
             try
@@ -34,11 +39,12 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutte le categorie ingredienti");
-                return SafeInternalError("Errore durante il recupero delle categorie");
+                return SafeInternalError<IEnumerable<CategoriaIngredienteDTO>>("Errore durante il recupero delle categorie");
             }
         }
 
         [HttpGet("{id}")]
+        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
         public async Task<ActionResult<CategoriaIngredienteDTO>> GetById(int id)
         {
             try
@@ -56,41 +62,57 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero della categoria ingrediente {Id}", id);
-                return SafeInternalError("Errore durante il recupero della categoria");
+                return SafeInternalError<CategoriaIngredienteDTO>("Errore durante il recupero della categoria");
             }
         }
 
         [HttpPost]
         [Authorize(Roles = "admin")] // ✅ Solo admin può creare categorie
-        public async Task<ActionResult<CategoriaIngredienteDTO>> Create(CategoriaIngredienteDTO categoriaDto)
+        public async Task<ActionResult<CategoriaIngredienteDTO>> Create([FromBody] CategoriaIngredienteDTO categoriaDto) // ✅ AGGIUNTO [FromBody]
         {
             try
             {
                 if (!IsModelValid(categoriaDto))
                     return SafeBadRequest<CategoriaIngredienteDTO>("Dati categoria non validi");
 
+                // ✅ CONTROLLO DUPLICATI
+                var categoriaEsistente = await _context.CategoriaIngrediente
+                    .FirstOrDefaultAsync(c => c.Categoria.ToLower() == categoriaDto.Categoria.ToLower());
+
+                if (categoriaEsistente != null)
+                    return SafeBadRequest<CategoriaIngredienteDTO>("Categoria già esistente");
+
                 await _repository.AddAsync(categoriaDto);
 
-                // ✅ Audit trail
+                // ✅ AUDIT TRAIL COMPLETO
                 LogAuditTrail("CREATE_CATEGORIA_INGREDIENTE", "CategoriaIngrediente", categoriaDto.CategoriaId.ToString());
+
+                // ✅ SECURITY EVENT COMPLETO CON TIMESTAMP
                 LogSecurityEvent("CategoriaIngredienteCreated", new
                 {
                     CategoriaId = categoriaDto.CategoriaId,
-                    Categoria = categoriaDto.Categoria
+                    Categoria = categoriaDto.Categoria,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return CreatedAtAction(nameof(GetById), new { id = categoriaDto.CategoriaId }, categoriaDto);
             }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione della categoria ingrediente");
+                return SafeInternalError<CategoriaIngredienteDTO>("Errore durante il salvataggio della categoria");
+            }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione della categoria ingrediente");
-                return SafeInternalError("Errore durante la creazione della categoria");
+                return SafeInternalError<CategoriaIngredienteDTO>("Errore durante la creazione della categoria");
             }
         }
 
         [HttpPut("{id}")]
         [Authorize(Roles = "admin")] // ✅ Solo admin può modificare categorie
-        public async Task<ActionResult> Update(int id, CategoriaIngredienteDTO categoriaDto)
+        public async Task<ActionResult> Update(int id, [FromBody] CategoriaIngredienteDTO categoriaDto) // ✅ AGGIUNTO [FromBody]
         {
             try
             {
@@ -107,17 +129,36 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Categoria ingrediente");
 
+                // ✅ CONTROLLO DUPLICATI (escludendo la categoria corrente)
+                var categoriaDuplicata = await _context.CategoriaIngrediente
+                    .FirstOrDefaultAsync(c =>
+                        c.Categoria.ToLower() == categoriaDto.Categoria.ToLower() &&
+                        c.CategoriaId != id);
+
+                if (categoriaDuplicata != null)
+                    return SafeBadRequest("Categoria già esistente");
+
                 await _repository.UpdateAsync(categoriaDto);
 
-                // ✅ Audit trail
+                // ✅ AUDIT TRAIL COMPLETO
                 LogAuditTrail("UPDATE_CATEGORIA_INGREDIENTE", "CategoriaIngrediente", categoriaDto.CategoriaId.ToString());
+
+                // ✅ SECURITY EVENT COMPLETO CON TIMESTAMP
                 LogSecurityEvent("CategoriaIngredienteUpdated", new
                 {
                     CategoriaId = categoriaDto.CategoriaId,
-                    User = User.Identity?.Name
+                    OldCategory = existing.Categoria,
+                    NewCategory = categoriaDto.Categoria,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento della categoria ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento della categoria");
             }
             catch (System.Exception ex)
             {
@@ -139,17 +180,33 @@ namespace BBltZen.Controllers
                 if (categoria == null)
                     return SafeNotFound("Categoria ingrediente");
 
+                // ✅ CONTROLLO SE LA CATEGORIA HA INGREDIENTI ASSOCIATI
+                var hasIngredienti = await _context.Ingrediente
+                    .AnyAsync(i => i.CategoriaId == id);
+
+                if (hasIngredienti)
+                    return SafeBadRequest("Impossibile eliminare: la categoria ha ingredienti associati");
+
                 await _repository.DeleteAsync(id);
 
-                // ✅ Audit trail
+                // ✅ AUDIT TRAIL COMPLETO
                 LogAuditTrail("DELETE_CATEGORIA_INGREDIENTE", "CategoriaIngrediente", id.ToString());
+
+                // ✅ SECURITY EVENT COMPLETO CON TIMESTAMP
                 LogSecurityEvent("CategoriaIngredienteDeleted", new
                 {
                     CategoriaId = id,
-                    User = User.Identity?.Name
+                    Categoria = categoria.Categoria,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione della categoria ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione della categoria");
             }
             catch (System.Exception ex)
             {

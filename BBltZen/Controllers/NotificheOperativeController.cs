@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Database;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -16,33 +18,33 @@ namespace BBltZen.Controllers
     public class NotificheOperativeController : SecureBaseController
     {
         private readonly INotificheOperativeRepository _repository;
+        private readonly BubbleTeaContext _context;
 
         public NotificheOperativeController(
             INotificheOperativeRepository repository,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<NotificheOperativeController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context;
         }
 
         [HttpGet]
-        //[Authorize(Roles = "admin,manager,operator")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<NotificheOperativeDTO>>> GetAll()
         {
             try
             {
                 var result = await _repository.GetAllAsync();
-
-                // ✅ Log per audit
                 LogAuditTrail("GET_ALL_NOTIFICHE_OPERATIVE", "NotificheOperative", "All");
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutte le notifiche operative");
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<NotificheOperativeDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero delle notifiche operative: {ex.Message}"
                         : "Errore interno nel recupero delle notifiche"
@@ -51,36 +53,26 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("{notificaId}")]
-        //[Authorize(Roles = "admin,manager,operator")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<NotificheOperativeDTO>> GetById(int notificaId)
         {
             try
             {
                 if (notificaId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID notifica non valido: deve essere maggiore di 0"
-                            : "ID notifica non valido"
-                    );
+                    return SafeBadRequest<NotificheOperativeDTO>("ID notifica non valido");
 
                 var result = await _repository.GetByIdAsync(notificaId);
 
                 if (result == null)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Notifica operativa con ID {notificaId} non trovata"
-                            : "Notifica operativa non trovata"
-                    );
+                    return SafeNotFound<NotificheOperativeDTO>("Notifica operativa non trovata");
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_NOTIFICA_OPERATIVA_BY_ID", "NotificheOperative", notificaId.ToString());
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero notifica operativa {NotificaId}", notificaId);
-                return SafeInternalError(
+                return SafeInternalError<NotificheOperativeDTO>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero notifica operativa {notificaId}: {ex.Message}"
                         : "Errore interno nel recupero notifica"
@@ -89,29 +81,22 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("stato/{stato}")]
-        //[Authorize(Roles = "admin,manager,operator")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<NotificheOperativeDTO>>> GetByStato(string stato)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(stato))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Stato notifica non valido: non può essere vuoto"
-                            : "Stato notifica non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<NotificheOperativeDTO>>("Stato notifica non valido");
 
                 var result = await _repository.GetByStatoAsync(stato);
-
-                // ✅ Log per audit
                 LogAuditTrail("GET_NOTIFICHE_BY_STATO", "NotificheOperative", stato);
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero notifiche per stato {Stato}", stato);
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<NotificheOperativeDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero notifiche per stato {stato}: {ex.Message}"
                         : "Errore interno nel recupero notifiche per stato"
@@ -120,29 +105,22 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("priorita/{priorita}")]
-        //[Authorize(Roles = "admin,manager,operator")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<NotificheOperativeDTO>>> GetByPriorita(int priorita)
         {
             try
             {
-                if (priorita <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Priorità non valida: deve essere maggiore di 0"
-                            : "Priorità non valida"
-                    );
+                if (priorita <= 0 || priorita > 10)
+                    return SafeBadRequest<IEnumerable<NotificheOperativeDTO>>("Priorità non valida");
 
                 var result = await _repository.GetByPrioritaAsync(priorita);
-
-                // ✅ Log per audit
                 LogAuditTrail("GET_NOTIFICHE_BY_PRIORITA", "NotificheOperative", priorita.ToString());
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero notifiche per priorità {Priorita}", priorita);
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<NotificheOperativeDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero notifiche per priorità {priorita}: {ex.Message}"
                         : "Errore interno nel recupero notifiche per priorità"
@@ -151,22 +129,19 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("pendenti")]
-        //[Authorize(Roles = "admin,manager,operator")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<NotificheOperativeDTO>>> GetPendenti()
         {
             try
             {
                 var result = await _repository.GetPendentiAsync();
-
-                // ✅ Log per audit
                 LogAuditTrail("GET_NOTIFICHE_PENDENTI", "NotificheOperative", $"Count: {result?.Count()}");
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero notifiche pendenti");
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<NotificheOperativeDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero notifiche pendenti: {ex.Message}"
                         : "Errore interno nel recupero notifiche pendenti"
@@ -175,29 +150,22 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("periodo")]
-        //[Authorize(Roles = "admin,manager,operator")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<IEnumerable<NotificheOperativeDTO>>> GetByPeriodo([FromQuery] DateTime dataInizio, [FromQuery] DateTime dataFine)
         {
             try
             {
                 if (dataInizio > dataFine)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"Data inizio ({dataInizio:yyyy-MM-dd}) non può essere successiva alla data fine ({dataFine:yyyy-MM-dd})"
-                            : "Intervallo date non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<NotificheOperativeDTO>>("Intervallo date non valido");
 
                 var result = await _repository.GetByPeriodoAsync(dataInizio, dataFine);
-
-                // ✅ Log per audit
                 LogAuditTrail("GET_NOTIFICHE_BY_PERIODO", "NotificheOperative", $"{dataInizio:yyyy-MM-dd}_{dataFine:yyyy-MM-dd}");
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero notifiche per periodo {DataInizio} - {DataFine}", dataInizio, dataFine);
-                return SafeInternalError(
+                return SafeInternalError<IEnumerable<NotificheOperativeDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero notifiche per periodo {dataInizio:yyyy-MM-dd} - {dataFine:yyyy-MM-dd}: {ex.Message}"
                         : "Errore interno nel recupero notifiche per periodo"
@@ -206,22 +174,19 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("pendenti/numero")]
-        //[Authorize(Roles = "admin,manager,operator")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
         public async Task<ActionResult<int>> GetNumeroPendenti()
         {
             try
             {
                 var result = await _repository.GetNumeroNotifichePendentiAsync();
-
-                // ✅ Log per audit
                 LogAuditTrail("GET_NUMERO_NOTIFICHE_PENDENTI", "NotificheOperative", result.ToString());
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero numero notifiche pendenti");
-                return SafeInternalError(
+                return SafeInternalError<int>(
                     _environment.IsDevelopment()
                         ? $"Errore nel recupero numero notifiche pendenti: {ex.Message}"
                         : "Errore interno nel recupero numero notifiche pendenti"
@@ -235,34 +200,47 @@ namespace BBltZen.Controllers
         {
             try
             {
-                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
+                // ✅ SOLO CONTROLLO GENERICO - LE VALIDAZIONI SPECIFICHE SONO NEL DTO
                 if (!IsModelValid(notificaDto))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Dati notifica operativa non validi: modello di binding fallito"
-                            : "Dati notifica non validi"
-                    );
+                    return SafeBadRequest<NotificheOperativeDTO>("Dati notifica non validi");
 
                 await _repository.AddAsync(notificaDto);
 
-                // ✅ Log per audit e sicurezza
                 LogAuditTrail("CREATE_NOTIFICA_OPERATIVA", "NotificheOperative", notificaDto.NotificaId.ToString());
                 LogSecurityEvent("NotificaOperativaCreated", new
                 {
                     NotificaId = notificaDto.NotificaId,
                     Priorita = notificaDto.Priorita,
                     Stato = notificaDto.Stato,
-                    OrdiniCoinvolti = notificaDto.OrdiniCoinvolti,
                     User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return CreatedAtAction(nameof(GetById), new { notificaId = notificaDto.NotificaId }, notificaDto);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nella creazione notifica operativa");
+                return SafeInternalError<NotificheOperativeDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nella creazione notifica operativa: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nella creazione notifica"
+                );
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nella creazione notifica operativa");
+                return SafeBadRequest<NotificheOperativeDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella creazione notifica operativa");
-                return SafeInternalError(
+                return SafeInternalError<NotificheOperativeDTO>(
                     _environment.IsDevelopment()
                         ? $"Errore nella creazione notifica operativa: {ex.Message}"
                         : "Errore interno nella creazione notifica"
@@ -277,39 +255,21 @@ namespace BBltZen.Controllers
             try
             {
                 if (notificaId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID notifica non valido: deve essere maggiore di 0"
-                            : "ID notifica non valido"
-                    );
+                    return SafeBadRequest("ID notifica non valido");
 
-                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
+                // ✅ SOLO CONTROLLO GENERICO - LE VALIDAZIONI SPECIFICHE SONO NEL DTO
                 if (!IsModelValid(notificaDto))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Dati notifica operativa non validi: modello di binding fallito"
-                            : "Dati notifica non validi"
-                    );
+                    return SafeBadRequest("Dati notifica non validi");
 
                 if (notificaDto.NotificaId != notificaId)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"ID notifica non corrispondente: URL={notificaId}, Body={notificaDto.NotificaId}"
-                            : "Identificativi non corrispondenti"
-                    );
+                    return SafeBadRequest("Identificativi non corrispondenti");
 
-                // Verifica esistenza
                 var exists = await _repository.ExistsAsync(notificaId);
                 if (!exists)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Notifica operativa con ID {notificaId} non trovata per l'aggiornamento"
-                            : "Notifica operativa non trovata"
-                    );
+                    return SafeNotFound("Notifica operativa non trovata");
 
                 await _repository.UpdateAsync(notificaDto);
 
-                // ✅ Log per audit e sicurezza
                 LogAuditTrail("UPDATE_NOTIFICA_OPERATIVA", "NotificheOperative", notificaId.ToString());
                 LogSecurityEvent("NotificaOperativaUpdated", new
                 {
@@ -317,12 +277,31 @@ namespace BBltZen.Controllers
                     Stato = notificaDto.Stato,
                     Priorita = notificaDto.Priorita,
                     User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nell'aggiornamento notifica operativa {NotificaId}", notificaId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'aggiornamento notifica operativa {notificaId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'aggiornamento notifica"
+                );
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido nell'aggiornamento notifica operativa {NotificaId}", notificaId);
+                return SafeBadRequest(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'aggiornamento notifica operativa {NotificaId}", notificaId);
                 return SafeInternalError(
@@ -340,35 +319,35 @@ namespace BBltZen.Controllers
             try
             {
                 if (notificaId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID notifica non valido: deve essere maggiore di 0"
-                            : "ID notifica non valido"
-                    );
+                    return SafeBadRequest("ID notifica non valido");
 
-                // Verifica esistenza
                 var exists = await _repository.ExistsAsync(notificaId);
                 if (!exists)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Notifica operativa con ID {notificaId} non trovata per l'eliminazione"
-                            : "Notifica operativa non trovata"
-                    );
+                    return SafeNotFound("Notifica operativa non trovata");
 
                 await _repository.DeleteAsync(notificaId);
 
-                // ✅ Log per audit e sicurezza
                 LogAuditTrail("DELETE_NOTIFICA_OPERATIVA", "NotificheOperative", notificaId.ToString());
                 LogSecurityEvent("NotificaOperativaDeleted", new
                 {
                     NotificaId = notificaId,
                     User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database nell'eliminazione notifica operativa {NotificaId}", notificaId);
+                return SafeInternalError(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nell'eliminazione notifica operativa {notificaId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema nell'eliminazione notifica"
+                );
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'eliminazione notifica operativa {NotificaId}", notificaId);
                 return SafeInternalError(

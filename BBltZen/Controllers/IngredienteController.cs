@@ -4,6 +4,9 @@ using DTO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Database;
+using System.Linq;
 
 namespace BBltZen.Controllers
 {
@@ -13,20 +16,23 @@ namespace BBltZen.Controllers
     public class IngredienteController : SecureBaseController
     {
         private readonly IIngredienteRepository _ingredienteRepository;
+        private readonly BubbleTeaContext _context;
 
         public IngredienteController(
             IIngredienteRepository ingredienteRepository,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<IngredienteController> logger)
             : base(environment, logger)
         {
             _ingredienteRepository = ingredienteRepository;
+            _context = context;
         }
 
         // GET: api/Ingrediente
         // ✅ PER ADMIN: Mostra TUTTI gli ingredienti (anche non disponibili)
         [HttpGet]
-        //[Authorize(Roles = "admin")]
+        [Authorize(Roles = "admin")] // ✅ Solo admin può vedere tutti gli ingredienti
         public async Task<ActionResult<IEnumerable<IngredienteDTO>>> GetAll()
         {
             try
@@ -37,13 +43,14 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti gli ingredienti");
-                return SafeInternalError("Errore durante il recupero degli ingredienti");
+                return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti");
             }
         }
 
         // GET: api/Ingrediente/5
         // ✅ PER TUTTI: Cerca per ID (se DISPONIBILE) - altrimenti 404 per clienti
         [HttpGet("{id}")]
+        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
         public async Task<ActionResult<IngredienteDTO>> GetById(int id)
         {
             try
@@ -62,7 +69,8 @@ namespace BBltZen.Controllers
                     LogSecurityEvent("AttemptAccessUnavailableIngredient", new
                     {
                         IngredienteId = id,
-                        User = User.Identity?.Name
+                        User = User.Identity?.Name,
+                        Timestamp = DateTime.UtcNow
                     });
                     return SafeNotFound<IngredienteDTO>("Ingrediente");
                 }
@@ -72,19 +80,25 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dell'ingrediente {Id}", id);
-                return SafeInternalError("Errore durante il recupero dell'ingrediente");
+                return SafeInternalError<IngredienteDTO>("Errore durante il recupero dell'ingrediente");
             }
         }
 
         // GET: api/Ingrediente/categoria/5
         // ✅ PER TUTTI: Mostra ingredienti per categoria (solo disponibili per clienti)
         [HttpGet("categoria/{categoriaId}")]
+        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
         public async Task<ActionResult<IEnumerable<IngredienteDTO>>> GetByCategoria(int categoriaId)
         {
             try
             {
                 if (categoriaId <= 0)
                     return SafeBadRequest<IEnumerable<IngredienteDTO>>("ID categoria non valido");
+
+                // ✅ Verifica se la categoria esiste
+                var categoriaEsiste = await _context.CategoriaIngrediente.AnyAsync(c => c.CategoriaId == categoriaId);
+                if (!categoriaEsiste)
+                    return SafeNotFound<IEnumerable<IngredienteDTO>>("Categoria ingrediente");
 
                 var ingredienti = await _ingredienteRepository.GetByCategoriaAsync(categoriaId);
 
@@ -99,13 +113,14 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli ingredienti per categoria {CategoriaId}", categoriaId);
-                return SafeInternalError("Errore durante il recupero degli ingredienti");
+                return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti");
             }
         }
 
         // GET: api/Ingrediente/disponibili
         // ✅ PER TUTTI: Solo ingredienti DISPONIBILI
         [HttpGet("disponibili")]
+        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
         public async Task<ActionResult<IEnumerable<IngredienteDTO>>> GetDisponibili()
         {
             try
@@ -116,48 +131,69 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli ingredienti disponibili");
-                return SafeInternalError("Errore durante il recupero degli ingredienti disponibili");
+                return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti disponibili");
             }
         }
 
         // POST: api/Ingrediente
-        // ✅ SOLO ADMIN: Crea nuovo ingrediente (sempre DISPONIBILE di default)
+        // ✅ SOLO ADMIN: Crea nuovo ingrediente
         [HttpPost]
-        //[Authorize(Roles = "admin")]
-        public async Task<ActionResult<IngredienteDTO>> Create(IngredienteDTO ingredienteDto)
+        [Authorize(Roles = "admin")] // ✅ Solo admin può creare ingredienti
+        public async Task<ActionResult<IngredienteDTO>> Create([FromBody] IngredienteDTO ingredienteDto)
         {
             try
             {
                 if (!IsModelValid(ingredienteDto))
                     return SafeBadRequest<IngredienteDTO>("Dati ingrediente non validi");
 
+                // ✅ Verifica se la categoria esiste
+                var categoriaEsiste = await _context.CategoriaIngrediente.AnyAsync(c => c.CategoriaId == ingredienteDto.CategoriaId);
+                if (!categoriaEsiste)
+                    return SafeBadRequest<IngredienteDTO>("Categoria ingrediente non trovata");
+
+                // ✅ Verifica se esiste già un ingrediente con lo stesso nome
+                var nomeEsistente = await _context.Ingrediente
+                    .AnyAsync(i => i.Ingrediente1.ToLower() == ingredienteDto.Nome.ToLower());
+
+                if (nomeEsistente)
+                    return SafeBadRequest<IngredienteDTO>("Esiste già un ingrediente con questo nome");
+
                 await _ingredienteRepository.AddAsync(ingredienteDto);
 
                 // ✅ Audit trail
                 LogAuditTrail("CREATE_INGREDIENTE", "Ingrediente", ingredienteDto.IngredienteId.ToString());
+
+                // ✅ Security event completo con timestamp
                 LogSecurityEvent("IngredienteCreated", new
                 {
                     IngredienteId = ingredienteDto.IngredienteId,
                     Nome = ingredienteDto.Nome,
                     CategoriaId = ingredienteDto.CategoriaId,
                     PrezzoAggiunto = ingredienteDto.PrezzoAggiunto,
-                    IsAvailable = ingredienteDto.Disponibile // ✅ Nuovo è sempre disponibile
+                    IsAvailable = ingredienteDto.Disponibile,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return CreatedAtAction(nameof(GetById), new { id = ingredienteDto.IngredienteId }, ingredienteDto);
             }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione dell'ingrediente");
+                return SafeInternalError<IngredienteDTO>("Errore durante il salvataggio dell'ingrediente");
+            }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dell'ingrediente");
-                return SafeInternalError("Errore durante la creazione dell'ingrediente");
+                return SafeInternalError<IngredienteDTO>("Errore durante la creazione dell'ingrediente");
             }
         }
 
         // PUT: api/Ingrediente/5
         // ✅ SOLO ADMIN: Aggiorna ingrediente (può modificare anche disponibilità)
         [HttpPut("{id}")]
-        //[Authorize(Roles = "admin")]
-        public async Task<ActionResult> Update(int id, IngredienteDTO ingredienteDto)
+        [Authorize(Roles = "admin")] // ✅ Solo admin può modificare ingredienti
+        public async Task<ActionResult> Update(int id, [FromBody] IngredienteDTO ingredienteDto)
         {
             try
             {
@@ -174,19 +210,45 @@ namespace BBltZen.Controllers
                 if (existingIngrediente == null)
                     return SafeNotFound("Ingrediente");
 
+                // ✅ Verifica se la categoria esiste
+                var categoriaEsiste = await _context.CategoriaIngrediente.AnyAsync(c => c.CategoriaId == ingredienteDto.CategoriaId);
+                if (!categoriaEsiste)
+                    return SafeBadRequest("Categoria ingrediente non trovata");
+
+                // ✅ Verifica se esiste già un altro ingrediente con lo stesso nome
+                var nomeDuplicato = await _context.Ingrediente
+                    .AnyAsync(i => i.Ingrediente1.ToLower() == ingredienteDto.Nome.ToLower() && i.IngredienteId != id);
+
+                if (nomeDuplicato)
+                    return SafeBadRequest("Esiste già un altro ingrediente con questo nome");
+
                 await _ingredienteRepository.UpdateAsync(ingredienteDto);
 
                 // ✅ Audit trail
                 LogAuditTrail("UPDATE_INGREDIENTE", "Ingrediente", ingredienteDto.IngredienteId.ToString());
+
+                // ✅ Security event completo con timestamp
                 LogSecurityEvent("IngredienteUpdated", new
                 {
                     IngredienteId = ingredienteDto.IngredienteId,
-                    Nome = ingredienteDto.Nome,
-                    IsAvailable = ingredienteDto.Disponibile,
-                    User = User.Identity?.Name
+                    OldNome = existingIngrediente.Nome,
+                    NewNome = ingredienteDto.Nome,
+                    OldCategoriaId = existingIngrediente.CategoriaId,
+                    NewCategoriaId = ingredienteDto.CategoriaId,
+                    OldPrezzoAggiunto = existingIngrediente.PrezzoAggiunto,
+                    NewPrezzoAggiunto = ingredienteDto.PrezzoAggiunto,
+                    OldDisponibile = existingIngrediente.Disponibile,
+                    NewDisponibile = ingredienteDto.Disponibile,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento dell'ingrediente");
             }
             catch (System.Exception ex)
             {
@@ -198,7 +260,7 @@ namespace BBltZen.Controllers
         // DELETE: api/Ingrediente/5
         // ✅ SOLO ADMIN: Eliminazione definitiva (HARD DELETE)
         [HttpDelete("{id}")]
-        //[Authorize(Roles = "admin")]
+        [Authorize(Roles = "admin")] // ✅ Solo admin può eliminare ingredienti
         public async Task<ActionResult> Delete(int id)
         {
             try
@@ -214,11 +276,15 @@ namespace BBltZen.Controllers
 
                 // ✅ Audit trail
                 LogAuditTrail("HARD_DELETE_INGREDIENTE", "Ingrediente", id.ToString());
+
+                // ✅ Security event completo con timestamp
                 LogSecurityEvent("IngredienteHardDeleted", new
                 {
                     IngredienteId = id,
                     Nome = existingIngrediente.Nome,
-                    User = User.Identity?.Name
+                    CategoriaId = existingIngrediente.CategoriaId,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
@@ -229,6 +295,11 @@ namespace BBltZen.Controllers
                 _logger.LogWarning(ex, "Tentativo di eliminazione ingrediente {Id} con dipendenze", id);
                 return SafeBadRequest(ex.Message);
             }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione definitiva dell'ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione dell'ingrediente");
+            }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione definitiva dell'ingrediente {Id}", id);
@@ -236,9 +307,9 @@ namespace BBltZen.Controllers
             }
         }
 
-        // POST: api/Ingrediente/{id}/toggle-disponibilita        
+        // POST: api/Ingrediente/{id}/toggle-disponibilita
         [HttpPost("{id}/toggle-disponibilita")]
-        //[Authorize(Roles = "admin")]
+        [Authorize(Roles = "admin")] // ✅ Solo admin può modificare disponibilità
         public async Task<IActionResult> ToggleDisponibilita(int id)
         {
             try
@@ -263,18 +334,19 @@ namespace BBltZen.Controllers
                     return SafeNotFound("Ingrediente dopo toggle");
 
                 // ✅ LOGICA MESSAGGI CORRETTA:
-                // - Disponibile = true → "attivato" 
-                // - Disponibile = false → "disattivato"
                 var messaggio = ingredienteDopoToggle.Disponibile ? "attivato" : "disattivato";
 
                 // ✅ Audit trail
                 LogAuditTrail("TOGGLE_DISPONIBILITA_INGREDIENTE", "Ingrediente", id.ToString());
+
+                // ✅ Security event completo con timestamp
                 LogSecurityEvent("IngredienteAvailabilityToggled", new
                 {
                     IngredienteId = id,
                     DaDisponibile = statoPrima,
                     ADisponibile = ingredienteDopoToggle.Disponibile,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return Ok(new
@@ -282,6 +354,11 @@ namespace BBltZen.Controllers
                     message = $"Ingrediente {messaggio}",
                     disponibile = ingredienteDopoToggle.Disponibile
                 });
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante il toggle disponibilità ingrediente {Id}", id);
+                return SafeInternalError("Errore durante la modifica della disponibilità");
             }
             catch (System.Exception ex)
             {
@@ -293,7 +370,7 @@ namespace BBltZen.Controllers
         // PUT: api/Ingrediente/5/disponibilita
         // ✅ SOLO ADMIN: Imposta disponibilità specifica
         [HttpPut("{id}/disponibilita")]
-        //[Authorize(Roles = "admin")]
+        [Authorize(Roles = "admin")] // ✅ Solo admin può impostare disponibilità
         public async Task<IActionResult> SetDisponibilita(int id, [FromBody] bool disponibile)
         {
             try
@@ -309,11 +386,15 @@ namespace BBltZen.Controllers
 
                 // ✅ Audit trail
                 LogAuditTrail("SET_DISPONIBILITA_INGREDIENTE", "Ingrediente", id.ToString());
+
+                // ✅ Security event completo con timestamp
                 LogSecurityEvent("IngredienteAvailabilitySet", new
                 {
                     IngredienteId = id,
-                    Disponibile = disponibile,
-                    User = User.Identity?.Name
+                    OldDisponibile = existingIngrediente.Disponibile,
+                    NewDisponibile = disponibile,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return Ok(new
@@ -321,6 +402,11 @@ namespace BBltZen.Controllers
                     message = $"Ingrediente {(disponibile ? "attivato" : "disattivato")}",
                     disponibile = disponibile
                 });
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'impostazione disponibilità ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'impostazione della disponibilità");
             }
             catch (System.Exception ex)
             {
@@ -332,6 +418,7 @@ namespace BBltZen.Controllers
         // GET: api/Ingrediente/exists/5
         // ✅ PER TUTTI: Verifica esistenza (indipendentemente dalla disponibilità)
         [HttpGet("exists/{id}")]
+        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
         public async Task<ActionResult<bool>> Exists(int id)
         {
             try
@@ -345,7 +432,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la verifica esistenza ingrediente {Id}", id);
-                return SafeInternalError("Errore durante la verifica esistenza ingrediente");
+                return SafeInternalError<bool>("Errore durante la verifica esistenza ingrediente");
             }
         }
     }

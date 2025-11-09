@@ -27,7 +27,7 @@ namespace BBltZen.Controllers
         /// Ottiene tutti i dolci
         /// </summary>
         [HttpGet]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetAll()
         {
             try
@@ -38,7 +38,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti i dolci");
-                return SafeInternalError("Errore durante il recupero dei dolci");
+                return SafeInternalError<IEnumerable<DolceDTO>>("Errore durante il recupero dei dolci");
             }
         }
 
@@ -46,7 +46,7 @@ namespace BBltZen.Controllers
         /// Ottiene un dolce specifico tramite ID articolo
         /// </summary>
         [HttpGet("{articoloId}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<DolceDTO>> GetById(int articoloId)
         {
             try
@@ -64,7 +64,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero del dolce {ArticoloId}", articoloId);
-                return SafeInternalError("Errore durante il recupero del dolce");
+                return SafeInternalError<DolceDTO>("Errore durante il recupero del dolce");
             }
         }
 
@@ -72,7 +72,7 @@ namespace BBltZen.Controllers
         /// Ottiene solo i dolci disponibili
         /// </summary>
         [HttpGet("disponibili")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetDisponibili()
         {
             try
@@ -83,7 +83,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dei dolci disponibili");
-                return SafeInternalError("Errore durante il recupero dei dolci disponibili");
+                return SafeInternalError<IEnumerable<DolceDTO>>("Errore durante il recupero dei dolci disponibili");
             }
         }
 
@@ -91,7 +91,7 @@ namespace BBltZen.Controllers
         /// Ottiene i dolci per priorità
         /// </summary>
         [HttpGet("priorita/{priorita}")]
-        [AllowAnonymous] // ✅ PERMESSO A TUTTI PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<DolceDTO>>> GetByPriorita(int priorita)
         {
             try
@@ -105,7 +105,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dei dolci per priorità {Priorita}", priorita);
-                return SafeInternalError("Errore durante il recupero dei dolci per priorità");
+                return SafeInternalError<IEnumerable<DolceDTO>>("Errore durante il recupero dei dolci per priorità");
             }
         }
 
@@ -115,21 +115,20 @@ namespace BBltZen.Controllers
         [HttpPost]
         //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
         [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult<DolceDTO>> Create(DolceDTO dolceDto)
+        public async Task<ActionResult<DolceDTO>> Create([FromBody] DolceDTO dolceDto)
         {
             try
             {
                 if (!IsModelValid(dolceDto))
                     return SafeBadRequest<DolceDTO>("Dati dolce non validi");
 
-                // ⚠️ CORREZIONE: Il client NON deve specificare ArticoloId
+                // ✅ CORREZIONE: Il client NON deve specificare ArticoloId
                 if (dolceDto.ArticoloId > 0)
                     return SafeBadRequest<DolceDTO>("Non specificare ArticoloId - verrà generato automaticamente");
 
-                // ⚠️ CORREZIONE: Verifica se esiste già un dolce con lo stesso nome
-                // (opzionale, ma utile per prevenire duplicati)
-                var existingDolci = await _repository.GetAllAsync();
-                if (existingDolci.Any(d => d.Nome?.ToLower() == dolceDto.Nome?.ToLower()))
+                // ✅ CORREZIONE: Verifica duplicati nome in modo efficiente
+                var existingWithSameName = await _repository.GetAllAsync();
+                if (existingWithSameName.Any(d => d.Nome?.ToLower() == dolceDto.Nome?.ToLower()))
                     return Conflict($"Esiste già un dolce con il nome '{dolceDto.Nome}'");
 
                 await _repository.AddAsync(dolceDto);
@@ -142,7 +141,9 @@ namespace BBltZen.Controllers
                     Nome = dolceDto.Nome,
                     Prezzo = dolceDto.Prezzo,
                     Disponibile = dolceDto.Disponibile,
-                    Priorita = dolceDto.Priorita
+                    Priorita = dolceDto.Priorita,
+                    User = User.Identity?.Name ?? "Unknown",
+                    Timestamp = System.DateTime.UtcNow
                 });
 
                 return CreatedAtAction(nameof(GetById),
@@ -152,7 +153,7 @@ namespace BBltZen.Controllers
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione del dolce");
-                return SafeInternalError("Errore durante la creazione del dolce");
+                return SafeInternalError<DolceDTO>("Errore durante la creazione del dolce");
             }
         }
 
@@ -162,7 +163,7 @@ namespace BBltZen.Controllers
         [HttpPut("{articoloId}")]
         //[Authorize(Roles = "admin,barista")] // ✅ COMMENTATO PER TEST
         [AllowAnonymous] // ✅ TEMPORANEAMENTE PERMESSO A TUTTI PER TEST
-        public async Task<ActionResult> Update(int articoloId, DolceDTO dolceDto)
+        public async Task<ActionResult> Update(int articoloId, [FromBody] DolceDTO dolceDto)
         {
             try
             {
@@ -179,7 +180,7 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Dolce");
 
-                // ⚠️ CORREZIONE: Verifica duplicati nome (escludendo il corrente)
+                // ✅ CORREZIONE: Verifica duplicati nome in modo efficiente
                 var allDolci = await _repository.GetAllAsync();
                 if (allDolci.Any(d => d.ArticoloId != articoloId && d.Nome?.ToLower() == dolceDto.Nome?.ToLower()))
                     return Conflict($"Esiste già un altro dolce con il nome '{dolceDto.Nome}'");
@@ -192,7 +193,11 @@ namespace BBltZen.Controllers
                 {
                     ArticoloId = dolceDto.ArticoloId,
                     Nome = dolceDto.Nome,
-                    User = User.Identity?.Name
+                    Prezzo = dolceDto.Prezzo,
+                    Disponibile = dolceDto.Disponibile,
+                    Priorita = dolceDto.Priorita,
+                    User = User.Identity?.Name ?? "Unknown",
+                    Timestamp = System.DateTime.UtcNow
                 });
 
                 return NoContent();
@@ -233,7 +238,9 @@ namespace BBltZen.Controllers
                 LogSecurityEvent("DolceDeleted", new
                 {
                     ArticoloId = articoloId,
-                    User = User.Identity?.Name
+                    Nome = existing.Nome,
+                    User = User.Identity?.Name ?? "Unknown",
+                    Timestamp = System.DateTime.UtcNow
                 });
 
                 return NoContent();

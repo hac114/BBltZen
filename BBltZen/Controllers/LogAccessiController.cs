@@ -5,293 +5,318 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
+using Database;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    [AllowAnonymous] // ✅ OVERRIDE DELL'[Authorize] DEL BASE CONTROLLER
     public class LogAccessiController : SecureBaseController
     {
         private readonly ILogAccessiRepository _repository;
+        private readonly BubbleTeaContext _context;
+
+        // ✅ VALORI AMMESSI SECONDO CHECK CONSTRAINTS DEL DATABASE
+        private static readonly HashSet<string> TipiAccessoAmmessi = new() { "qr_login", "logout", "login" };
+        private static readonly HashSet<string> EsitiAmmessi = new() { "successo", "fallito" };
 
         public LogAccessiController(
             ILogAccessiRepository repository,
+            BubbleTeaContext context,
             IWebHostEnvironment environment,
             ILogger<LogAccessiController> logger)
             : base(environment, logger)
         {
             _repository = repository;
+            _context = context;
         }
 
         [HttpGet]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<IEnumerable<LogAccessiDTO>>> GetAll()
         {
             try
             {
                 var result = await _repository.GetAllAsync();
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_ALL_LOG_ACCESSI", "LogAccessi", "All");
+                LogSecurityEvent("LogAccessiGetAll", new
+                {
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow,
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutti i log accessi");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero dei log accessi: {ex.Message}"
-                        : "Errore interno nel recupero dei log accessi"
-                );
+                return SafeInternalError<IEnumerable<LogAccessiDTO>>("Errore durante il recupero dei log accessi");
             }
         }
 
         [HttpGet("{logId}")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<LogAccessiDTO>> GetById(int logId)
         {
             try
             {
                 if (logId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID log accessi non valido: deve essere maggiore di 0"
-                            : "ID log accessi non valido"
-                    );
+                    return SafeBadRequest<LogAccessiDTO>("ID log accessi non valido");
 
                 var result = await _repository.GetByIdAsync(logId);
 
                 if (result == null)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Log accessi con ID {logId} non trovato"
-                            : "Log accessi non trovato"
-                    );
+                    return SafeNotFound<LogAccessiDTO>("Log accessi");
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_LOG_ACCESSI_BY_ID", "LogAccessi", logId.ToString());
+                LogSecurityEvent("LogAccessiGetById", new
+                {
+                    LogId = logId,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log accessi {LogId}", logId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero log accessi {logId}: {ex.Message}"
-                        : "Errore interno nel recupero log accessi"
-                );
+                return SafeInternalError<LogAccessiDTO>("Errore durante il recupero del log accessi");
             }
         }
 
         [HttpGet("utente/{utenteId}")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<IEnumerable<LogAccessiDTO>>> GetByUtenteId(int utenteId)
         {
             try
             {
                 if (utenteId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID utente non valido: deve essere maggiore di 0"
-                            : "ID utente non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<LogAccessiDTO>>("ID utente non valido");
+
+                var utenteEsiste = await _context.Utenti.AnyAsync(u => u.UtenteId == utenteId);
+                if (!utenteEsiste)
+                    return SafeNotFound<IEnumerable<LogAccessiDTO>>("Utente");
 
                 var result = await _repository.GetByUtenteIdAsync(utenteId);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_LOG_ACCESSI_BY_UTENTE", "LogAccessi", utenteId.ToString());
+                LogSecurityEvent("LogAccessiGetByUtente", new
+                {
+                    UtenteId = utenteId,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow,
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log accessi per utente {UtenteId}", utenteId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero log accessi per utente {utenteId}: {ex.Message}"
-                        : "Errore interno nel recupero log accessi per utente"
-                );
+                return SafeInternalError<IEnumerable<LogAccessiDTO>>("Errore durante il recupero dei log accessi per utente");
             }
         }
 
         [HttpGet("cliente/{clienteId}")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<IEnumerable<LogAccessiDTO>>> GetByClienteId(int clienteId)
         {
             try
             {
                 if (clienteId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID cliente non valido: deve essere maggiore di 0"
-                            : "ID cliente non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<LogAccessiDTO>>("ID cliente non valido");
+
+                var clienteEsiste = await _context.Cliente.AnyAsync(c => c.ClienteId == clienteId);
+                if (!clienteEsiste)
+                    return SafeNotFound<IEnumerable<LogAccessiDTO>>("Cliente");
 
                 var result = await _repository.GetByClienteIdAsync(clienteId);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_LOG_ACCESSI_BY_CLIENTE", "LogAccessi", clienteId.ToString());
+                LogSecurityEvent("LogAccessiGetByCliente", new
+                {
+                    ClienteId = clienteId,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow,
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log accessi per cliente {ClienteId}", clienteId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero log accessi per cliente {clienteId}: {ex.Message}"
-                        : "Errore interno nel recupero log accessi per cliente"
-                );
+                return SafeInternalError<IEnumerable<LogAccessiDTO>>("Errore durante il recupero dei log accessi per cliente");
             }
         }
 
         [HttpGet("tipo-accesso/{tipoAccesso}")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<IEnumerable<LogAccessiDTO>>> GetByTipoAccesso(string tipoAccesso)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(tipoAccesso))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Tipo accesso non valido: non può essere vuoto"
-                            : "Tipo accesso non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<LogAccessiDTO>>("Tipo accesso non valido");
+
+                // ✅ VALIDAZIONE TIPO ACCESSO AMMESSO
+                if (!TipiAccessoAmmessi.Contains(tipoAccesso.ToLower()))
+                    return SafeBadRequest<IEnumerable<LogAccessiDTO>>("Tipo accesso non valido. Valori ammessi: qr_login, logout, login");
 
                 var result = await _repository.GetByTipoAccessoAsync(tipoAccesso);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_LOG_ACCESSI_BY_TIPO_ACCESSO", "LogAccessi", tipoAccesso);
+                LogSecurityEvent("LogAccessiGetByTipoAccesso", new
+                {
+                    TipoAccesso = tipoAccesso,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow,
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log accessi per tipo accesso {TipoAccesso}", tipoAccesso);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero log accessi per tipo accesso {tipoAccesso}: {ex.Message}"
-                        : "Errore interno nel recupero log accessi per tipo accesso"
-                );
+                return SafeInternalError<IEnumerable<LogAccessiDTO>>("Errore durante il recupero dei log accessi per tipo accesso");
             }
         }
 
         [HttpGet("esito/{esito}")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<IEnumerable<LogAccessiDTO>>> GetByEsito(string esito)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(esito))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Esito accesso non valido: non può essere vuoto"
-                            : "Esito accesso non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<LogAccessiDTO>>("Esito accesso non valido");
+
+                // ✅ VALIDAZIONE ESITO AMMESSO
+                if (!EsitiAmmessi.Contains(esito.ToLower()))
+                    return SafeBadRequest<IEnumerable<LogAccessiDTO>>("Esito non valido. Valori ammessi: successo, fallito");
 
                 var result = await _repository.GetByEsitoAsync(esito);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_LOG_ACCESSI_BY_ESITO", "LogAccessi", esito);
+                LogSecurityEvent("LogAccessiGetByEsito", new
+                {
+                    Esito = esito,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow,
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log accessi per esito {Esito}", esito);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero log accessi per esito {esito}: {ex.Message}"
-                        : "Errore interno nel recupero log accessi per esito"
-                );
+                return SafeInternalError<IEnumerable<LogAccessiDTO>>("Errore durante il recupero dei log accessi per esito");
             }
         }
 
         [HttpGet("periodo")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<IEnumerable<LogAccessiDTO>>> GetByPeriodo([FromQuery] DateTime dataInizio, [FromQuery] DateTime dataFine)
         {
             try
             {
                 if (dataInizio > dataFine)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"Data inizio ({dataInizio:yyyy-MM-dd}) non può essere successiva alla data fine ({dataFine:yyyy-MM-dd})"
-                            : "Intervallo date non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<LogAccessiDTO>>("Data inizio non può essere successiva alla data fine");
 
                 var result = await _repository.GetByPeriodoAsync(dataInizio, dataFine);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_LOG_ACCESSI_BY_PERIODO", "LogAccessi", $"{dataInizio:yyyy-MM-dd}_{dataFine:yyyy-MM-dd}");
+                LogSecurityEvent("LogAccessiGetByPeriodo", new
+                {
+                    DataInizio = dataInizio,
+                    DataFine = dataFine,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow,
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log accessi per periodo {DataInizio} - {DataFine}", dataInizio, dataFine);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero log accessi per periodo {dataInizio:yyyy-MM-dd} - {dataFine:yyyy-MM-dd}: {ex.Message}"
-                        : "Errore interno nel recupero log accessi per periodo"
-                );
+                return SafeInternalError<IEnumerable<LogAccessiDTO>>("Errore durante il recupero dei log accessi per periodo");
             }
         }
 
         [HttpGet("statistiche/numero-accessi")]
-        //[Authorize(Roles = "admin,auditor")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,auditor,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<int>> GetNumeroAccessi([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
         {
             try
             {
                 if (dataInizio.HasValue && dataFine.HasValue && dataInizio > dataFine)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Data inizio non può essere successiva alla data fine"
-                            : "Intervallo date non valido"
-                    );
+                    return SafeBadRequest<int>("Data inizio non può essere successiva alla data fine");
 
                 var result = await _repository.GetNumeroAccessiAsync(dataInizio, dataFine);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_NUMERO_ACCESSI_STATISTICHE", "LogAccessi",
                     $"Inizio: {dataInizio?.ToString("yyyy-MM-dd") ?? "null"}, Fine: {dataFine?.ToString("yyyy-MM-dd") ?? "null"}");
+                LogSecurityEvent("LogAccessiGetStatistics", new
+                {
+                    DataInizio = dataInizio,
+                    DataFine = dataFine,
+                    User = User.Identity?.Name,
+                    Timestamp = DateTime.UtcNow,
+                    NumeroAccessi = result
+                });
 
                 return Ok(result);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero statistiche numero accessi");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero statistiche numero accessi: {ex.Message}"
-                        : "Errore interno nel recupero statistiche accessi"
-                );
+                return SafeInternalError<int>("Errore durante il recupero delle statistiche accessi");
             }
         }
 
         [HttpPost]
-        //[Authorize(Roles = "admin,system")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,system,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult<LogAccessiDTO>> Create([FromBody] LogAccessiDTO logAccessiDto)
         {
             try
             {
-                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
                 if (!IsModelValid(logAccessiDto))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Dati log accessi non validi: modello di binding fallito"
-                            : "Dati log accessi non validi"
-                    );
+                    return SafeBadRequest<LogAccessiDTO>("Dati log accessi non validi");
+
+                // ✅ VALIDAZIONE TIPO ACCESSO
+                if (!TipiAccessoAmmessi.Contains(logAccessiDto.TipoAccesso.ToLower()))
+                    return SafeBadRequest<LogAccessiDTO>("Tipo accesso non valido. Valori ammessi: qr_login, logout, login");
+
+                // ✅ VALIDAZIONE ESITO
+                if (!EsitiAmmessi.Contains(logAccessiDto.Esito.ToLower()))
+                    return SafeBadRequest<LogAccessiDTO>("Esito non valido. Valori ammessi: successo, fallito");
+
+                // ✅ VERIFICA UTENTE (se specificato)
+                if (logAccessiDto.UtenteId.HasValue)
+                {
+                    var utenteEsiste = await _context.Utenti.AnyAsync(u => u.UtenteId == logAccessiDto.UtenteId.Value);
+                    if (!utenteEsiste)
+                        return SafeBadRequest<LogAccessiDTO>("Utente non trovato");
+                }
+
+                // ✅ VERIFICA CLIENTE (se specificato)
+                if (logAccessiDto.ClienteId.HasValue)
+                {
+                    var clienteEsiste = await _context.Cliente.AnyAsync(c => c.ClienteId == logAccessiDto.ClienteId.Value);
+                    if (!clienteEsiste)
+                        return SafeBadRequest<LogAccessiDTO>("Cliente non trovato");
+                }
 
                 await _repository.AddAsync(logAccessiDto);
 
-                // ✅ Log per audit e sicurezza
                 LogAuditTrail("CREATE_LOG_ACCESSI", "LogAccessi", logAccessiDto.LogId.ToString());
                 LogSecurityEvent("LogAccessiCreated", new
                 {
@@ -301,127 +326,185 @@ namespace BBltZen.Controllers
                     TipoAccesso = logAccessiDto.TipoAccesso,
                     Esito = logAccessiDto.Esito,
                     IpAddress = logAccessiDto.IpAddress,
-                    User = User.Identity?.Name ?? "System",
+                    User = User.Identity?.Name,
                     Timestamp = DateTime.UtcNow
                 });
 
                 return CreatedAtAction(nameof(GetById), new { logId = logAccessiDto.LogId }, logAccessiDto);
             }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione del log accessi");
+                return SafeInternalError<LogAccessiDTO>("Errore durante il salvataggio del log accessi");
+            }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nella creazione log accessi");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nella creazione log accessi: {ex.Message}"
-                        : "Errore interno nella creazione log accessi"
-                );
+                return SafeInternalError<LogAccessiDTO>("Errore durante la creazione del log accessi");
             }
         }
 
         [HttpPut("{logId}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin,gestore")] // ✅ AGGIUNTO "gestore"
         public async Task<ActionResult> Update(int logId, [FromBody] LogAccessiDTO logAccessiDto)
         {
             try
             {
                 if (logId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID log accessi non valido: deve essere maggiore di 0"
-                            : "ID log accessi non valido"
-                    );
-
-                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
-                if (!IsModelValid(logAccessiDto))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Dati log accessi non validi: modello di binding fallito"
-                            : "Dati log accessi non validi"
-                    );
+                    return SafeBadRequest("ID log accessi non valido");
 
                 if (logAccessiDto.LogId != logId)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"ID log accessi non corrispondente: URL={logId}, Body={logAccessiDto.LogId}"
-                            : "Identificativi non corrispondenti"
-                    );
+                    return SafeBadRequest("ID log accessi non corrispondente");
 
-                // Verifica esistenza
-                var exists = await _repository.ExistsAsync(logId);
-                if (!exists)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Log accessi con ID {logId} non trovato per l'aggiornamento"
-                            : "Log accessi non trovato"
-                    );
+                if (!IsModelValid(logAccessiDto))
+                    return SafeBadRequest("Dati log accessi non validi");
+
+                var existing = await _repository.GetByIdAsync(logId);
+                if (existing == null)
+                    return SafeNotFound("Log accessi");
+
+                // ✅ VALIDAZIONE TIPO ACCESSO
+                if (!TipiAccessoAmmessi.Contains(logAccessiDto.TipoAccesso.ToLower()))
+                    return SafeBadRequest("Tipo accesso non valido. Valori ammessi: qr_login, logout, login");
+
+                // ✅ VALIDAZIONE ESITO
+                if (!EsitiAmmessi.Contains(logAccessiDto.Esito.ToLower()))
+                    return SafeBadRequest("Esito non valido. Valori ammessi: successo, fallito");
+
+                // ✅ VERIFICA UTENTE (se specificato)
+                if (logAccessiDto.UtenteId.HasValue)
+                {
+                    var utenteEsiste = await _context.Utenti.AnyAsync(u => u.UtenteId == logAccessiDto.UtenteId.Value);
+                    if (!utenteEsiste)
+                        return SafeBadRequest("Utente non trovato");
+                }
+
+                // ✅ VERIFICA CLIENTE (se specificato)
+                if (logAccessiDto.ClienteId.HasValue)
+                {
+                    var clienteEsiste = await _context.Cliente.AnyAsync(c => c.ClienteId == logAccessiDto.ClienteId.Value);
+                    if (!clienteEsiste)
+                        return SafeBadRequest("Cliente non trovato");
+                }
 
                 await _repository.UpdateAsync(logAccessiDto);
 
-                // ✅ Log per audit e sicurezza
                 LogAuditTrail("UPDATE_LOG_ACCESSI", "LogAccessi", logId.ToString());
                 LogSecurityEvent("LogAccessiUpdated", new
                 {
                     LogId = logId,
-                    User = User.Identity?.Name ?? "Unknown",
+                    OldUtenteId = existing.UtenteId,
+                    NewUtenteId = logAccessiDto.UtenteId,
+                    OldClienteId = existing.ClienteId,
+                    NewClienteId = logAccessiDto.ClienteId,
+                    OldTipoAccesso = existing.TipoAccesso,
+                    NewTipoAccesso = logAccessiDto.TipoAccesso,
+                    OldEsito = existing.Esito,
+                    NewEsito = logAccessiDto.Esito,
+                    User = User.Identity?.Name,
                     Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
             }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Log accessi non trovato durante l'aggiornamento {LogId}", logId);
+                return SafeNotFound("Log accessi");
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento del log accessi {LogId}", logId);
+                return SafeInternalError("Errore durante l'aggiornamento del log accessi");
+            }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'aggiornamento log accessi {LogId}", logId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nell'aggiornamento log accessi {logId}: {ex.Message}"
-                        : "Errore interno nell'aggiornamento log accessi"
-                );
+                return SafeInternalError("Errore durante l'aggiornamento del log accessi");
             }
         }
 
         [HttpDelete("{logId}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        [Authorize(Roles = "admin")] // ❌ SOLO admin può eliminare (per sicurezza)
         public async Task<ActionResult> Delete(int logId)
         {
             try
             {
                 if (logId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID log accessi non valido: deve essere maggiore di 0"
-                            : "ID log accessi non valido"
-                    );
+                    return SafeBadRequest("ID log accessi non valido");
 
-                // Verifica esistenza
-                var exists = await _repository.ExistsAsync(logId);
-                if (!exists)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Log accessi con ID {logId} non trovato per l'eliminazione"
-                            : "Log accessi non trovato"
-                    );
+                var existing = await _repository.GetByIdAsync(logId);
+                if (existing == null)
+                    return SafeNotFound("Log accessi");
 
                 await _repository.DeleteAsync(logId);
 
-                // ✅ Log per audit e sicurezza
                 LogAuditTrail("DELETE_LOG_ACCESSI", "LogAccessi", logId.ToString());
                 LogSecurityEvent("LogAccessiDeleted", new
                 {
                     LogId = logId,
-                    User = User.Identity?.Name ?? "Unknown",
+                    UtenteId = existing.UtenteId,
+                    ClienteId = existing.ClienteId,
+                    TipoAccesso = existing.TipoAccesso,
+                    Esito = existing.Esito,
+                    User = User.Identity?.Name,
                     Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
             }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione del log accessi {LogId}", logId);
+                return SafeInternalError("Errore durante l'eliminazione del log accessi");
+            }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'eliminazione log accessi {LogId}", logId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nell'eliminazione log accessi {logId}: {ex.Message}"
-                        : "Errore interno nell'eliminazione log accessi"
-                );
+                return SafeInternalError("Errore durante l'eliminazione del log accessi");
+            }
+        }
+
+        // ✅ METODI AGGIUNTIVI UTILI
+        [HttpGet("exists")]
+        [Authorize(Roles = "admin,auditor,gestore")]
+        public async Task<ActionResult<bool>> HasRecords()
+        {
+            try
+            {
+                var records = await _repository.GetAllAsync();
+                return Ok(records.Any());
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella verifica esistenza record LogAccessi");
+                return SafeInternalError<bool>("Errore durante la verifica");
+            }
+        }
+
+        [HttpGet("statistiche")]
+        [Authorize(Roles = "admin,auditor,gestore")]
+        public async Task<ActionResult<object>> GetStatistiche()
+        {
+            try
+            {
+                var records = await _repository.GetAllAsync();
+                var count = records.Count();
+
+                return Ok(new
+                {
+                    TotalRecords = count,
+                    IsEmpty = count == 0,
+                    FirstRecordDate = count > 0 ? records.Min(r => r.DataCreazione) : null,
+                    LastRecordDate = count > 0 ? records.Max(r => r.DataCreazione) : null,
+                    TipiAccessoUtilizzati = count > 0 ? records.Select(r => r.TipoAccesso).Distinct() : Array.Empty<string>(),
+                    EsitiUtilizzati = count > 0 ? records.Select(r => r.Esito).Distinct() : Array.Empty<string>()
+                });
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero statistiche LogAccessi");
+                return SafeInternalError<object>("Errore durante il recupero statistiche");
             }
         }
     }

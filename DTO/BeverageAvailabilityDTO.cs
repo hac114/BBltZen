@@ -68,4 +68,13 @@ namespace DTO
 
         public DateTime DataAggiornamento { get; set; }
     }
+
+    public class ForceAvailabilityRequest
+    {
+        [Required(ErrorMessage = "Lo stato di disponibilità è obbligatorio")]
+        public bool Disponibile { get; set; }
+
+        [StringLength(500, ErrorMessage = "Il motivo non può superare 500 caratteri")]
+        public string? Motivo { get; set; }
+    }
 }
