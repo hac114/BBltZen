@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// BBltZen/Controllers/VwMenuDinamicoController.cs
+using Microsoft.AspNetCore.Mvc;
 using DTO;
 using Repository.Interface;
 using System;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -34,19 +36,22 @@ namespace BBltZen.Controllers
             {
                 var menu = await _repository.GetMenuCompletoAsync();
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_MENU_COMPLETO", "VwMenuDinamico", $"Count: {menu?.Count}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetMenuCompleto",
+                    Count = menu?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(menu);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero menu completo");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero menu completo: {ex.Message}"
-                        : "Errore interno nel recupero menu"
-                );
+                return SafeInternalError<List<VwMenuDinamicoDTO>>(ex.Message);
             }
         }
 
@@ -57,27 +62,27 @@ namespace BBltZen.Controllers
             try
             {
                 if (numeroElementi <= 0 || numeroElementi > 20)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"Numero elementi non valido: deve essere tra 1 e 20 (ricevuto: {numeroElementi})"
-                            : "Numero elementi non valido"
-                    );
+                    return SafeBadRequest<List<VwMenuDinamicoDTO>>("Numero elementi non valido: deve essere tra 1 e 20");
 
                 var primoPiano = await _repository.GetPrimoPianoAsync(numeroElementi);
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_PRIMO_PIANO", "VwMenuDinamico", $"Elementi: {numeroElementi}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetPrimoPiano",
+                    NumeroElementi = numeroElementi,
+                    Count = primoPiano?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(primoPiano);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero elementi primo piano");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero elementi primo piano: {ex.Message}"
-                        : "Errore interno nel recupero primo piano"
-                );
+                return SafeInternalError<List<VwMenuDinamicoDTO>>(ex.Message);
             }
         }
 
@@ -89,19 +94,22 @@ namespace BBltZen.Controllers
             {
                 var bevande = await _repository.GetBevandeDisponibiliAsync();
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_BEVANDE_DISPONIBILI", "VwMenuDinamico", $"Count: {bevande?.Count}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetBevandeDisponibili",
+                    Count = bevande?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(bevande);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero bevande disponibili");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero bevande disponibili: {ex.Message}"
-                        : "Errore interno nel recupero bevande disponibili"
-                );
+                return SafeInternalError<List<VwMenuDinamicoDTO>>(ex.Message);
             }
         }
 
@@ -112,27 +120,27 @@ namespace BBltZen.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(categoria))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Categoria non valida: non può essere vuota"
-                            : "Categoria non valida"
-                    );
+                    return SafeBadRequest<List<VwMenuDinamicoDTO>>("Categoria non valida");
 
                 var bevande = await _repository.GetBevandePerCategoriaAsync(categoria);
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_BEVANDE_BY_CATEGORIA", "VwMenuDinamico", categoria);
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetBevandePerCategoria",
+                    Categoria = categoria,
+                    Count = bevande?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(bevande);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero bevande per categoria: {categoria}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero bevande per categoria {categoria}: {ex.Message}"
-                        : "Errore interno nel recupero bevande per categoria"
-                );
+                _logger.LogError(ex, "Errore nel recupero bevande per categoria: {Categoria}", categoria);
+                return SafeInternalError<List<VwMenuDinamicoDTO>>(ex.Message);
             }
         }
 
@@ -145,34 +153,31 @@ namespace BBltZen.Controllers
             try
             {
                 if (prioritaMinima < 0 || prioritaMassima < 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Le priorità non possono essere negative"
-                            : "Priorità non valide"
-                    );
+                    return SafeBadRequest<List<VwMenuDinamicoDTO>>("Le priorità non possono essere negative");
 
                 if (prioritaMassima < prioritaMinima)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"La priorità massima ({prioritaMassima}) non può essere minore della priorità minima ({prioritaMinima})"
-                            : "Range priorità non valido"
-                    );
+                    return SafeBadRequest<List<VwMenuDinamicoDTO>>("La priorità massima non può essere minore della priorità minima");
 
                 var bevande = await _repository.GetBevandePerPrioritaAsync(prioritaMinima, prioritaMassima);
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_BEVANDE_BY_PRIORITA", "VwMenuDinamico", $"{prioritaMinima}-{prioritaMassima}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetBevandePerPriorita",
+                    PrioritaMinima = prioritaMinima,
+                    PrioritaMassima = prioritaMassima,
+                    Count = bevande?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(bevande);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero bevande per priorità {prioritaMinima}-{prioritaMassima}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero bevande per priorità {prioritaMinima}-{prioritaMassima}: {ex.Message}"
-                        : "Errore interno nel recupero bevande per priorità"
-                );
+                _logger.LogError(ex, "Errore nel recupero bevande per priorità {PrioritaMinima}-{PrioritaMassima}", prioritaMinima, prioritaMassima);
+                return SafeInternalError<List<VwMenuDinamicoDTO>>(ex.Message);
             }
         }
 
@@ -184,19 +189,22 @@ namespace BBltZen.Controllers
             {
                 var bevande = await _repository.GetBevandeConScontoAsync();
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_BEVANDE_CON_SCONTO", "VwMenuDinamico", $"Count: {bevande?.Count}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetBevandeConSconto",
+                    Count = bevande?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(bevande);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero bevande con sconto");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero bevande con sconto: {ex.Message}"
-                        : "Errore interno nel recupero bevande con sconto"
-                );
+                return SafeInternalError<List<VwMenuDinamicoDTO>>(ex.Message);
             }
         }
 
@@ -207,40 +215,32 @@ namespace BBltZen.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(tipo))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Tipo bevanda non valido: non può essere vuoto"
-                            : "Tipo bevanda non valido"
-                    );
+                    return SafeBadRequest<VwMenuDinamicoDTO>("Tipo bevanda non valido");
 
                 if (id <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID bevanda non valido: deve essere maggiore di 0"
-                            : "ID bevanda non valido"
-                    );
+                    return SafeBadRequest<VwMenuDinamicoDTO>("ID bevanda non valido");
 
                 var bevanda = await _repository.GetBevandaByIdAsync(id, tipo);
                 if (bevanda == null)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Bevanda con ID {id} e tipo {tipo} non trovata"
-                            : "Bevanda non trovata"
-                    );
+                    return SafeNotFound<VwMenuDinamicoDTO>("Bevanda");
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_BEVANDA_BY_ID", "VwMenuDinamico", $"{tipo}_{id}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetBevandaById",
+                    Tipo = tipo,
+                    Id = id,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(bevanda);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero bevanda ID: {id}, Tipo: {tipo}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero bevanda ID {id}, Tipo {tipo}: {ex.Message}"
-                        : "Errore interno nel recupero bevanda"
-                );
+                _logger.LogError(ex, "Errore nel recupero bevanda ID: {Id}, Tipo: {Tipo}", id, tipo);
+                return SafeInternalError<VwMenuDinamicoDTO>(ex.Message);
             }
         }
 
@@ -252,19 +252,22 @@ namespace BBltZen.Controllers
             {
                 var categorie = await _repository.GetCategorieDisponibiliAsync();
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_CATEGORIE_DISPONIBILI", "VwMenuDinamico", $"Count: {categorie?.Count}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetCategorieDisponibili",
+                    Count = categorie?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(categorie);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero categorie disponibili");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero categorie disponibili: {ex.Message}"
-                        : "Errore interno nel recupero categorie"
-                );
+                return SafeInternalError<List<string>>(ex.Message);
             }
         }
 
@@ -275,34 +278,30 @@ namespace BBltZen.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(searchTerm))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Termine di ricerca non valido: non può essere vuoto"
-                            : "Termine di ricerca non valido"
-                    );
+                    return SafeBadRequest<List<VwMenuDinamicoDTO>>("Termine di ricerca non valido");
 
                 if (searchTerm.Length < 2)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Il termine di ricerca deve avere almeno 2 caratteri"
-                            : "Termine di ricerca troppo corto"
-                    );
+                    return SafeBadRequest<List<VwMenuDinamicoDTO>>("Il termine di ricerca deve avere almeno 2 caratteri");
 
                 var bevande = await _repository.SearchBevandeAsync(searchTerm);
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("SEARCH_BEVANDE", "VwMenuDinamico", searchTerm);
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "SearchBevande",
+                    SearchTerm = searchTerm,
+                    Count = bevande?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(bevande);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nella ricerca bevande per: '{searchTerm}'");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nella ricerca bevande per '{searchTerm}': {ex.Message}"
-                        : "Errore interno nella ricerca bevande"
-                );
+                _logger.LogError(ex, "Errore nella ricerca bevande per: '{SearchTerm}'", searchTerm);
+                return SafeInternalError<List<VwMenuDinamicoDTO>>(ex.Message);
             }
         }
 
@@ -314,19 +313,22 @@ namespace BBltZen.Controllers
             {
                 var count = await _repository.GetCountBevandeDisponibiliAsync();
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_COUNT_BEVANDE_DISPONIBILI", "VwMenuDinamico", count.ToString());
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetCountBevandeDisponibili",
+                    Count = count,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(count);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel conteggio bevande disponibili");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel conteggio bevande disponibili: {ex.Message}"
-                        : "Errore interno nel conteggio bevande"
-                );
+                return SafeInternalError<int>(ex.Message);
             }
         }
 
@@ -354,23 +356,26 @@ namespace BBltZen.Controllers
                     PercentualeDisponibili = menuCompleto.Count > 0 ?
                         Math.Round((double)disponibili.Count / menuCompleto.Count * 100, 2) : 0,
                     Categorie = categorie,
-                    UltimoAggiornamento = DateTime.Now
+                    UltimoAggiornamento = DateTime.UtcNow
                 };
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_MENU_STATS", "VwMenuDinamico",
-                    $"Totali: {menuCompleto.Count}, Disponibili: {disponibili.Count}");
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_MENU_STATS", "VwMenuDinamico", $"Totali: {menuCompleto.Count}, Disponibili: {disponibili.Count}");
+                LogSecurityEvent("VwMenuDinamicoAccessed", new
+                {
+                    Operation = "GetStats",
+                    TotalCount = menuCompleto.Count,
+                    DisponibiliCount = disponibili.Count,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(stats);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero statistiche menu");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero statistiche menu: {ex.Message}"
-                        : "Errore interno nel recupero statistiche menu"
-                );
+                return SafeInternalError<object>(ex.Message);
             }
         }
 
@@ -387,7 +392,7 @@ namespace BBltZen.Controllers
                 var health = new
                 {
                     Status = "Healthy",
-                    Timestamp = DateTime.Now,
+                    Timestamp = DateTime.UtcNow,
                     Menu = new
                     {
                         TotaleElementi = menuCompleto.Count,
@@ -401,23 +406,32 @@ namespace BBltZen.Controllers
                     }
                 };
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("HEALTH_CHECK", "VwMenuDinamico", "OK");
+                LogSecurityEvent("VwMenuDinamicoHealthCheck", new
+                {
+                    Status = "Healthy",
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(health);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel health check menu dinamico");
 
-                // ✅ Log per audit anche in caso di errore
+                // ✅ Audit trail anche in caso di errore
                 LogAuditTrail("HEALTH_CHECK_FAILED", "VwMenuDinamico", ex.Message);
+                LogSecurityEvent("VwMenuDinamicoHealthCheck", new
+                {
+                    Status = "Unhealthy",
+                    Error = ex.Message,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Health check fallito: {ex.Message}"
-                        : "Health check fallito"
-                );
+                return SafeInternalError<object>(ex.Message);
             }
         }
     }

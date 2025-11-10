@@ -5,6 +5,7 @@ using Repository.Interface;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -26,7 +27,7 @@ namespace BBltZen.Controllers
 
         // GET: api/Utenti
         [HttpGet]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult<IEnumerable<UtentiDTO>>> GetAll()
         {
             try
@@ -34,10 +35,10 @@ namespace BBltZen.Controllers
                 var utenti = await _repository.GetAllAsync();
                 return Ok(utenti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti gli utenti");
-                return SafeInternalError("Errore durante il recupero degli utenti");
+                return SafeInternalError<IEnumerable<UtentiDTO>>(ex.Message);
             }
         }
 
@@ -58,10 +59,10 @@ namespace BBltZen.Controllers
 
                 return Ok(utente);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dell'utente {Id}", id);
-                return SafeInternalError("Errore durante il recupero dell'utente");
+                return SafeInternalError<UtentiDTO>(ex.Message);
             }
         }
 
@@ -82,16 +83,16 @@ namespace BBltZen.Controllers
 
                 return Ok(utente);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dell'utente per email {Email}", email);
-                return SafeInternalError("Errore durante il recupero dell'utente");
+                return SafeInternalError<UtentiDTO>(ex.Message);
             }
         }
 
         // GET: api/Utenti/tipo/admin
         [HttpGet("tipo/{tipoUtente}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult<IEnumerable<UtentiDTO>>> GetByTipo(string tipoUtente)
         {
             try
@@ -102,16 +103,16 @@ namespace BBltZen.Controllers
                 var utenti = await _repository.GetByTipoUtenteAsync(tipoUtente);
                 return Ok(utenti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli utenti per tipo {TipoUtente}", tipoUtente);
-                return SafeInternalError("Errore durante il recupero degli utenti");
+                return SafeInternalError<IEnumerable<UtentiDTO>>(ex.Message);
             }
         }
 
         // GET: api/Utenti/attivi
         [HttpGet("attivi")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult<IEnumerable<UtentiDTO>>> GetAttivi()
         {
             try
@@ -119,17 +120,17 @@ namespace BBltZen.Controllers
                 var utenti = await _repository.GetAttiviAsync();
                 return Ok(utenti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli utenti attivi");
-                return SafeInternalError("Errore durante il recupero degli utenti");
+                return SafeInternalError<IEnumerable<UtentiDTO>>(ex.Message);
             }
         }
 
         // POST: api/Utenti
         [HttpPost]
         [AllowAnonymous] // ✅ REGISTRAZIONE PUBBLICA
-        public async Task<ActionResult<UtentiDTO>> Create(UtentiDTO utenteDto)
+        public async Task<ActionResult<UtentiDTO>> Create([FromBody] UtentiDTO utenteDto)
         {
             try
             {
@@ -140,37 +141,47 @@ namespace BBltZen.Controllers
                 if (await _repository.EmailExistsAsync(utenteDto.Email))
                     return SafeBadRequest<UtentiDTO>("Email già registrata");
 
-                // Imposta valori di default se non specificati
-                utenteDto.DataCreazione = utenteDto.DataCreazione ?? System.DateTime.Now;
-                utenteDto.Attivo = utenteDto.Attivo ?? true;
-
                 await _repository.AddAsync(utenteDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("CREATE_UTENTE", "Utenti", utenteDto.UtenteId.ToString());
+                // ✅ Recupera l'utente creato per ottenere i valori dal database
+                var createdUtente = await _repository.GetByEmailAsync(utenteDto.Email);
+                if (createdUtente == null)
+                    return SafeInternalError<UtentiDTO>("Errore durante il recupero dell'utente creato");
+
+                // ✅ Audit trail completo
+                LogAuditTrail("CREATE", "Utenti", createdUtente.UtenteId.ToString());
                 LogSecurityEvent("UtenteCreated", new
                 {
-                    UtenteId = utenteDto.UtenteId,
-                    Email = utenteDto.Email,
-                    TipoUtente = utenteDto.TipoUtente,
-                    User = User.Identity?.Name ?? "Anonymous" // Registrazione pubblica
+                    UtenteId = createdUtente.UtenteId,
+                    Email = createdUtente.Email,
+                    TipoUtente = createdUtente.TipoUtente,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
                 });
 
-                return CreatedAtAction(nameof(GetById),
-                    new { id = utenteDto.UtenteId },
-                    utenteDto);
+                return CreatedAtAction(nameof(GetById), new { id = createdUtente.UtenteId }, createdUtente);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione dell'utente");
+                return SafeInternalError<UtentiDTO>("Errore durante il salvataggio dei dati");
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante la creazione dell'utente");
+                return SafeBadRequest<UtentiDTO>(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dell'utente");
-                return SafeInternalError("Errore durante la creazione dell'utente");
+                return SafeInternalError<UtentiDTO>(ex.Message);
             }
         }
 
         // PUT: api/Utenti/5
         [HttpPut("{id}")]
         //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
-        public async Task<ActionResult> Update(int id, UtentiDTO utenteDto)
+        public async Task<ActionResult> Update(int id, [FromBody] UtentiDTO utenteDto)
         {
             try
             {
@@ -189,34 +200,40 @@ namespace BBltZen.Controllers
 
                 await _repository.UpdateAsync(utenteDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("UPDATE_UTENTE", "Utenti", utenteDto.UtenteId.ToString());
+                // ✅ Audit trail completo
+                LogAuditTrail("UPDATE", "Utenti", utenteDto.UtenteId.ToString());
                 LogSecurityEvent("UtenteUpdated", new
                 {
                     UtenteId = utenteDto.UtenteId,
                     Email = utenteDto.Email,
                     TipoUtente = utenteDto.TipoUtente,
                     Attivo = utenteDto.Attivo,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
             }
-            catch (ArgumentException ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogWarning(ex, "Utente non trovato per aggiornamento: {Id}", id);
-                return SafeNotFound(ex.Message);
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'utente {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento dei dati");
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento dell'utente {Id}", id);
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dell'utente {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dell'utente");
+                return SafeInternalError(ex.Message);
             }
         }
 
         // DELETE: api/Utenti/5
         [HttpDelete("{id}")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult> Delete(int id)
         {
             try
@@ -230,21 +247,27 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(id);
 
-                // ✅ Audit trail
-                LogAuditTrail("DELETE_UTENTE", "Utenti", id.ToString());
+                // ✅ Audit trail completo
+                LogAuditTrail("DELETE", "Utenti", id.ToString());
                 LogSecurityEvent("UtenteDeleted", new
                 {
                     UtenteId = id,
                     Email = utente.Email,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione dell'utente {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione dei dati");
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione dell'utente {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione dell'utente");
+                return SafeInternalError(ex.Message);
             }
         }
 
@@ -261,10 +284,10 @@ namespace BBltZen.Controllers
                 var exists = await _repository.EmailExistsAsync(email);
                 return Ok(exists);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la verifica dell'email {Email}", email);
-                return SafeInternalError("Errore durante la verifica dell'email");
+                return SafeInternalError<bool>(ex.Message);
             }
         }
 
@@ -281,16 +304,16 @@ namespace BBltZen.Controllers
                 var exists = await _repository.ExistsAsync(id);
                 return Ok(exists);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la verifica dell'esistenza dell'utente {Id}", id);
-                return SafeInternalError("Errore durante la verifica dell'utente");
+                return SafeInternalError<bool>(ex.Message);
             }
         }
 
         // PATCH: api/Utenti/5/attiva
         [HttpPatch("{id}/attiva")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult> AttivaUtente(int id)
         {
             try
@@ -303,31 +326,37 @@ namespace BBltZen.Controllers
                     return SafeNotFound("Utente");
 
                 utente.Attivo = true;
-                utente.DataAggiornamento = System.DateTime.Now;
+                utente.DataAggiornamento = DateTime.Now;
 
                 await _repository.UpdateAsync(utente);
 
-                // ✅ Audit trail
-                LogAuditTrail("ACTIVATE_UTENTE", "Utenti", id.ToString());
+                // ✅ Audit trail completo
+                LogAuditTrail("ACTIVATE", "Utenti", id.ToString());
                 LogSecurityEvent("UtenteActivated", new
                 {
                     UtenteId = id,
                     Email = utente.Email,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'attivazione dell'utente {Id}", id);
+                return SafeInternalError("Errore durante l'attivazione dell'utente");
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'attivazione dell'utente {Id}", id);
-                return SafeInternalError("Errore durante l'attivazione dell'utente");
+                return SafeInternalError(ex.Message);
             }
         }
 
         // PATCH: api/Utenti/5/disattiva
         [HttpPatch("{id}/disattiva")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult> DisattivaUtente(int id)
         {
             try
@@ -340,25 +369,31 @@ namespace BBltZen.Controllers
                     return SafeNotFound("Utente");
 
                 utente.Attivo = false;
-                utente.DataAggiornamento = System.DateTime.Now;
+                utente.DataAggiornamento = DateTime.Now;
 
                 await _repository.UpdateAsync(utente);
 
-                // ✅ Audit trail
-                LogAuditTrail("DEACTIVATE_UTENTE", "Utenti", id.ToString());
+                // ✅ Audit trail completo
+                LogAuditTrail("DEACTIVATE", "Utenti", id.ToString());
                 LogSecurityEvent("UtenteDeactivated", new
                 {
                     UtenteId = id,
                     Email = utente.Email,
-                    User = User.Identity?.Name
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la disattivazione dell'utente {Id}", id);
+                return SafeInternalError("Errore durante la disattivazione dell'utente");
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la disattivazione dell'utente {Id}", id);
-                return SafeInternalError("Errore durante la disattivazione dell'utente");
+                return SafeInternalError(ex.Message);
             }
         }
     }

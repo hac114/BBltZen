@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// BBltZen/Controllers/VwArticoliCompletiController.cs
+using Microsoft.AspNetCore.Mvc;
 using DTO;
 using Repository.Interface;
 using System;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
@@ -34,19 +36,22 @@ namespace BBltZen.Controllers
             {
                 var articoli = await _repository.GetAllAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ALL_ARTICOLI_COMPLETI", "VwArticoliCompleti", $"Count: {articoli?.Count}");
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_ALL", "VwArticoliCompleti", $"Count: {articoli?.Count}");
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetAll",
+                    Count = articoli?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articoli);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutti gli articoli completi");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero degli articoli completi: {ex.Message}"
-                        : "Errore interno nel recupero articoli"
-                );
+                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -57,33 +62,28 @@ namespace BBltZen.Controllers
             try
             {
                 if (id <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID articolo non valido: deve essere maggiore di 0"
-                            : "ID articolo non valido"
-                    );
+                    return SafeBadRequest<VwArticoliCompletiDTO>("ID articolo non valido");
 
                 var articolo = await _repository.GetByIdAsync(id);
                 if (articolo == null)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Articolo completo con ID {id} non trovato"
-                            : "Articolo non trovato"
-                    );
+                    return SafeNotFound<VwArticoliCompletiDTO>("Articolo");
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLO_COMPLETO_BY_ID", "VwArticoliCompleti", id.ToString());
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_BY_ID", "VwArticoliCompleti", id.ToString());
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetById",
+                    ArticoloId = id,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articolo);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero articolo con ID: {id}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero articolo con ID {id}: {ex.Message}"
-                        : "Errore interno nel recupero articolo"
-                );
+                _logger.LogError(ex, "Errore nel recupero articolo con ID: {Id}", id);
+                return SafeInternalError<VwArticoliCompletiDTO>(ex.Message);
             }
         }
 
@@ -94,27 +94,27 @@ namespace BBltZen.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(tipoArticolo))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Tipo articolo non valido: non può essere vuoto"
-                            : "Tipo articolo non valido"
-                    );
+                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Tipo articolo non valido");
 
                 var articoli = await _repository.GetByTipoAsync(tipoArticolo);
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLI_BY_TIPO", "VwArticoliCompleti", tipoArticolo);
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_BY_TIPO", "VwArticoliCompleti", tipoArticolo);
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetByTipo",
+                    TipoArticolo = tipoArticolo,
+                    Count = articoli?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articoli);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero articoli di tipo: {tipoArticolo}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero articoli di tipo {tipoArticolo}: {ex.Message}"
-                        : "Errore interno nel recupero articoli per tipo"
-                );
+                _logger.LogError(ex, "Errore nel recupero articoli di tipo: {TipoArticolo}", tipoArticolo);
+                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -125,27 +125,27 @@ namespace BBltZen.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(categoria))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Categoria non valida: non può essere vuota"
-                            : "Categoria non valida"
-                    );
+                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Categoria non valida");
 
                 var articoli = await _repository.GetByCategoriaAsync(categoria);
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLI_BY_CATEGORIA", "VwArticoliCompleti", categoria);
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_BY_CATEGORIA", "VwArticoliCompleti", categoria);
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetByCategoria",
+                    Categoria = categoria,
+                    Count = articoli?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articoli);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero articoli della categoria: {categoria}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero articoli della categoria {categoria}: {ex.Message}"
-                        : "Errore interno nel recupero articoli per categoria"
-                );
+                _logger.LogError(ex, "Errore nel recupero articoli della categoria: {Categoria}", categoria);
+                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -157,19 +157,22 @@ namespace BBltZen.Controllers
             {
                 var articoli = await _repository.GetDisponibiliAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLI_DISPONIBILI", "VwArticoliCompleti", $"Count: {articoli?.Count}");
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_DISPONIBILI", "VwArticoliCompleti", $"Count: {articoli?.Count}");
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetDisponibili",
+                    Count = articoli?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articoli);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli disponibili");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero articoli disponibili: {ex.Message}"
-                        : "Errore interno nel recupero articoli disponibili"
-                );
+                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -180,27 +183,27 @@ namespace BBltZen.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(nome))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Nome ricerca non valido: non può essere vuoto"
-                            : "Nome ricerca non valido"
-                    );
+                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Nome ricerca non valido");
 
                 var articoli = await _repository.SearchByNameAsync(nome);
 
-                // ✅ Log per audit
-                LogAuditTrail("SEARCH_ARTICOLI_BY_NAME", "VwArticoliCompleti", nome);
+                // ✅ Audit trail completo
+                LogAuditTrail("SEARCH_BY_NAME", "VwArticoliCompleti", nome);
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "SearchByName",
+                    SearchTerm = nome,
+                    Count = articoli?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articoli);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nella ricerca articoli per nome: {nome}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nella ricerca articoli per nome {nome}: {ex.Message}"
-                        : "Errore interno nella ricerca articoli"
-                );
+                _logger.LogError(ex, "Errore nella ricerca articoli per nome: {Nome}", nome);
+                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -213,34 +216,31 @@ namespace BBltZen.Controllers
             try
             {
                 if (prezzoMin < 0 || prezzoMax < 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "I prezzi non possono essere negativi"
-                            : "Prezzi non validi"
-                    );
+                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("I prezzi non possono essere negativi");
 
                 if (prezzoMin > prezzoMax)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"Il prezzo minimo ({prezzoMin}) non può essere maggiore del prezzo massimo ({prezzoMax})"
-                            : "Intervallo prezzi non valido"
-                    );
+                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Il prezzo minimo non può essere maggiore del prezzo massimo");
 
                 var articoli = await _repository.GetByPriceRangeAsync(prezzoMin, prezzoMax);
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLI_BY_PRICE_RANGE", "VwArticoliCompleti", $"{prezzoMin}-{prezzoMax}");
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_BY_PRICE_RANGE", "VwArticoliCompleti", $"{prezzoMin}-{prezzoMax}");
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetByPriceRange",
+                    PrezzoMin = prezzoMin,
+                    PrezzoMax = prezzoMax,
+                    Count = articoli?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articoli);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero articoli nel range prezzi {prezzoMin}-{prezzoMax}");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero articoli nel range prezzi {prezzoMin}-{prezzoMax}: {ex.Message}"
-                        : "Errore interno nel recupero articoli per prezzo"
-                );
+                _logger.LogError(ex, "Errore nel recupero articoli nel range prezzi {PrezzoMin}-{PrezzoMax}", prezzoMin, prezzoMax);
+                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -252,19 +252,22 @@ namespace BBltZen.Controllers
             {
                 var articoli = await _repository.GetArticoliConIvaAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLI_CON_IVA", "VwArticoliCompleti", $"Count: {articoli?.Count}");
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_CON_IVA", "VwArticoliCompleti", $"Count: {articoli?.Count}");
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetArticoliConIva",
+                    Count = articoli?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(articoli);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli con IVA");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero articoli con IVA: {ex.Message}"
-                        : "Errore interno nel recupero articoli con IVA"
-                );
+                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -276,19 +279,22 @@ namespace BBltZen.Controllers
             {
                 var count = await _repository.GetCountAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLI_COUNT", "VwArticoliCompleti", count.ToString());
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_COUNT", "VwArticoliCompleti", count.ToString());
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetCount",
+                    Count = count,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(count);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel conteggio articoli");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel conteggio articoli: {ex.Message}"
-                        : "Errore interno nel conteggio articoli"
-                );
+                return SafeInternalError<int>(ex.Message);
             }
         }
 
@@ -300,19 +306,22 @@ namespace BBltZen.Controllers
             {
                 var categorie = await _repository.GetCategorieAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_CATEGORIE_ARTICOLI", "VwArticoliCompleti", $"Count: {categorie?.Count}");
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_CATEGORIE", "VwArticoliCompleti", $"Count: {categorie?.Count}");
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetCategorie",
+                    Count = categorie?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(categorie);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero categorie");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero categorie: {ex.Message}"
-                        : "Errore interno nel recupero categorie"
-                );
+                return SafeInternalError<List<string>>(ex.Message);
             }
         }
 
@@ -324,19 +333,22 @@ namespace BBltZen.Controllers
             {
                 var tipi = await _repository.GetTipiArticoloAsync();
 
-                // ✅ Log per audit
+                // ✅ Audit trail completo
                 LogAuditTrail("GET_TIPI_ARTICOLO", "VwArticoliCompleti", $"Count: {tipi?.Count}");
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetTipiArticolo",
+                    Count = tipi?.Count ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(tipi);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero tipi articolo");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero tipi articolo: {ex.Message}"
-                        : "Errore interno nel recupero tipi articolo"
-                );
+                return SafeInternalError<List<string>>(ex.Message);
             }
         }
 
@@ -358,23 +370,26 @@ namespace BBltZen.Controllers
                     ArticoliNonDisponibili = totalCount - disponibiliCount,
                     NumeroCategorie = categorie.Count,
                     NumeroTipi = tipi.Count,
-                    UltimoAggiornamento = DateTime.Now
+                    UltimoAggiornamento = DateTime.UtcNow
                 };
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ARTICOLI_STATS", "VwArticoliCompleti",
-                    $"Totali: {totalCount}, Disponibili: {disponibiliCount}");
+                // ✅ Audit trail completo
+                LogAuditTrail("GET_STATS", "VwArticoliCompleti", $"Totali: {totalCount}, Disponibili: {disponibiliCount}");
+                LogSecurityEvent("VwArticoliCompletiAccessed", new
+                {
+                    Operation = "GetStats",
+                    TotalCount = totalCount,
+                    DisponibiliCount = disponibiliCount,
+                    User = User.Identity?.Name ?? "Anonymous",
+                    Timestamp = DateTime.UtcNow
+                });
 
                 return Ok(stats);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero statistiche articoli");
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero statistiche articoli: {ex.Message}"
-                        : "Errore interno nel recupero statistiche articoli"
-                );
+                return SafeInternalError<object>(ex.Message);
             }
         }
     }
