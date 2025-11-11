@@ -24,10 +24,9 @@ namespace BBltZen.Services
                 await _context.Database.EnsureCreatedAsync();
             }
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // ✅ ORDINE CORRETTO per foreign keys
+                // ✅ ORDINE CORRETTO per foreign keys (SENZA TRANSAZIONE)
                 await SeedTavoliAsync();
                 await SeedUnitaMisuraAsync();
                 await SeedCategorieIngredientiAsync();
@@ -38,23 +37,15 @@ namespace BBltZen.Services
                 await SeedStatiPagamentoAsync();
                 await SeedIngredientiAsync();
                 await SeedDimensioniBicchieriAsync();
-
-                // ✅ PRIMA gli Articoli (base per molte entità)
                 await SeedArticoliAsync();
-
-                // ✅ POI le Personalizzazioni (sia standard che custom)
                 await SeedPersonalizzazioniAsync();
                 await SeedPersonalizzazioneIngredientiAsync();
                 await SeedDimensioneQuantitaIngredientiAsync();
                 await SeedPersonalizzazioniCustomAsync();
                 await SeedIngredientiPersonalizzazioneAsync();
-
-                // ✅ INFINE le entità che dipendono da Articolo + altre
-                await SeedBevandeStandardAsync();     // Dipende da Articolo + Personalizzazione + DimensioneBicchiere
-                await SeedBevandeCustomAsync();       // Dipende da Articolo + PersonalizzazioneCustom  
-                await SeedDolciAsync();               // Dipende da Articolo
-
-                // ✅ Clienti e Utenti (dipendono da Tavolo)
+                await SeedBevandeStandardAsync();
+                await SeedBevandeCustomAsync();
+                await SeedDolciAsync();
                 await SeedClientiAsync();
                 await SeedSessioniQrAsync();
                 await SeedPreferitiClienteAsync();
@@ -67,13 +58,17 @@ namespace BBltZen.Services
                 await SeedStatisticheCacheAsync();
 
                 await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
                 Console.WriteLine("✅ Database seeded successfully!");
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                // In caso di errore con InMemory, ricomincia da zero
+                if (forceReset)
+                {
+                    await _context.Database.EnsureDeletedAsync();
+                    await _context.Database.EnsureCreatedAsync();
+                }
+
                 throw new Exception($"Seeding failed: {ex.Message}", ex);
             }
         }
@@ -313,260 +308,436 @@ namespace BBltZen.Services
         {
             if (await _context.PersonalizzazioneIngrediente.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var personalizzazioneClassic = await _context.Personalizzazione.FirstAsync(p => p.Nome == "Classic Milk Tea");
-            var personalizzazioneFruit = await _context.Personalizzazione.FirstAsync(p => p.Nome == "Fruit Fusion");
-
-            var teaNero = await _context.Ingrediente.FirstAsync(i => i.Ingrediente1 == "Tea nero premium");
-            var teaVerde = await _context.Ingrediente.FirstAsync(i => i.Ingrediente1 == "Tea verde special");
-            var caramello = await _context.Ingrediente.FirstAsync(i => i.Ingrediente1 == "Sciroppo di caramello");
-            var latteCocco = await _context.Ingrediente.FirstAsync(i => i.Ingrediente1 == "Latte di cocco");
-
-            var grUnit = await _context.UnitaDiMisura.FirstAsync(u => u.Sigla == "GR");
-            var mlUnit = await _context.UnitaDiMisura.FirstAsync(u => u.Sigla == "ML");
-
-            var personalizzazioneIngredienti = new[]
+            try
             {
-                // Classic Milk Tea ingredients
-                new PersonalizzazioneIngrediente
-                {
-                    PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
-                    IngredienteId = teaNero.IngredienteId,
-                    Quantita = 10.0m,
-                    UnitaMisuraId = grUnit.UnitaMisuraId
-                },
-                new PersonalizzazioneIngrediente
-                {
-                    PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
-                    IngredienteId = caramello.IngredienteId,
-                    Quantita = 20.0m,
-                    UnitaMisuraId = mlUnit.UnitaMisuraId
-                },
-        
-                // Fruit Fusion ingredients
-                new PersonalizzazioneIngrediente
-                {
-                    PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
-                    IngredienteId = teaVerde.IngredienteId,
-                    Quantita = 8.0m,
-                    UnitaMisuraId = grUnit.UnitaMisuraId
-                },
-                new PersonalizzazioneIngrediente
-                {
-                    PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
-                    IngredienteId = latteCocco.IngredienteId,
-                    Quantita = 150.0m,
-                    UnitaMisuraId = mlUnit.UnitaMisuraId
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var personalizzazioni = await _context.Personalizzazione.ToListAsync();
+                var ingredienti = await _context.Ingrediente.ToListAsync();
+                var unitaMisura = await _context.UnitaDiMisura.ToListAsync();
 
-            await _context.PersonalizzazioneIngrediente.AddRangeAsync(personalizzazioneIngredienti);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var personalizzazioneClassic = personalizzazioni.FirstOrDefault(p => p.Nome == "Classic Milk Tea");
+                var personalizzazioneFruit = personalizzazioni.FirstOrDefault(p => p.Nome == "Fruit Fusion");
+
+                var teaNero = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Tea nero premium");
+                var teaVerde = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Tea verde special");
+                var caramello = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Sciroppo di caramello");
+                var latteCocco = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Latte di cocco");
+
+                var grUnit = unitaMisura.FirstOrDefault(u => u.Sigla == "GR");
+                var mlUnit = unitaMisura.FirstOrDefault(u => u.Sigla == "ML");
+
+                // ✅ Verifica che tutte le entità esistano
+                if (personalizzazioneClassic == null || personalizzazioneFruit == null ||
+                    teaNero == null || teaVerde == null || caramello == null || latteCocco == null ||
+                    grUnit == null || mlUnit == null)
+                {
+                    Console.WriteLine("⚠️  Entità mancanti per PersonalizzazioneIngredienti");
+                    return;
+                }
+
+                var personalizzazioneIngredienti = new[]
+                {
+                    // Classic Milk Tea ingredients
+                    new PersonalizzazioneIngrediente
+                    {
+                        PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
+                        IngredienteId = teaNero.IngredienteId,
+                        Quantita = 10.0m,
+                        UnitaMisuraId = grUnit.UnitaMisuraId
+                    },
+                    new PersonalizzazioneIngrediente
+                    {
+                        PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
+                        IngredienteId = caramello.IngredienteId,
+                        Quantita = 20.0m,
+                        UnitaMisuraId = mlUnit.UnitaMisuraId
+                    },
+
+                    // Fruit Fusion ingredients
+                    new PersonalizzazioneIngrediente
+                    {
+                        PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
+                        IngredienteId = teaVerde.IngredienteId,
+                        Quantita = 8.0m,
+                        UnitaMisuraId = grUnit.UnitaMisuraId
+                    },
+                    new PersonalizzazioneIngrediente
+                    {
+                        PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
+                        IngredienteId = latteCocco.IngredienteId,
+                        Quantita = 150.0m,
+                        UnitaMisuraId = mlUnit.UnitaMisuraId
+                    }
+                };
+
+                await _context.PersonalizzazioneIngrediente.AddRangeAsync(personalizzazioneIngredienti);
+                Console.WriteLine("✅ PersonalizzazioneIngredienti seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedPersonalizzazioneIngredientiAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedDimensioneQuantitaIngredientiAsync()
         {
             if (await _context.DimensioneQuantitaIngredienti.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var personalizzazioneIngredienti = await _context.PersonalizzazioneIngrediente.ToListAsync();
-            var dimensioneMedia = await _context.DimensioneBicchiere.FirstAsync(d => d.Sigla == "M");
-            var dimensioneLarge = await _context.DimensioneBicchiere.FirstAsync(d => d.Sigla == "L");
-
-            var dimensioneQuantitaIngredienti = new List<DimensioneQuantitaIngredienti>();
-
-            // Per ogni personalizzazione ingrediente, crea record per entrambe le dimensioni
-            foreach (var personalizzazioneIngrediente in personalizzazioneIngredienti)
+            try
             {
-                // Per dimensione Media
-                dimensioneQuantitaIngredienti.Add(new DimensioneQuantitaIngredienti
-                {
-                    PersonalizzazioneIngredienteId = personalizzazioneIngrediente.PersonalizzazioneIngredienteId,
-                    DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
-                    Moltiplicatore = 1.0m // Moltiplicatore base per dimensione media
-                });
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var personalizzazioneIngredienti = await _context.PersonalizzazioneIngrediente.ToListAsync();
+                var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
 
-                // Per dimensione Large
-                dimensioneQuantitaIngredienti.Add(new DimensioneQuantitaIngredienti
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var dimensioneMedia = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "M");
+                var dimensioneLarge = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "L");
+
+                // ✅ Verifica che le dimensioni esistano
+                if (dimensioneMedia == null || dimensioneLarge == null)
                 {
-                    PersonalizzazioneIngredienteId = personalizzazioneIngrediente.PersonalizzazioneIngredienteId,
-                    DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
-                    Moltiplicatore = 1.3m // 30% in più per dimensione large
-                });
+                    Console.WriteLine("⚠️  Dimensioni bicchieri non trovate per DimensioneQuantitaIngredienti");
+                    return;
+                }
+
+                // ✅ Verifica che ci siano personalizzazione ingredienti
+                if (!personalizzazioneIngredienti.Any())
+                {
+                    Console.WriteLine("⚠️  Nessuna PersonalizzazioneIngrediente trovata per DimensioneQuantitaIngredienti");
+                    return;
+                }
+
+                var dimensioneQuantitaIngredienti = new List<DimensioneQuantitaIngredienti>();
+
+                // Per ogni personalizzazione ingrediente, crea record per entrambe le dimensioni
+                foreach (var personalizzazioneIngrediente in personalizzazioneIngredienti)
+                {
+                    // Per dimensione Media
+                    dimensioneQuantitaIngredienti.Add(new DimensioneQuantitaIngredienti
+                    {
+                        PersonalizzazioneIngredienteId = personalizzazioneIngrediente.PersonalizzazioneIngredienteId,
+                        DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
+                        Moltiplicatore = 1.0m // Moltiplicatore base per dimensione media
+                    });
+
+                    // Per dimensione Large
+                    dimensioneQuantitaIngredienti.Add(new DimensioneQuantitaIngredienti
+                    {
+                        PersonalizzazioneIngredienteId = personalizzazioneIngrediente.PersonalizzazioneIngredienteId,
+                        DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
+                        Moltiplicatore = 1.3m // 30% in più per dimensione large
+                    });
+                }
+
+                await _context.DimensioneQuantitaIngredienti.AddRangeAsync(dimensioneQuantitaIngredienti);
+                Console.WriteLine($"✅ DimensioneQuantitaIngredienti seeded successfully ({dimensioneQuantitaIngredienti.Count} records)");
             }
-
-            await _context.DimensioneQuantitaIngredienti.AddRangeAsync(dimensioneQuantitaIngredienti);
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedDimensioneQuantitaIngredientiAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedPersonalizzazioniCustomAsync()
         {
             if (await _context.PersonalizzazioneCustom.AnyAsync()) return;
 
-            var dimensioneMedia = await _context.DimensioneBicchiere.FirstAsync(d => d.Sigla == "M");
-            var dimensioneLarge = await _context.DimensioneBicchiere.FirstAsync(d => d.Sigla == "L");
-
-            var personalizzazioniCustom = new[]
+            try
             {
-                new PersonalizzazioneCustom
-                {
-                    Nome = "My Custom Tea",
-                    GradoDolcezza = 5,
-                    DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
-                },
-                new PersonalizzazioneCustom
-                {
-                    Nome = "Extra Sweet Mix",
-                    GradoDolcezza = 8,
-                    DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
 
-            await _context.PersonalizzazioneCustom.AddRangeAsync(personalizzazioniCustom);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var dimensioneMedia = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "M");
+                var dimensioneLarge = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "L");
+
+                // ✅ Verifica che le dimensioni esistano
+                if (dimensioneMedia == null || dimensioneLarge == null)
+                {
+                    Console.WriteLine("⚠️  Dimensioni bicchieri non trovate per PersonalizzazioniCustom");
+                    return;
+                }
+
+                var personalizzazioniCustom = new[]
+                {
+                    new PersonalizzazioneCustom
+                    {
+                        Nome = "My Custom Tea",
+                        GradoDolcezza = 5,
+                        DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    },
+                    new PersonalizzazioneCustom
+                    {
+                        Nome = "Extra Sweet Mix",
+                        GradoDolcezza = 8,
+                        DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
+                };
+
+                await _context.PersonalizzazioneCustom.AddRangeAsync(personalizzazioniCustom);
+                Console.WriteLine("✅ PersonalizzazioniCustom seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedPersonalizzazioniCustomAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedIngredientiPersonalizzazioneAsync()
         {
             if (await _context.IngredientiPersonalizzazione.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var customTea = await _context.PersonalizzazioneCustom.FirstAsync(p => p.Nome == "My Custom Tea");
-            var extraSweet = await _context.PersonalizzazioneCustom.FirstAsync(p => p.Nome == "Extra Sweet Mix");
-
-            var teaNero = await _context.Ingrediente.FirstAsync(i => i.Ingrediente1 == "Tea nero premium");
-            var caramello = await _context.Ingrediente.FirstAsync(i => i.Ingrediente1 == "Sciroppo di caramello");
-            var perleTapioca = await _context.Ingrediente.FirstAsync(i => i.Ingrediente1 == "Perle di tapioca");
-
-            var ingredientiPersonalizzazione = new[]
+            try
             {
-                // My Custom Tea ingredients
-                new IngredientiPersonalizzazione
-                {
-                    PersCustomId = customTea.PersCustomId,
-                    IngredienteId = teaNero.IngredienteId,
-                    DataCreazione = DateTime.UtcNow
-                },
-                new IngredientiPersonalizzazione
-                {
-                    PersCustomId = customTea.PersCustomId,
-                    IngredienteId = perleTapioca.IngredienteId,
-                    DataCreazione = DateTime.UtcNow
-                },
-        
-                // Extra Sweet Mix ingredients
-                new IngredientiPersonalizzazione
-                {
-                    PersCustomId = extraSweet.PersCustomId,
-                    IngredienteId = caramello.IngredienteId,
-                    DataCreazione = DateTime.UtcNow
-                },
-                new IngredientiPersonalizzazione
-                {
-                    PersCustomId = extraSweet.PersCustomId,
-                    IngredienteId = perleTapioca.IngredienteId,
-                    DataCreazione = DateTime.UtcNow
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var personalizzazioniCustom = await _context.PersonalizzazioneCustom.ToListAsync();
+                var ingredienti = await _context.Ingrediente.ToListAsync();
 
-            await _context.IngredientiPersonalizzazione.AddRangeAsync(ingredientiPersonalizzazione);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var customTea = personalizzazioniCustom.FirstOrDefault(p => p.Nome == "My Custom Tea");
+                var extraSweet = personalizzazioniCustom.FirstOrDefault(p => p.Nome == "Extra Sweet Mix");
+
+                var teaNero = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Tea nero premium");
+                var caramello = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Sciroppo di caramello");
+                var perleTapioca = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Perle di tapioca");
+
+                // ✅ Verifica che tutte le entità esistano
+                if (customTea == null || extraSweet == null ||
+                    teaNero == null || caramello == null || perleTapioca == null)
+                {
+                    Console.WriteLine("⚠️  Entità mancanti per IngredientiPersonalizzazione");
+                    return;
+                }
+
+                var ingredientiPersonalizzazione = new[]
+                {
+                    // My Custom Tea ingredients
+                    new IngredientiPersonalizzazione
+                    {
+                        PersCustomId = customTea.PersCustomId,
+                        IngredienteId = teaNero.IngredienteId,
+                        DataCreazione = DateTime.UtcNow
+                    },
+                    new IngredientiPersonalizzazione
+                    {
+                        PersCustomId = customTea.PersCustomId,
+                        IngredienteId = perleTapioca.IngredienteId,
+                        DataCreazione = DateTime.UtcNow
+                    },
+
+                    // Extra Sweet Mix ingredients
+                    new IngredientiPersonalizzazione
+                    {
+                        PersCustomId = extraSweet.PersCustomId,
+                        IngredienteId = caramello.IngredienteId,
+                        DataCreazione = DateTime.UtcNow
+                    },
+                    new IngredientiPersonalizzazione
+                    {
+                        PersCustomId = extraSweet.PersCustomId,
+                        IngredienteId = perleTapioca.IngredienteId,
+                        DataCreazione = DateTime.UtcNow
+                    }
+                };
+
+                await _context.IngredientiPersonalizzazione.AddRangeAsync(ingredientiPersonalizzazione);
+                Console.WriteLine("✅ IngredientiPersonalizzazione seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedIngredientiPersonalizzazioneAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedBevandeStandardAsync()
         {
             if (await _context.BevandaStandard.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var articoloBevanda1 = await _context.Articolo.FirstAsync(a => a.Tipo == "bevanda");
-            var articoloBevanda2 = await _context.Articolo.Skip(1).FirstAsync(a => a.Tipo == "bevanda");
-
-            var personalizzazioneClassic = await _context.Personalizzazione.FirstAsync(p => p.Nome == "Classic Milk Tea");
-            var personalizzazioneFruit = await _context.Personalizzazione.FirstAsync(p => p.Nome == "Fruit Fusion");
-
-            var dimensioneMedia = await _context.DimensioneBicchiere.FirstAsync(d => d.Sigla == "M");
-            var dimensioneLarge = await _context.DimensioneBicchiere.FirstAsync(d => d.Sigla == "L");
-
-            var bevande = new[]
+            try
             {
-                new BevandaStandard
-                {
-                    ArticoloId = articoloBevanda1.ArticoloId,
-                    PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
-                    DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
-                    Prezzo = 4.50m,
-                    ImmagineUrl = "/images/classic-milk-tea.jpg",
-                    Disponibile = true,
-                    SempreDisponibile = true,
-                    Priorita = 1,
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
-                },
-                new BevandaStandard
-                {
-                    ArticoloId = articoloBevanda2.ArticoloId,
-                    PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
-                    DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
-                    Prezzo = 5.50m,
-                    ImmagineUrl = "/images/fruit-fusion.jpg",
-                    Disponibile = true,
-                    SempreDisponibile = true,
-                    Priorita = 2,
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var articoli = await _context.Articolo.Where(a => a.Tipo == "bevanda").ToListAsync();
+                var personalizzazioni = await _context.Personalizzazione.ToListAsync();
+                var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
 
-            await _context.BevandaStandard.AddRangeAsync(bevande);
+                // ✅ Verifica che ci siano abbastanza articoli bevanda
+                if (articoli.Count < 2)
+                {
+                    Console.WriteLine("⚠️  Articoli bevanda insufficienti per BevandeStandard");
+                    return;
+                }
+
+                // ✅ Usa accesso per indice invece di Skip().FirstAsync()
+                var articoloBevanda1 = articoli[0];
+                var articoloBevanda2 = articoli[1];
+
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var personalizzazioneClassic = personalizzazioni.FirstOrDefault(p => p.Nome == "Classic Milk Tea");
+                var personalizzazioneFruit = personalizzazioni.FirstOrDefault(p => p.Nome == "Fruit Fusion");
+
+                var dimensioneMedia = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "M");
+                var dimensioneLarge = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "L");
+
+                // ✅ Verifica che tutte le entità esistano
+                if (personalizzazioneClassic == null || personalizzazioneFruit == null ||
+                    dimensioneMedia == null || dimensioneLarge == null)
+                {
+                    Console.WriteLine("⚠️  Entità mancanti per BevandeStandard");
+                    return;
+                }
+
+                var bevande = new[]
+                {
+                    new BevandaStandard
+                    {
+                        ArticoloId = articoloBevanda1.ArticoloId,
+                        PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
+                        DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
+                        Prezzo = 4.50m,
+                        ImmagineUrl = "/images/classic-milk-tea.jpg",
+                        Disponibile = true,
+                        SempreDisponibile = true,
+                        Priorita = 1,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    },
+                    new BevandaStandard
+                    {
+                        ArticoloId = articoloBevanda2.ArticoloId,
+                        PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
+                        DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
+                        Prezzo = 5.50m,
+                        ImmagineUrl = "/images/fruit-fusion.jpg",
+                        Disponibile = true,
+                        SempreDisponibile = true,
+                        Priorita = 2,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
+                };
+
+                await _context.BevandaStandard.AddRangeAsync(bevande);
+                Console.WriteLine("✅ BevandeStandard seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedBevandeStandardAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedBevandeCustomAsync()
         {
             if (await _context.BevandaCustom.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var articoloBevanda3 = await _context.Articolo.Skip(2).FirstAsync(a => a.Tipo == "bevanda");
-            var customTea = await _context.PersonalizzazioneCustom.FirstAsync(p => p.Nome == "My Custom Tea");
-            var extraSweet = await _context.PersonalizzazioneCustom.FirstAsync(p => p.Nome == "Extra Sweet Mix");
-
-            var bevandeCustom = new[]
+            try
             {
-                new BevandaCustom
-                {
-                    ArticoloId = articoloBevanda3.ArticoloId,
-                    PersCustomId = customTea.PersCustomId,
-                    Prezzo = 6.00m,
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var articoli = await _context.Articolo.Where(a => a.Tipo == "bevanda").ToListAsync();
+                var personalizzazioniCustom = await _context.PersonalizzazioneCustom.ToListAsync();
 
-            await _context.BevandaCustom.AddRangeAsync(bevandeCustom);
+                // ✅ Verifica che ci siano abbastanza articoli bevanda
+                if (articoli.Count < 3)
+                {
+                    Console.WriteLine("⚠️  Articoli bevanda insufficienti per BevandeCustom (servono almeno 3)");
+                    return;
+                }
+
+                // ✅ Usa accesso per indice invece di Skip(2).FirstAsync()
+                var articoloBevanda3 = articoli[2];
+
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var customTea = personalizzazioniCustom.FirstOrDefault(p => p.Nome == "My Custom Tea");
+                var extraSweet = personalizzazioniCustom.FirstOrDefault(p => p.Nome == "Extra Sweet Mix");
+
+                // ✅ Verifica che tutte le entità esistano
+                if (customTea == null || extraSweet == null)
+                {
+                    Console.WriteLine("⚠️  PersonalizzazioniCustom mancanti per BevandeCustom");
+                    return;
+                }
+
+                var bevandeCustom = new[]
+                {
+                    new BevandaCustom
+                    {
+                        ArticoloId = articoloBevanda3.ArticoloId,
+                        PersCustomId = customTea.PersCustomId,
+                        Prezzo = 6.00m,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
+                };
+
+                await _context.BevandaCustom.AddRangeAsync(bevandeCustom);
+                Console.WriteLine("✅ BevandeCustom seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedBevandeCustomAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedDolciAsync()
         {
             if (await _context.Dolce.AnyAsync()) return;
 
-            var articoloDolce = await _context.Articolo.FirstAsync(a => a.Tipo == "dolce");
-
-            var dolci = new[]
+            try
             {
-                new Dolce
-                {
-                    ArticoloId = articoloDolce.ArticoloId,
-                    Nome = "Tiramisù",
-                    Prezzo = 5.50m,
-                    Descrizione = "Dolce al cucchiaio classico",
-                    ImmagineUrl = "/images/tiramisu.jpg",
-                    Disponibile = true,
-                    Priorita = 1,
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var articoli = await _context.Articolo.Where(a => a.Tipo == "dolce").ToListAsync();
 
-            await _context.Dolce.AddRangeAsync(dolci);
+                // ✅ Verifica che ci siano articoli dolce
+                if (!articoli.Any())
+                {
+                    Console.WriteLine("⚠️  Nessun articolo dolce trovato per Dolci");
+                    return;
+                }
+
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var articoloDolce = articoli.FirstOrDefault();
+
+                // ✅ Verifica che l'articolo esista
+                if (articoloDolce == null)
+                {
+                    Console.WriteLine("⚠️  Articolo dolce non trovato");
+                    return;
+                }
+
+                var dolci = new[]
+                {
+                    new Dolce
+                    {
+                        ArticoloId = articoloDolce.ArticoloId,
+                        Nome = "Tiramisù",
+                        Prezzo = 5.50m,
+                        Descrizione = "Dolce al cucchiaio classico",
+                        ImmagineUrl = "/images/tiramisu.jpg",
+                        Disponibile = true,
+                        Priorita = 1,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
+                };
+
+                await _context.Dolce.AddRangeAsync(dolci);
+                Console.WriteLine("✅ Dolci seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedDolciAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedClientiAsync()
@@ -675,313 +846,525 @@ namespace BBltZen.Services
         {
             if (await _context.Ordine.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var cliente = await _context.Cliente.FirstAsync();
-
-            // ✅ CORRETTO: Usa 'StatoOrdine1' invece di 'NomeStatoOrdine'
-            var statoOrdineInAttesa = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdine1 == "In Attesa");
-
-            // ✅ CORRETTO: Usa 'StatoPagamento1' invece di 'NomeStatoPagamento'  
-            var statoPagamentoPending = await _context.StatoPagamento.FirstAsync(s => s.StatoPagamento1 == "Pending");
-
-            var ordini = new[]
+            try
             {
-                new Ordine
-                {
-                    ClienteId = cliente.ClienteId,
-                    DataCreazione = DateTime.UtcNow.AddHours(-2),
-                    DataAggiornamento = DateTime.UtcNow.AddHours(-2),
-                    StatoOrdineId = statoOrdineInAttesa.StatoOrdineId,
-                    StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
-                    Totale = 12.50m,
-                    Priorita = 1
-                },
-                new Ordine
-                {
-                    ClienteId = cliente.ClienteId,
-                    DataCreazione = DateTime.UtcNow.AddHours(-1),
-                    DataAggiornamento = DateTime.UtcNow.AddHours(-1),
-                    StatoOrdineId = statoOrdineInAttesa.StatoOrdineId,
-                    StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
-                    Totale = 8.75m,
-                    Priorita = 2
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var clienti = await _context.Cliente.ToListAsync();
+                var statiOrdine = await _context.StatoOrdine.ToListAsync();
+                var statiPagamento = await _context.StatoPagamento.ToListAsync();
 
-            await _context.Ordine.AddRangeAsync(ordini);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var cliente = clienti.FirstOrDefault();
+
+                // ✅ CORRETTO: Usa 'StatoOrdine1' invece di 'NomeStatoOrdine'
+                var statoOrdineInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
+
+                // ✅ CORRETTO: Usa 'StatoPagamento1' invece di 'NomeStatoPagamento'  
+                var statoPagamentoPending = statiPagamento.FirstOrDefault(s => s.StatoPagamento1 == "Pending");
+
+                // ✅ Verifica che tutte le entità esistano
+                if (cliente == null)
+                {
+                    Console.WriteLine("⚠️  Cliente non trovato per Ordini");
+                    return;
+                }
+
+                if (statoOrdineInAttesa == null)
+                {
+                    Console.WriteLine("⚠️  Stato ordine 'In Attesa' non trovato per Ordini");
+                    return;
+                }
+
+                if (statoPagamentoPending == null)
+                {
+                    Console.WriteLine("⚠️  Stato pagamento 'Pending' non trovato per Ordini");
+                    return;
+                }
+
+                var ordini = new[]
+                {
+                    new Ordine
+                    {
+                        ClienteId = cliente.ClienteId,
+                        DataCreazione = DateTime.UtcNow.AddHours(-2),
+                        DataAggiornamento = DateTime.UtcNow.AddHours(-2),
+                        StatoOrdineId = statoOrdineInAttesa.StatoOrdineId,
+                        StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
+                        Totale = 12.50m,
+                        Priorita = 1
+                    },
+                    new Ordine
+                    {
+                        ClienteId = cliente.ClienteId,
+                        DataCreazione = DateTime.UtcNow.AddHours(-1),
+                        DataAggiornamento = DateTime.UtcNow.AddHours(-1),
+                        StatoOrdineId = statoOrdineInAttesa.StatoOrdineId,
+                        StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
+                        Totale = 8.75m,
+                        Priorita = 2
+                    }
+                };
+
+                await _context.Ordine.AddRangeAsync(ordini);
+                Console.WriteLine("✅ Ordini seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedOrdiniAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedOrderItemsAsync()
         {
             if (await _context.OrderItem.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var ordine1 = await _context.Ordine.FirstAsync();
-            var ordine2 = await _context.Ordine.Skip(1).FirstAsync();
-
-            var articoloBevanda1 = await _context.Articolo.FirstAsync(a => a.Tipo == "bevanda");
-            var articoloBevanda2 = await _context.Articolo.Skip(1).FirstAsync(a => a.Tipo == "bevanda");
-            var articoloDolce = await _context.Articolo.FirstAsync(a => a.Tipo == "dolce");
-
-            var taxRateStandard = await _context.TaxRates.FirstAsync(t => t.Aliquota == 22.00m);
-
-            var orderItems = new[]
+            try
             {
-                // Ordine 1 - Classic Milk Tea
-                new OrderItem
-                {
-                    OrdineId = ordine1.OrdineId,
-                    ArticoloId = articoloBevanda1.ArticoloId,
-                    Quantita = 2,
-                    PrezzoUnitario = 4.50m,
-                    ScontoApplicato = 0.00m,
-                    Imponibile = 9.00m,
-                    TotaleIvato = 10.98m, // 9.00 + 22% IVA
-                    TaxRateId = taxRateStandard.TaxRateId,
-                    TipoArticolo = "bevanda",
-                    DataCreazione = DateTime.UtcNow.AddHours(-2),
-                    DataAggiornamento = DateTime.UtcNow.AddHours(-2)
-                },
-                // Ordine 1 - Tiramisù
-                new OrderItem
-                {
-                    OrdineId = ordine1.OrdineId,
-                    ArticoloId = articoloDolce.ArticoloId,
-                    Quantita = 1,
-                    PrezzoUnitario = 5.50m,
-                    ScontoApplicato = 0.00m,
-                    Imponibile = 5.50m,
-                    TotaleIvato = 6.71m, // 5.50 + 22% IVA
-                    TaxRateId = taxRateStandard.TaxRateId,
-                    TipoArticolo = "dolce",
-                    DataCreazione = DateTime.UtcNow.AddHours(-2),
-                    DataAggiornamento = DateTime.UtcNow.AddHours(-2)
-                },
-                // Ordine 2 - Fruit Fusion
-                new OrderItem
-                {
-                    OrdineId = ordine2.OrdineId,
-                    ArticoloId = articoloBevanda2.ArticoloId,
-                    Quantita = 1,
-                    PrezzoUnitario = 5.50m,
-                    ScontoApplicato = 0.50m, // Sconto applicato
-                    Imponibile = 5.00m,
-                    TotaleIvato = 6.10m, // 5.00 + 22% IVA
-                    TaxRateId = taxRateStandard.TaxRateId,
-                    TipoArticolo = "bevanda",
-                    DataCreazione = DateTime.UtcNow.AddHours(-1),
-                    DataAggiornamento = DateTime.UtcNow.AddHours(-1)
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var ordini = await _context.Ordine.ToListAsync();
+                var articoli = await _context.Articolo.ToListAsync();
+                var taxRates = await _context.TaxRates.ToListAsync();
 
-            await _context.OrderItem.AddRangeAsync(orderItems);
+                // ✅ Verifica che ci siano abbastanza ordini
+                if (ordini.Count < 2)
+                {
+                    Console.WriteLine("⚠️  Ordini insufficienti per OrderItems (servono almeno 2)");
+                    return;
+                }
+
+                // ✅ Usa accesso per indice invece di Skip().FirstAsync()
+                var ordine1 = ordini[0];
+                var ordine2 = ordini[1];
+
+                // ✅ Filtra articoli per tipo in memoria
+                var articoliBevanda = articoli.Where(a => a.Tipo == "bevanda").ToList();
+                var articoliDolce = articoli.Where(a => a.Tipo == "dolce").ToList();
+
+                // ✅ Verifica che ci siano abbastanza articoli
+                if (articoliBevanda.Count < 2)
+                {
+                    Console.WriteLine("⚠️  Articoli bevanda insufficienti per OrderItems (servono almeno 2)");
+                    return;
+                }
+
+                if (!articoliDolce.Any())
+                {
+                    Console.WriteLine("⚠️  Nessun articolo dolce trovato per OrderItems");
+                    return;
+                }
+
+                var articoloBevanda1 = articoliBevanda[0];
+                var articoloBevanda2 = articoliBevanda[1];
+                var articoloDolce = articoliDolce.FirstOrDefault();
+
+                // ✅ CORREZIONE WARNING: Verifica esplicita che articoloDolce non sia null
+                if (articoloDolce == null)
+                {
+                    Console.WriteLine("⚠️  Articolo dolce non trovato per OrderItems");
+                    return;
+                }
+
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var taxRateStandard = taxRates.FirstOrDefault(t => t.Aliquota == 22.00m);
+
+                // ✅ Verifica che la tax rate esista
+                if (taxRateStandard == null)
+                {
+                    Console.WriteLine("⚠️  Tax rate standard non trovato per OrderItems");
+                    return;
+                }
+
+                var orderItems = new[]
+                {
+                    // Ordine 1 - Classic Milk Tea
+                    new OrderItem
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        ArticoloId = articoloBevanda1.ArticoloId,
+                        Quantita = 2,
+                        PrezzoUnitario = 4.50m,
+                        ScontoApplicato = 0.00m,
+                        Imponibile = 9.00m,
+                        TotaleIvato = 10.98m, // 9.00 + 22% IVA
+                        TaxRateId = taxRateStandard.TaxRateId,
+                        TipoArticolo = "bevanda",
+                        DataCreazione = DateTime.UtcNow.AddHours(-2),
+                        DataAggiornamento = DateTime.UtcNow.AddHours(-2)
+                    },
+                    // Ordine 1 - Tiramisù
+                    new OrderItem
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        ArticoloId = articoloDolce.ArticoloId, // ✅ ORA SICURO: articoloDolce non è null
+                        Quantita = 1,
+                        PrezzoUnitario = 5.50m,
+                        ScontoApplicato = 0.00m,
+                        Imponibile = 5.50m,
+                        TotaleIvato = 6.71m, // 5.50 + 22% IVA
+                        TaxRateId = taxRateStandard.TaxRateId,
+                        TipoArticolo = "dolce",
+                        DataCreazione = DateTime.UtcNow.AddHours(-2),
+                        DataAggiornamento = DateTime.UtcNow.AddHours(-2)
+                    },
+                    // Ordine 2 - Fruit Fusion
+                    new OrderItem
+                    {
+                        OrdineId = ordine2.OrdineId,
+                        ArticoloId = articoloBevanda2.ArticoloId,
+                        Quantita = 1,
+                        PrezzoUnitario = 5.50m,
+                        ScontoApplicato = 0.50m, // Sconto applicato
+                        Imponibile = 5.00m,
+                        TotaleIvato = 6.10m, // 5.00 + 22% IVA
+                        TaxRateId = taxRateStandard.TaxRateId,
+                        TipoArticolo = "bevanda",
+                        DataCreazione = DateTime.UtcNow.AddHours(-1),
+                        DataAggiornamento = DateTime.UtcNow.AddHours(-1)
+                    }
+                };
+
+                await _context.OrderItem.AddRangeAsync(orderItems);
+                Console.WriteLine($"✅ OrderItems seeded successfully ({orderItems.Length} records)");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedOrderItemsAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedConfigSoglieTempiAsync()
         {
             if (await _context.ConfigSoglieTempi.AnyAsync()) return;
 
-            // Recupera stati ordine
-            var statoInAttesa = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdine1 == "In Attesa");
-            var statoInPreparazione = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdine1 == "In Preparazione");
-            var statoPronto = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdine1 == "Pronto");
-
-            var soglieTempi = new[]
+            try
             {
-                new ConfigSoglieTempi
-                {
-                    StatoOrdineId = statoInAttesa.StatoOrdineId,
-                    SogliaAttenzione = 5,    // minuti
-                    SogliaCritico = 10,      // minuti
-                    DataAggiornamento = DateTime.UtcNow,
-                    UtenteAggiornamento = "system"
-                },
-                new ConfigSoglieTempi
-                {
-                    StatoOrdineId = statoInPreparazione.StatoOrdineId,
-                    SogliaAttenzione = 10,   // minuti
-                    SogliaCritico = 20,      // minuti
-                    DataAggiornamento = DateTime.UtcNow,
-                    UtenteAggiornamento = "system"
-                },
-                new ConfigSoglieTempi
-                {
-                    StatoOrdineId = statoPronto.StatoOrdineId,
-                    SogliaAttenzione = 5,    // minuti
-                    SogliaCritico = 15,      // minuti
-                    DataAggiornamento = DateTime.UtcNow,
-                    UtenteAggiornamento = "system"
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var statiOrdine = await _context.StatoOrdine.ToListAsync();
 
-            await _context.ConfigSoglieTempi.AddRangeAsync(soglieTempi);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var statoInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
+                var statoInPreparazione = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Preparazione");
+                var statoPronto = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "Pronto");
+
+                // ✅ Verifica che gli stati esistano
+                if (statoInAttesa == null || statoInPreparazione == null || statoPronto == null)
+                {
+                    Console.WriteLine("⚠️  Stati ordine non trovati per ConfigSoglieTempi");
+                    return;
+                }
+
+                var soglieTempi = new[]
+                {
+                    new ConfigSoglieTempi
+                    {
+                        StatoOrdineId = statoInAttesa.StatoOrdineId,
+                        SogliaAttenzione = 5,    // minuti
+                        SogliaCritico = 10,      // minuti
+                        DataAggiornamento = DateTime.UtcNow,
+                        UtenteAggiornamento = "system"
+                    },
+                    new ConfigSoglieTempi
+                    {
+                        StatoOrdineId = statoInPreparazione.StatoOrdineId,
+                        SogliaAttenzione = 10,   // minuti
+                        SogliaCritico = 20,      // minuti
+                        DataAggiornamento = DateTime.UtcNow,
+                        UtenteAggiornamento = "system"
+                    },
+                    new ConfigSoglieTempi
+                    {
+                        StatoOrdineId = statoPronto.StatoOrdineId,
+                        SogliaAttenzione = 5,    // minuti
+                        SogliaCritico = 15,      // minuti
+                        DataAggiornamento = DateTime.UtcNow,
+                        UtenteAggiornamento = "system"
+                    }
+                };
+
+                await _context.ConfigSoglieTempi.AddRangeAsync(soglieTempi);
+                Console.WriteLine("✅ ConfigSoglieTempi seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedConfigSoglieTempiAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedStatoStoricoOrdiniAsync()
         {
             if (await _context.StatoStoricoOrdine.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var ordine1 = await _context.Ordine.FirstAsync();
-            var ordine2 = await _context.Ordine.Skip(1).FirstAsync();
-
-            var statoInAttesa = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdine1 == "In Attesa");
-            var statoInPreparazione = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdine1 == "In Preparazione");
-            var statoPronto = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdine1 == "Pronto");
-
-            var storicoOrdini = new[]
+            try
             {
-                // Ordine 1 - Cronologia completa
-                new StatoStoricoOrdine
-                {
-                    OrdineId = ordine1.OrdineId,
-                    StatoOrdineId = statoInAttesa.StatoOrdineId,
-                    Inizio = DateTime.UtcNow.AddHours(-2),
-                    Fine = DateTime.UtcNow.AddHours(-1) // Passato a In Preparazione dopo 1 ora
-                },
-                new StatoStoricoOrdine
-                {
-                    OrdineId = ordine1.OrdineId,
-                    StatoOrdineId = statoInPreparazione.StatoOrdineId,
-                    Inizio = DateTime.UtcNow.AddHours(-1),
-                    Fine = DateTime.UtcNow.AddMinutes(-30) // Passato a Pronto dopo 30 minuti
-                },
-                new StatoStoricoOrdine
-                {
-                    OrdineId = ordine1.OrdineId,
-                    StatoOrdineId = statoPronto.StatoOrdineId,
-                    Inizio = DateTime.UtcNow.AddMinutes(-30)
-                    // Fine = null -> Stato corrente
-                },
-        
-                // Ordine 2 - Ancora in attesa
-                new StatoStoricoOrdine
-                {
-                    OrdineId = ordine2.OrdineId,
-                    StatoOrdineId = statoInAttesa.StatoOrdineId,
-                    Inizio = DateTime.UtcNow.AddHours(-1)
-                    // Fine = null -> Stato corrente
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var ordini = await _context.Ordine.ToListAsync();
+                var statiOrdine = await _context.StatoOrdine.ToListAsync();
 
-            await _context.StatoStoricoOrdine.AddRangeAsync(storicoOrdini);
+                // ✅ Verifica che ci siano abbastanza ordini
+                if (ordini.Count < 2)
+                {
+                    Console.WriteLine("⚠️  Ordini insufficienti per StatoStoricoOrdini (servono almeno 2)");
+                    return;
+                }
+
+                // ✅ Usa accesso per indice invece di Skip().FirstAsync()
+                var ordine1 = ordini[0];
+                var ordine2 = ordini[1];
+
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var statoInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
+                var statoInPreparazione = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Preparazione");
+                var statoPronto = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "Pronto");
+
+                // ✅ Verifica che tutti gli stati esistano
+                if (statoInAttesa == null || statoInPreparazione == null || statoPronto == null)
+                {
+                    Console.WriteLine("⚠️  Stati ordine non trovati per StatoStoricoOrdini");
+                    return;
+                }
+
+                var storicoOrdini = new[]
+                {
+                    // Ordine 1 - Cronologia completa
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        StatoOrdineId = statoInAttesa.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddHours(-2),
+                        Fine = DateTime.UtcNow.AddHours(-1) // Passato a In Preparazione dopo 1 ora
+                    },
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        StatoOrdineId = statoInPreparazione.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddHours(-1),
+                        Fine = DateTime.UtcNow.AddMinutes(-30) // Passato a Pronto dopo 30 minuti
+                    },
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        StatoOrdineId = statoPronto.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddMinutes(-30)
+                        // Fine = null -> Stato corrente
+                    },
+
+                    // Ordine 2 - Ancora in attesa
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine2.OrdineId,
+                        StatoOrdineId = statoInAttesa.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddHours(-1)
+                        // Fine = null -> Stato corrente
+                    }
+                };
+
+                await _context.StatoStoricoOrdine.AddRangeAsync(storicoOrdini);
+                Console.WriteLine($"✅ StatoStoricoOrdini seeded successfully ({storicoOrdini.Length} records)");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedStatoStoricoOrdiniAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedPreferitiClienteAsync()
         {
             if (await _context.PreferitiCliente.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var cliente = await _context.Cliente.FirstAsync();
-            var bevandaClassic = await _context.BevandaStandard.FirstAsync(b => b.Prezzo == 4.50m);
-            var bevandaFruit = await _context.BevandaStandard.FirstAsync(b => b.Prezzo == 5.50m);
-
-            var preferiti = new[]
+            try
             {
-                new PreferitiCliente
-                {
-                    ClienteId = cliente.ClienteId,
-                    BevandaId = bevandaClassic.ArticoloId,
-                    DataAggiunta = DateTime.UtcNow.AddDays(-7)
-                },
-                new PreferitiCliente
-                {
-                    ClienteId = cliente.ClienteId,
-                    BevandaId = bevandaFruit.ArticoloId,
-                    DataAggiunta = DateTime.UtcNow.AddDays(-3)
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var clienti = await _context.Cliente.ToListAsync();
+                var bevandeStandard = await _context.BevandaStandard.ToListAsync();
 
-            await _context.PreferitiCliente.AddRangeAsync(preferiti);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var cliente = clienti.FirstOrDefault();
+
+                // ✅ Cerca le bevande per prezzo usando FirstOrDefault
+                var bevandaClassic = bevandeStandard.FirstOrDefault(b => b.Prezzo == 4.50m);
+                var bevandaFruit = bevandeStandard.FirstOrDefault(b => b.Prezzo == 5.50m);
+
+                // ✅ Verifica che tutte le entità esistano
+                if (cliente == null)
+                {
+                    Console.WriteLine("⚠️  Cliente non trovato per PreferitiCliente");
+                    return;
+                }
+
+                if (bevandaClassic == null || bevandaFruit == null)
+                {
+                    Console.WriteLine("⚠️  Bevande standard non trovate per PreferitiCliente");
+                    return;
+                }
+
+                var preferiti = new[]
+                {
+                    new PreferitiCliente
+                    {
+                        ClienteId = cliente.ClienteId,
+                        BevandaId = bevandaClassic.ArticoloId,
+                        DataAggiunta = DateTime.UtcNow.AddDays(-7)
+                    },
+                    new PreferitiCliente
+                    {
+                        ClienteId = cliente.ClienteId,
+                        BevandaId = bevandaFruit.ArticoloId,
+                        DataAggiunta = DateTime.UtcNow.AddDays(-3)
+                    }
+                };
+
+                await _context.PreferitiCliente.AddRangeAsync(preferiti);
+                Console.WriteLine("✅ PreferitiCliente seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedPreferitiClienteAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedSessioniQrAsync()
         {
             if (await _context.SessioniQr.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var tavolo1 = await _context.Tavolo.FirstAsync(t => t.Numero == 1);
-            var cliente = await _context.Cliente.FirstAsync();
-
-            var sessioniQr = new[]
+            try
             {
-                new SessioniQr
-                {
-                    SessioneId = Guid.NewGuid(),
-                    ClienteId = cliente.ClienteId,
-                    QrCode = $"QR_{Guid.NewGuid()}",
-                    DataCreazione = DateTime.UtcNow,
-                    DataScadenza = DateTime.UtcNow.AddHours(2),
-                    Utilizzato = true,
-                    DataUtilizzo = DateTime.UtcNow.AddMinutes(5),
-                    TavoloId = tavolo1.TavoloId,
-                    CodiceSessione = $"SESS_{DateTime.UtcNow:yyyyMMddHHmmss}",
-                    Stato = "Completata"
-                },
-                new SessioniQr
-                {
-                    SessioneId = Guid.NewGuid(),
-                    ClienteId = null, // Sessione non ancora associata
-                    QrCode = $"QR_{Guid.NewGuid()}",
-                    DataCreazione = DateTime.UtcNow,
-                    DataScadenza = DateTime.UtcNow.AddHours(1),
-                    Utilizzato = false,
-                    DataUtilizzo = null,
-                    TavoloId = tavolo1.TavoloId,
-                    CodiceSessione = $"SESS_{DateTime.UtcNow.AddMinutes(1):yyyyMMddHHmmss}",
-                    Stato = "Attiva"
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var tavoli = await _context.Tavolo.ToListAsync();
+                var clienti = await _context.Cliente.ToListAsync();
 
-            await _context.SessioniQr.AddRangeAsync(sessioniQr);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var tavolo1 = tavoli.FirstOrDefault(t => t.Numero == 1);
+                var cliente = clienti.FirstOrDefault();
+
+                // ✅ Verifica che le entità esistano
+                if (tavolo1 == null)
+                {
+                    Console.WriteLine("⚠️  Tavolo 1 non trovato per SessioniQr");
+                    return;
+                }
+
+                if (cliente == null)
+                {
+                    Console.WriteLine("⚠️  Cliente non trovato per SessioniQr");
+                    return;
+                }
+
+                var sessioniQr = new[]
+                {
+                    new SessioniQr
+                    {
+                        SessioneId = Guid.NewGuid(),
+                        ClienteId = cliente.ClienteId,
+                        QrCode = $"QR_{Guid.NewGuid()}",
+                        DataCreazione = DateTime.UtcNow,
+                        DataScadenza = DateTime.UtcNow.AddHours(2),
+                        Utilizzato = true,
+                        DataUtilizzo = DateTime.UtcNow.AddMinutes(5),
+                        TavoloId = tavolo1.TavoloId,
+                        CodiceSessione = $"SESS_{DateTime.UtcNow:yyyyMMddHHmmss}",
+                        Stato = "Completata"
+                    },
+                    new SessioniQr
+                    {
+                        SessioneId = Guid.NewGuid(),
+                        ClienteId = null, // Sessione non ancora associata
+                        QrCode = $"QR_{Guid.NewGuid()}",
+                        DataCreazione = DateTime.UtcNow,
+                        DataScadenza = DateTime.UtcNow.AddHours(1),
+                        Utilizzato = false,
+                        DataUtilizzo = null,
+                        TavoloId = tavolo1.TavoloId,
+                        CodiceSessione = $"SESS_{DateTime.UtcNow.AddMinutes(1):yyyyMMddHHmmss}",
+                        Stato = "Attiva"
+                    }
+                };
+
+                await _context.SessioniQr.AddRangeAsync(sessioniQr);
+                Console.WriteLine("✅ SessioniQr seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedSessioniQrAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedLogAccessiAsync()
         {
             if (await _context.LogAccessi.AnyAsync()) return;
 
-            // Recupera entità correlate
-            var utente = await _context.Utenti.FirstAsync();
-            var cliente = await _context.Cliente.FirstAsync();
-
-            var logAccessi = new[]
+            try
             {
-                new LogAccessi
-                {
-                    UtenteId = utente.UtenteId,
-                    ClienteId = null,
-                    TipoAccesso = "Login",
-                    Esito = "Successo",
-                    IpAddress = "192.168.1.100",
-                    UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    DataCreazione = DateTime.UtcNow.AddHours(-3),
-                    Dettagli = "Accesso amministratore al sistema"
-                },
-                new LogAccessi
-                {
-                    UtenteId = null,
-                    ClienteId = cliente.ClienteId,
-                    TipoAccesso = "Registrazione",
-                    Esito = "Successo",
-                    IpAddress = "192.168.1.150",
-                    UserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)",
-                    DataCreazione = DateTime.UtcNow.AddHours(-2),
-                    Dettagli = "Nuovo cliente registrato tramite QR code"
-                },
-                new LogAccessi
-                {
-                    UtenteId = utente.UtenteId,
-                    ClienteId = null,
-                    TipoAccesso = "Accesso API",
-                    Esito = "Fallito",
-                    IpAddress = "192.168.1.200",
-                    UserAgent = "PostmanRuntime/7.32.0",
-                    DataCreazione = DateTime.UtcNow.AddHours(-1),
-                    Dettagli = "Tentativo di accesso con token scaduto"
-                }
-            };
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var utenti = await _context.Utenti.ToListAsync();
+                var clienti = await _context.Cliente.ToListAsync();
 
-            await _context.LogAccessi.AddRangeAsync(logAccessi);
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var utente = utenti.FirstOrDefault();
+                var cliente = clienti.FirstOrDefault();
+
+                // ✅ Verifica che le entità esistano (cliente può essere null per alcuni log)
+                if (utente == null)
+                {
+                    Console.WriteLine("⚠️  Utente non trovato per LogAccessi");
+                    return;
+                }
+
+                var logAccessi = new List<LogAccessi>
+                {
+                    new LogAccessi
+                    {
+                        UtenteId = utente.UtenteId,
+                        ClienteId = null,
+                        TipoAccesso = "Login",
+                        Esito = "Successo",
+                        IpAddress = "192.168.1.100",
+                        UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        DataCreazione = DateTime.UtcNow.AddHours(-3),
+                        Dettagli = "Accesso amministratore al sistema"
+                    },
+                    new LogAccessi
+                    {
+                        UtenteId = utente.UtenteId,
+                        ClienteId = null,
+                        TipoAccesso = "Accesso API",
+                        Esito = "Fallito",
+                        IpAddress = "192.168.1.200",
+                        UserAgent = "PostmanRuntime/7.32.0",
+                        DataCreazione = DateTime.UtcNow.AddHours(-1),
+                        Dettagli = "Tentativo di accesso con token scaduto"
+                    }
+                };
+
+                // ✅ Aggiungi il log con cliente solo se cliente esiste
+                if (cliente != null)
+                {
+                    logAccessi.Add(new LogAccessi
+                    {
+                        UtenteId = null,
+                        ClienteId = cliente.ClienteId,
+                        TipoAccesso = "Registrazione",
+                        Esito = "Successo",
+                        IpAddress = "192.168.1.150",
+                        UserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)",
+                        DataCreazione = DateTime.UtcNow.AddHours(-2),
+                        Dettagli = "Nuovo cliente registrato tramite QR code"
+                    });
+                }
+
+                await _context.LogAccessi.AddRangeAsync(logAccessi);
+                Console.WriteLine($"✅ LogAccessi seeded successfully ({logAccessi.Count} records)");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedLogAccessiAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
         }
 
         private async Task SeedLogAttivitaAsync()

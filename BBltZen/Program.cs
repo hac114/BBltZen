@@ -1,14 +1,15 @@
 using Database;
 using Microsoft.EntityFrameworkCore;
 using Repository;
-using Keycloak.AuthServices.Authentication;
+//using Keycloak.AuthServices.Authentication; // ✅ COMMENTATO
 using Microsoft.OpenApi.Models;
+using BBltZen.Services;
 
 namespace BBltZen
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -16,39 +17,39 @@ namespace BBltZen
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
 
-            // ✅ SWAGGER CONFIGURATO PER KEYCLOAK
+            // ✅ SWAGGER SEMPLICE (senza autenticazione Keycloak)
             builder.Services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "BBltZen API", Version = "v1" });
 
-                // Configurazione Bearer token per Keycloak
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-                {
-                    Description = "Inserisci il token JWT di Keycloak: Bearer {token}",
-                    Name = "Authorization",
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.ApiKey,
-                    Scheme = "Bearer"
-                });
-
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
-                    {
-                        new OpenApiSecurityScheme
-                        {
-                            Reference = new OpenApiReference
-                            {
-                                Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
-                            }
-                        },
-                        Array.Empty<string>()
-                    }
-                });
+                // ✅ COMMENTATO: Configurazione Bearer token per Keycloak
+                // c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                // {
+                //     Description = "Inserisci il token JWT di Keycloak: Bearer {token}",
+                //     Name = "Authorization",
+                //     In = ParameterLocation.Header,
+                //     Type = SecuritySchemeType.ApiKey,
+                //     Scheme = "Bearer"
+                // });
+                //
+                // c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                // {
+                //     {
+                //         new OpenApiSecurityScheme
+                //         {
+                //             Reference = new OpenApiReference
+                //             {
+                //                 Type = ReferenceType.SecurityScheme,
+                //                 Id = "Bearer"
+                //             }
+                //         },
+                //         Array.Empty<string>()
+                //     }
+                // });
             });
 
-            // ✅ KEYCLOAK AUTHENTICATION
-            builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
+            // ✅ COMMENTATO: KEYCLOAK AUTHENTICATION
+            // builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
 
             // 🔍 DEBUG: Verifica la configurazione
             Console.WriteLine("=== DEBUG CONFIGURAZIONE ===");
@@ -66,16 +67,32 @@ namespace BBltZen
             {
                 Console.WriteLine("⚠️  Usando database InMemory");
                 builder.Services.AddDbContext<BubbleTeaContext>(options =>
-                    options.UseInMemoryDatabase("BubbleTeaInMemory"));
+                {
+                    options.UseInMemoryDatabase("BubbleTeaInMemory");
+                    // ✅ DISABILITA I WARNING SULLE TRANSAZIONI
+                    options.ConfigureWarnings(warnings =>
+                        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+                });
             }
 
             // Registra tutti i repository
             builder.Services.AddServiceDb();
 
-            // ✅ AUTHORIZATION
-            builder.Services.AddAuthorization();
+            // ✅ REGISTRA IL DATABASE SEEDER
+            builder.Services.AddScoped<DatabaseSeeder>();
+
+            // ✅ COMMENTATO: AUTHORIZATION
+            // builder.Services.AddAuthorization();
 
             var app = builder.Build();
+
+            // ✅ SEEDING AUTOMATICO IN DEVELOPMENT
+            if (app.Environment.IsDevelopment())
+            {
+                using var scope = app.Services.CreateScope();
+                var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+                await seeder.SeedAsync(); // Esegue il seeding all'avvio
+            }
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -86,12 +103,12 @@ namespace BBltZen
 
             //app.UseHttpsRedirection();
 
-            // ✅ MIDDLEWARE IN ORDINE CORRETTO
-            app.UseAuthentication();
-            app.UseAuthorization();
+            // ✅ COMMENTATO: MIDDLEWARE DI AUTENTICAZIONE
+            // app.UseAuthentication();
+            // app.UseAuthorization();
 
             app.MapControllers();
-            app.Run();
+            await app.RunAsync();
         }
     }
 }
