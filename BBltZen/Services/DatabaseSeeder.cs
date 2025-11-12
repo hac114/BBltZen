@@ -248,32 +248,83 @@ namespace BBltZen.Services
             {
                 new Articolo
                 {
-                    Tipo = "bevanda",
+                    Tipo = "BS",
                     DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
+                    DataAggiornamento = DateTime.UtcNow,
+                    BevandaStandard = new BevandaStandard()
+                    {
+                        Disponibile = true,
+                        SempreDisponibile = true, // ✅ ORDINABILE
+                        Prezzo = 4.50m,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
                 },
                 new Articolo
                 {
-                    Tipo = "bevanda",
+                    Tipo = "BS",
                     DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
+                    DataAggiornamento = DateTime.UtcNow,
+                    BevandaStandard = new BevandaStandard()
+                    {
+                        Disponibile = true,
+                        SempreDisponibile = false, // ✅ NON ORDINABILE
+                        Prezzo = 5.00m,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
                 },
                 new Articolo
                 {
-                    Tipo = "bevanda",
+                    Tipo = "BC",
                     DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
+                    DataAggiornamento = DateTime.UtcNow,
+                    BevandaCustom = new List<BevandaCustom>() 
+                    {
+                        new BevandaCustom()
+                        {
+                            Prezzo = 6.00m,
+                            DataCreazione = DateTime.UtcNow,
+                            DataAggiornamento = DateTime.UtcNow
+                        }
+                    }
                 },
+                // ✅ DOLCE - ORDINABILE
                 new Articolo
                 {
-                    Tipo = "dolce",
+                    Tipo = "D",
                     DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
+                    DataAggiornamento = DateTime.UtcNow,
+                    Dolce = new Dolce() // ✅ AGGIUNGI PARENTESI ()
+                    {
+                        Nome = "Tiramisù",
+                        Prezzo = 4.50m,
+                        Disponibile = true, // ✅ ORDINABILE
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
+                },
+                // ✅ DOLCE - NON ORDINABILE
+                new Articolo
+                {
+                    Tipo = "D",
+                    DataCreazione = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow,
+                    Dolce = new Dolce() // ✅ AGGIUNGI PARENTESI ()
+                    {
+                        Nome = "Cheesecake",
+                        Prezzo = 5.00m,
+                        Disponibile = false, // ✅ NON ORDINABILE
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
                 }
             };
 
             await _context.Articolo.AddRangeAsync(articoli);
-        }
+            await _context.SaveChangesAsync();
+            Console.WriteLine("✅ Articoli seeded successfully with correct types and specializations");
+        }        
 
         private async Task SeedPersonalizzazioniAsync()
         {
