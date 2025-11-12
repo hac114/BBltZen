@@ -260,17 +260,30 @@ namespace Repository.Service
             articoloDto.DataAggiornamento = articolo.DataAggiornamento;
         }
 
-        //public async Task DeleteAsync(int articoloId)
-        //{
-        //    var articolo = await _context.Articolo
-        //        .FirstOrDefaultAsync(a => a.ArticoloId == articoloId);
+        public async Task DeleteAsync(int articoloId)
+        {
+            var articolo = await _context.Articolo
+                .Include(a => a.BevandaStandard)
+                .Include(a => a.Dolce)
+                .Include(a => a.BevandaCustom)
+                .FirstOrDefaultAsync(a => a.ArticoloId == articoloId);
 
-        //    if (articolo != null)
-        //    {
-        //        _context.Articolo.Remove(articolo);
-        //        await _context.SaveChangesAsync();
-        //    }
-        //}
+            if (articolo != null)
+            {
+                // ✅ ELIMINA PRIMA LE RELAZIONI (CASCADE MANUALE)
+                if (articolo.BevandaStandard != null)
+                    _context.BevandaStandard.Remove(articolo.BevandaStandard);
+
+                if (articolo.Dolce != null)
+                    _context.Dolce.Remove(articolo.Dolce);
+
+                if (articolo.BevandaCustom != null && articolo.BevandaCustom.Any())
+                    _context.BevandaCustom.RemoveRange(articolo.BevandaCustom);
+
+                _context.Articolo.Remove(articolo);
+                await _context.SaveChangesAsync();
+            }
+        }
 
         public async Task<bool> ExistsAsync(int articoloId)
         {

@@ -410,28 +410,135 @@ namespace RepositoryTest
             Assert.Equal("D", result.Tipo);
         }
 
-        //[Fact]
-        //public async Task DeleteAsync_ShouldRemoveArticolo()
-        //{
-        //    // Arrange - Crea un articolo senza relazioni obbligatorie per il test di eliminazione
-        //    var articoloToDelete = new Articolo
-        //    {
-        //        ArticoloId = 100,
-        //        Tipo = "BC",
-        //        DataCreazione = DateTime.Now,
-        //        DataAggiornamento = DateTime.Now
-        //    };
+        [Fact]
+        public async Task DeleteAsync_ShouldRemoveArticolo()
+        {
+            // Arrange - Crea un articolo SENZA specializzazioni (orphan) per test di eliminazione
+            var articoloToDelete = new Articolo
+            {
+                ArticoloId = 100,
+                Tipo = "BC", // Bevanda Custom - ma SENZA BevandaCustom associata
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
+                // ✅ INTENZIONALMENTE senza BevandaCustom, Dolce, BevandaStandard
+            };
 
-        //    _context.Articolo.Add(articoloToDelete);
-        //    await _context.SaveChangesAsync();
+            _context.Articolo.Add(articoloToDelete);
+            await _context.SaveChangesAsync();
 
-        //    // Act
-        //    await _repository.DeleteAsync(100);
+            // Act
+            await _repository.DeleteAsync(100);
 
-        //    // Assert
-        //    var result = await _repository.GetByIdAsync(100);
-        //    Assert.Null(result);
-        //}
+            // Assert
+            var result = await _repository.GetByIdAsync(100);
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldRemoveArticoloWithBevandaStandard()
+        {
+            // Arrange - Articolo CON BevandaStandard (test cascade manuale)
+            var articoloToDelete = new Articolo
+            {
+                ArticoloId = 101,
+                Tipo = "BS",
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now,
+                BevandaStandard = new BevandaStandard()
+                {
+                    Disponibile = true,
+                    SempreDisponibile = true,
+                    Prezzo = 5.00m,
+                    DataCreazione = DateTime.Now,
+                    DataAggiornamento = DateTime.Now
+                }
+            };
+
+            _context.Articolo.Add(articoloToDelete);
+            await _context.SaveChangesAsync();
+
+            // Act
+            await _repository.DeleteAsync(101);
+
+            // Assert
+            var articoloResult = await _repository.GetByIdAsync(101);
+            Assert.Null(articoloResult);
+
+            var bevandaStandardResult = await _context.BevandaStandard
+                .FirstOrDefaultAsync(bs => bs.ArticoloId == 101);
+            Assert.Null(bevandaStandardResult); // ✅ Verifica che anche BevandaStandard sia eliminata
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldRemoveArticoloWithDolce()
+        {
+            // Arrange - Articolo CON Dolce (test cascade manuale)
+            var articoloToDelete = new Articolo
+            {
+                ArticoloId = 102,
+                Tipo = "D",
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now,
+                Dolce = new Dolce()
+                {
+                    Nome = "Test Dolce",
+                    Prezzo = 4.50m,
+                    Disponibile = true,
+                    DataCreazione = DateTime.Now,
+                    DataAggiornamento = DateTime.Now
+                }
+            };
+
+            _context.Articolo.Add(articoloToDelete);
+            await _context.SaveChangesAsync();
+
+            // Act
+            await _repository.DeleteAsync(102);
+
+            // Assert
+            var articoloResult = await _repository.GetByIdAsync(102);
+            Assert.Null(articoloResult);
+
+            var dolceResult = await _context.Dolce
+                .FirstOrDefaultAsync(d => d.ArticoloId == 102);
+            Assert.Null(dolceResult); // ✅ Verifica che anche Dolce sia eliminato
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldRemoveArticoloWithBevandaCustom()
+        {
+            // Arrange - Articolo CON BevandaCustom (test cascade manuale)
+            var articoloToDelete = new Articolo
+            {
+                ArticoloId = 103,
+                Tipo = "BC",
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now,
+                BevandaCustom = new List<BevandaCustom>()
+        {
+            new BevandaCustom()
+            {
+                Prezzo = 6.00m,
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
+            }
+        }
+            };
+
+            _context.Articolo.Add(articoloToDelete);
+            await _context.SaveChangesAsync();
+
+            // Act
+            await _repository.DeleteAsync(103);
+
+            // Assert
+            var articoloResult = await _repository.GetByIdAsync(103);
+            Assert.Null(articoloResult);
+
+            var bevandaCustomResult = await _context.BevandaCustom
+                .FirstOrDefaultAsync(bc => bc.ArticoloId == 103);
+            Assert.Null(bevandaCustomResult); // ✅ Verifica che anche BevandaCustom sia eliminata
+        }
 
         [Fact]
         public async Task ExistsAsync_WithExistingId_ShouldReturnTrue()

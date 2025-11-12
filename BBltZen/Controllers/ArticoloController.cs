@@ -325,8 +325,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        /*[HttpDelete("{articoloId:int}")]
-        //[Authorize(Roles = "Admin")] // ✅ Commentato per testing
+        [HttpDelete("{articoloId:int}")]
+        //[Authorize(Roles = "Admin,Manager")] // ✅ Commentato per testing
         [AllowAnonymous] // ✅ Temporaneo per testing
         public async Task<ActionResult> Delete(int articoloId)
         {
@@ -346,19 +346,35 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Articolo");
 
-                // ✅ CONTROLLO DIPENDENZE AVANZATO
+                // ✅ CONTROLLO DIPENDENZE: SOLO SE NON HA ORDINI
                 var hasOrderItems = await _context.OrderItem
                     .AnyAsync(oi => oi.ArticoloId == articoloId);
 
                 if (hasOrderItems)
                     return SafeBadRequest("Impossibile eliminare: l'articolo è associato a ordini");
 
-                // ✅ Controllo aggiuntivo per BevandaStandard
-                //var hasBevandaStandard = await _context.BevandaStandard
-                //    .AnyAsync(bs => bs.ArticoloId == articoloId);
+                // ✅ VERIFICA SE L'ARTICOLO È "COMPLETO"
+                var hasBevandaStandard = await _context.BevandaStandard
+                    .AnyAsync(bs => bs.ArticoloId == articoloId);
+                var hasDolce = await _context.Dolce
+                    .AnyAsync(d => d.ArticoloId == articoloId);
+                var hasBevandaCustom = await _context.BevandaCustom
+                    .AnyAsync(bc => bc.ArticoloId == articoloId);
 
-                //if (hasBevandaStandard)
-                //    return SafeBadRequest("Impossibile eliminare: l'articolo ha una bevanda standard associata");
+                var isArticoloCompleto = hasBevandaStandard || hasDolce || hasBevandaCustom;
+
+                // ✅ PERMETTI DELETE SOLO SE:
+                // - Articolo senza specializzazioni (orphan) OPPURE
+                // - Utente ha ruolo Admin (per emergenze)
+                if (isArticoloCompleto)
+                {
+                    // 🔐 Solo Admin può eliminare articoli completi
+                    var isAdmin = User.IsInRole("Admin"); // ✅ Da scommentare quando abiliti Auth
+                    if (!isAdmin)
+                    {
+                        return SafeBadRequest("Impossibile eliminare: l'articolo è già configurato. Contatta l'amministratore.");
+                    }
+                }
 
                 await _repository.DeleteAsync(articoloId);
 
@@ -367,7 +383,8 @@ namespace BBltZen.Controllers
                 {
                     ArticoloId = articoloId,
                     User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow,
+                    WasCompleted = isArticoloCompleto // ✅ Logga se era completo
                 });
 
                 return NoContent();
@@ -382,7 +399,7 @@ namespace BBltZen.Controllers
                 _logger.LogError(ex, "Errore durante l'eliminazione dell'articolo {ArticoloId}", articoloId);
                 return SafeInternalError("Errore durante l'eliminazione dell'articolo");
             }
-        }*/
+        }
 
         [HttpGet("exists/{articoloId:int}")]
         [AllowAnonymous]
