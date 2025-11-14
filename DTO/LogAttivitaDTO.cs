@@ -21,5 +21,6 @@ namespace DTO
 
         [StringLength(2000, ErrorMessage = "I dettagli non possono superare 2000 caratteri")]
         public string? Dettagli { get; set; }
+        public int? UtenteId { get; set; }
     }
 }

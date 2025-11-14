@@ -27,7 +27,13 @@ namespace RepositoryTest
             var preferitoDto = new PreferitiClienteDTO
             {
                 ClienteId = 1,
-                BevandaId = 1
+                BevandaId = 1,
+                TipoArticolo = "BS",
+                NomePersonalizzato = "Il mio bubble tea preferito",
+                GradoDolcezza = 2, // byte?
+                DimensioneBicchiereId = 1,
+                IngredientiJson = "{\"ingredienti\":[\"tè verde\",\"tapioca\"]}",
+                NotePersonali = "Poco ghiaccio"
             };
 
             // Act
@@ -39,6 +45,9 @@ namespace RepositoryTest
             Assert.Equal(1, result.ClienteId);
             Assert.Equal(1, result.BevandaId);
             Assert.NotNull(result.DataAggiunta);
+            Assert.Equal("BS", result.TipoArticolo);
+            Assert.Equal("Il mio bubble tea preferito", result.NomePersonalizzato);
+            Assert.Equal((byte?)2, result.GradoDolcezza); // ✅ CORRETTO: cast esplicito a byte?
         }
 
         [Fact]
@@ -50,7 +59,10 @@ namespace RepositoryTest
             var preferitoDto = new PreferitiClienteDTO
             {
                 ClienteId = 1,
-                BevandaId = 1
+                BevandaId = 1,
+                TipoArticolo = "BS",
+                NomePersonalizzato = "Test Preferito",
+                GradoDolcezza = 1
             };
             await _preferitiRepository.AddAsync(preferitoDto);
 
@@ -62,6 +74,9 @@ namespace RepositoryTest
             Assert.Equal(preferitoDto.PreferitoId, result.PreferitoId);
             Assert.Equal(1, result.ClienteId);
             Assert.Equal(1, result.BevandaId);
+            Assert.Equal("BS", result.TipoArticolo);
+            Assert.Equal("Test Preferito", result.NomePersonalizzato);
+            Assert.Equal((byte?)1, result.GradoDolcezza); // ✅ CORRETTO
         }
 
         [Fact]
@@ -72,9 +87,9 @@ namespace RepositoryTest
 
             var preferiti = new List<PreferitiClienteDTO>
             {
-                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 1 },
-                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 2 },
-                new PreferitiClienteDTO { ClienteId = 2, BevandaId = 1 }
+                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 1, TipoArticolo = "BS", NomePersonalizzato = "Preferito 1", GradoDolcezza = 1 },
+                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 2, TipoArticolo = "BS", NomePersonalizzato = "Preferito 2", GradoDolcezza = 2 },
+                new PreferitiClienteDTO { ClienteId = 2, BevandaId = 1, TipoArticolo = "BS", NomePersonalizzato = "Preferito 3", GradoDolcezza = 3 }
             };
 
             foreach (var preferito in preferiti)
@@ -88,6 +103,7 @@ namespace RepositoryTest
             // Assert
             Assert.Equal(2, result.Count());
             Assert.All(result, p => Assert.Equal(1, p.ClienteId));
+            Assert.All(result, p => Assert.Equal("BS", p.TipoArticolo));
         }
 
         [Fact]
@@ -98,9 +114,9 @@ namespace RepositoryTest
 
             var preferiti = new List<PreferitiClienteDTO>
             {
-                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 1 },
-                new PreferitiClienteDTO { ClienteId = 2, BevandaId = 1 },
-                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 2 }
+                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 1, TipoArticolo = "BS", NomePersonalizzato = "Preferito A", GradoDolcezza = 1 },
+                new PreferitiClienteDTO { ClienteId = 2, BevandaId = 1, TipoArticolo = "BS", NomePersonalizzato = "Preferito B", GradoDolcezza = 2 },
+                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 2, TipoArticolo = "BS", NomePersonalizzato = "Preferito C", GradoDolcezza = 3 }
             };
 
             foreach (var preferito in preferiti)
@@ -114,6 +130,7 @@ namespace RepositoryTest
             // Assert
             Assert.Equal(2, result.Count());
             Assert.All(result, p => Assert.Equal(1, p.BevandaId));
+            Assert.All(result, p => Assert.Equal("BS", p.TipoArticolo));
         }
 
         [Fact]
@@ -125,7 +142,10 @@ namespace RepositoryTest
             var preferitoDto = new PreferitiClienteDTO
             {
                 ClienteId = 1,
-                BevandaId = 1
+                BevandaId = 1,
+                TipoArticolo = "BS",
+                NomePersonalizzato = "Il Mio Preferito",
+                GradoDolcezza = 3
             };
             await _preferitiRepository.AddAsync(preferitoDto);
 
@@ -136,6 +156,9 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.Equal(1, result.ClienteId);
             Assert.Equal(1, result.BevandaId);
+            Assert.Equal("BS", result.TipoArticolo);
+            Assert.Equal("Il Mio Preferito", result.NomePersonalizzato);
+            Assert.Equal((byte?)3, result.GradoDolcezza); // ✅ CORRETTO
         }
 
         [Fact]
@@ -147,7 +170,10 @@ namespace RepositoryTest
             var preferitoDto = new PreferitiClienteDTO
             {
                 ClienteId = 1,
-                BevandaId = 1
+                BevandaId = 1,
+                TipoArticolo = "BS",
+                NomePersonalizzato = "Da Eliminare",
+                GradoDolcezza = 2
             };
             await _preferitiRepository.AddAsync(preferitoDto);
 
@@ -168,7 +194,9 @@ namespace RepositoryTest
             var preferitoDto = new PreferitiClienteDTO
             {
                 ClienteId = 1,
-                BevandaId = 1
+                BevandaId = 1,
+                TipoArticolo = "BS",
+                GradoDolcezza = 1
             };
             await _preferitiRepository.AddAsync(preferitoDto);
 
@@ -187,9 +215,9 @@ namespace RepositoryTest
 
             var preferiti = new List<PreferitiClienteDTO>
             {
-                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 1 },
-                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 2 },
-                new PreferitiClienteDTO { ClienteId = 2, BevandaId = 1 }
+                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 1, TipoArticolo = "BS", NomePersonalizzato = "Count 1", GradoDolcezza = 1 },
+                new PreferitiClienteDTO { ClienteId = 1, BevandaId = 2, TipoArticolo = "BS", NomePersonalizzato = "Count 2", GradoDolcezza = 2 },
+                new PreferitiClienteDTO { ClienteId = 2, BevandaId = 1, TipoArticolo = "BS", NomePersonalizzato = "Count 3", GradoDolcezza = 3 }
             };
 
             foreach (var preferito in preferiti)
@@ -227,7 +255,7 @@ namespace RepositoryTest
             // Setup DimensioneBicchiere
             var dimensioneBicchiere = new Database.DimensioneBicchiere
             {
-                Sigla = "MED",
+                Sigla = "M",
                 Descrizione = "Bicchiere Medio",
                 Capienza = 500.0m,
                 UnitaMisuraId = unitaMisura.UnitaMisuraId,
@@ -239,18 +267,17 @@ namespace RepositoryTest
             // Setup Articolo
             var articolo = new Database.Articolo
             {
-                Tipo = "BS", // BEVANDA_STANDARD
+                Tipo = "BS",
                 DataCreazione = DateTime.Now,
                 DataAggiornamento = DateTime.Now
             };
             _context.Articolo.Add(articolo);
 
-            // Setup Personalizzazione CON TUTTE LE PROPRIETÀ RICHIESTE
+            // Setup Personalizzazione
             var personalizzazione = new Database.Personalizzazione
             {
                 Nome = "Personalizzazione Test",
                 Descrizione = "Descrizione test per personalizzazione"
-                // Aggiungi altre proprietà obbligatorie se necessario
             };
             _context.Personalizzazione.Add(personalizzazione);
 
@@ -260,7 +287,7 @@ namespace RepositoryTest
             var tavolo = new Database.Tavolo
             {
                 Numero = 1,
-                Zona = "Test",                
+                Zona = "Test",
                 Disponibile = true
             };
             _context.Tavolo.Add(tavolo);

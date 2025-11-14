@@ -12,7 +12,7 @@ namespace DTO
         public int PersCustomId { get; set; }
 
         [StringLength(100, ErrorMessage = "Il nome non può superare 100 caratteri")]
-        public string? Nome { get; set; }
+        public required string Nome { get; set; } = null!;
 
         [Range(1, 3, ErrorMessage = "Il grado dolcezza deve essere tra 1 e 3")]
         public byte GradoDolcezza { get; set; }

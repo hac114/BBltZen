@@ -30,6 +30,4 @@ public partial class BevandaStandard
     public virtual DimensioneBicchiere DimensioneBicchiere { get; set; } = null!;
 
     public virtual Personalizzazione Personalizzazione { get; set; } = null!;
-
-    public virtual ICollection<PreferitiCliente> PreferitiCliente { get; set; } = new List<PreferitiCliente>();
 }

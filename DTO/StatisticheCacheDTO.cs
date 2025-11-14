@@ -20,7 +20,7 @@ namespace DTO
         [StringLength(4000, ErrorMessage = "Le metriche non possono superare 4000 caratteri")]
         public string Metriche { get; set; } = null!;
 
-        public DateTime? DataAggiornamento { get; set; }
+        public DateTime DataAggiornamento { get; set; }
     }
 
     public class AggiornaCacheRequestDTO

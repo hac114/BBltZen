@@ -152,7 +152,9 @@ namespace Repository.Service
 
                 // Verifica che l'ordine non sia in uno stato finale
                 var statiFinali = new[] { 4, 5 }; // Completato, Annullato
-                if (order.StatoOrdineId.HasValue && statiFinali.Contains(order.StatoOrdineId.Value))
+
+                // CORREZIONE: Rimuovi .HasValue e .Value
+                if (statiFinali.Contains(order.StatoOrdineId)) // RIGO 155 CORRETTO
                     return false;
 
                 return true;

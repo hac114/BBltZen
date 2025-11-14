@@ -15,8 +15,8 @@ namespace DTO
         [StringLength(2, ErrorMessage = "Il tipo non può superare 2 caratteri")]
         public string Tipo { get; set; } = null!;
 
-        public DateTime? DataCreazione { get; set; }
+        public DateTime DataCreazione { get; set; }
 
-        public DateTime? DataAggiornamento { get; set; }
+        public DateTime DataAggiornamento { get; set; }
     }
 }

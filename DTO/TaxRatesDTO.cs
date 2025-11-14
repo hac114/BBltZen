@@ -17,7 +17,7 @@ namespace DTO
         [StringLength(100, ErrorMessage = "La descrizione non può superare 100 caratteri")]
         public string Descrizione { get; set; } = null!;
 
-        public DateTime? DataCreazione { get; set; }
-        public DateTime? DataAggiornamento { get; set; }
+        public DateTime DataCreazione { get; set; }
+        public DateTime DataAggiornamento { get; set; }
     }
 }

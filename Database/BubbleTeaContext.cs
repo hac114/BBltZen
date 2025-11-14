@@ -118,7 +118,11 @@ public partial class BubbleTeaContext : DbContext
     public virtual DbSet<VwStatisticheRecenti> VwStatisticheRecenti { get; set; }
 
     public virtual DbSet<VwTempiStato> VwTempiStato { get; set; }
-   
+
+//    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+//#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+//        => optionsBuilder.UseSqlServer("Server=DESKTOP-U1ADL0N;Database=BubbleTea;Trusted_Connection=true;TrustServerCertificate=true;");
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Articolo>(entity =>
@@ -491,6 +495,8 @@ public partial class BubbleTeaContext : DbContext
 
             entity.ToTable("LOG_ATTIVITA");
 
+            entity.HasIndex(e => e.DataEsecuzione, "IX_LOG_ATTIVITA_DataEsecuzione");
+
             entity.Property(e => e.LogId).HasColumnName("log_id");
             entity.Property(e => e.DataEsecuzione)
                 .HasDefaultValueSql("(getdate())")
@@ -504,6 +510,11 @@ public partial class BubbleTeaContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false)
                 .HasColumnName("tipo_attivita");
+            entity.Property(e => e.UtenteId).HasColumnName("utente_id");
+
+            entity.HasOne(d => d.Utente).WithMany(p => p.LogAttivita)
+                .HasForeignKey(d => d.UtenteId)
+                .HasConstraintName("FK_LOG_ATTIVITA_UTENTI");
         });
 
         modelBuilder.Entity<MigrationAudit>(entity =>
@@ -571,6 +582,11 @@ public partial class BubbleTeaContext : DbContext
                 .IsUnicode(false)
                 .HasDefaultValue("da_gestire")
                 .HasColumnName("stato");
+            entity.Property(e => e.TipoNotifica)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("sistema")
+                .HasColumnName("tipo_notifica");
             entity.Property(e => e.UtenteGestione)
                 .HasMaxLength(100)
                 .IsUnicode(false)
@@ -663,11 +679,12 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.Priorita)
                 .HasDefaultValue(1)
                 .HasColumnName("priorita");
+            entity.Property(e => e.SessioneId).HasColumnName("sessione_id");
             entity.Property(e => e.StatoOrdineId)
-                .HasDefaultValue(1)
+                .HasDefaultValue(8)
                 .HasColumnName("stato_ordine_id");
             entity.Property(e => e.StatoPagamentoId)
-                .HasDefaultValue(1)
+                .HasDefaultValue(5)
                 .HasColumnName("stato_pagamento_id");
             entity.Property(e => e.Totale)
                 .HasColumnType("decimal(10, 2)")
@@ -678,12 +695,18 @@ public partial class BubbleTeaContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__ORDINE__cliente___6C390A4C");
 
+            entity.HasOne(d => d.Sessione).WithMany(p => p.Ordine)
+                .HasForeignKey(d => d.SessioneId)
+                .HasConstraintName("FK_ORDINE_SessioniQR");
+
             entity.HasOne(d => d.StatoOrdine).WithMany(p => p.Ordine)
                 .HasForeignKey(d => d.StatoOrdineId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__ORDINE__stato_or__6D2D2E85");
 
             entity.HasOne(d => d.StatoPagamento).WithMany(p => p.Ordine)
                 .HasForeignKey(d => d.StatoPagamentoId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__ORDINE__stato_pa__6E2152BE");
         });
 
@@ -763,6 +786,10 @@ public partial class BubbleTeaContext : DbContext
 
             entity.ToTable("PREFERITI_CLIENTE");
 
+            entity.HasIndex(e => new { e.ClienteId, e.TipoArticolo }, "IX_PREFERITI_ClienteTipo");
+
+            entity.HasIndex(e => e.DataAggiunta, "IX_PREFERITI_DataAggiunta");
+
             entity.Property(e => e.PreferitoId).HasColumnName("preferito_id");
             entity.Property(e => e.BevandaId).HasColumnName("bevanda_id");
             entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
@@ -770,16 +797,27 @@ public partial class BubbleTeaContext : DbContext
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
                 .HasColumnName("data_aggiunta");
-
-            entity.HasOne(d => d.Bevanda).WithMany(p => p.PreferitiCliente)
-                .HasForeignKey(d => d.BevandaId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK__PREFERITI__bevan__69E6AD86");
+            entity.Property(e => e.DimensioneBicchiereId).HasColumnName("dimensione_bicchiere_id");
+            entity.Property(e => e.GradoDolcezza).HasColumnName("grado_dolcezza");
+            entity.Property(e => e.IngredientiJson).HasColumnName("ingredienti_json");
+            entity.Property(e => e.NomePersonalizzato)
+                .HasMaxLength(100)
+                .HasColumnName("nome_personalizzato");
+            entity.Property(e => e.NotePersonali)
+                .HasMaxLength(500)
+                .HasColumnName("note_personali");
+            entity.Property(e => e.TipoArticolo)
+                .HasMaxLength(2)
+                .HasColumnName("tipo_articolo");
 
             entity.HasOne(d => d.Cliente).WithMany(p => p.PreferitiCliente)
                 .HasForeignKey(d => d.ClienteId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__PREFERITI__clien__68F2894D");
+
+            entity.HasOne(d => d.DimensioneBicchiere).WithMany(p => p.PreferitiCliente)
+                .HasForeignKey(d => d.DimensioneBicchiereId)
+                .HasConstraintName("FK_PREFERITI_DimensioneBicchiere");
         });
 
         modelBuilder.Entity<SessioniQr>(entity =>
@@ -1029,6 +1067,9 @@ public partial class BubbleTeaContext : DbContext
                 .HasDefaultValue(true)
                 .HasColumnName("attivo");
             entity.Property(e => e.ClienteId).HasColumnName("cliente_id");
+            entity.Property(e => e.Cognome)
+                .HasMaxLength(100)
+                .HasColumnName("cognome");
             entity.Property(e => e.DataAggiornamento)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
@@ -1040,9 +1081,16 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.Email)
                 .HasMaxLength(255)
                 .HasColumnName("email");
+            entity.Property(e => e.Nome)
+                .HasMaxLength(100)
+                .HasColumnName("nome");
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(512)
                 .HasColumnName("password_hash");
+            entity.Property(e => e.SessioneGuest).HasColumnName("sessione_guest");
+            entity.Property(e => e.Telefono)
+                .HasMaxLength(20)
+                .HasColumnName("telefono");
             entity.Property(e => e.TipoUtente)
                 .HasMaxLength(20)
                 .HasColumnName("tipo_utente");

@@ -7,7 +7,7 @@ public partial class PersonalizzazioneCustom
 {
     public int PersCustomId { get; set; }
 
-    public string? Nome { get; set; }
+    public string Nome { get; set; } = null!;
 
     public byte GradoDolcezza { get; set; }
 

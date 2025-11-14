@@ -9,9 +9,9 @@ public partial class Articolo
 
     public string Tipo { get; set; } = null!;
 
-    public DateTime? DataCreazione { get; set; }
+    public DateTime DataCreazione { get; set; }
 
-    public DateTime? DataAggiornamento { get; set; }
+    public DateTime DataAggiornamento { get; set; }
 
     public virtual ICollection<BevandaCustom> BevandaCustom { get; set; } = new List<BevandaCustom>();
 

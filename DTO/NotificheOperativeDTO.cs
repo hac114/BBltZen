@@ -33,6 +33,7 @@ namespace DTO
         public string? UtenteGestione { get; set; }
 
         [Range(1, 10, ErrorMessage = "La priorità deve essere tra 1 e 10")]
-        public int? Priorita { get; set; } = 5;
+        public int Priorita { get; set; } = 1;
+        public string? TipoNotifica { get; set; } = "sistema";
     }
 }

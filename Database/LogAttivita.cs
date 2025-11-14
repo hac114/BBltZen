@@ -14,4 +14,8 @@ public partial class LogAttivita
     public DateTime DataEsecuzione { get; set; }
 
     public string? Dettagli { get; set; }
+
+    public int? UtenteId { get; set; }
+
+    public virtual Utenti? Utente { get; set; }
 }

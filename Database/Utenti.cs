@@ -9,9 +9,9 @@ public partial class Utenti
 
     public int? ClienteId { get; set; }
 
-    public string Email { get; set; } = null!;
+    public string? Email { get; set; }
 
-    public string PasswordHash { get; set; } = null!;
+    public string? PasswordHash { get; set; }
 
     public string TipoUtente { get; set; } = null!;
 
@@ -23,7 +23,17 @@ public partial class Utenti
 
     public bool? Attivo { get; set; }
 
+    public string? Nome { get; set; }
+
+    public string? Cognome { get; set; }
+
+    public string? Telefono { get; set; }
+
+    public Guid? SessioneGuest { get; set; }
+
     public virtual Cliente? Cliente { get; set; }
 
     public virtual ICollection<LogAccessi> LogAccessi { get; set; } = new List<LogAccessi>();
+
+    public virtual ICollection<LogAttivita> LogAttivita { get; set; } = new List<LogAttivita>();
 }

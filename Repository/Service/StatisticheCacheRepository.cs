@@ -171,10 +171,10 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.TipoStatistica == tipoStatistica && s.Periodo == periodo);
 
-            if (cache == null || cache.DataAggiornamento == null)
+            if (cache == null)
                 return false;
-
-            var tempoTrascorso = DateTime.Now - cache.DataAggiornamento.Value;
+                        
+            var tempoTrascorso = DateTime.Now - cache.DataAggiornamento; //rigo 177 corretto
             return tempoTrascorso <= validita;
         }
     }

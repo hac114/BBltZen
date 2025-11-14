@@ -90,7 +90,7 @@ namespace Repository.Service
                 var notifica = new OrderStatusNotificationDTO
                 {
                     OrderId = orderId,
-                    VecchioStato = order.StatoOrdineId?.ToString() ?? "Sconosciuto",
+                    VecchioStato = order.StatoOrdineId.ToString(),
                     NuovoStato = nuovoStato,
                     ClienteId = order.ClienteId,
                     DataCambiamento = DateTime.Now
@@ -163,7 +163,7 @@ namespace Repository.Service
                         TipoNotifica = "SISTEMA", // Tipo generico
                         Titolo = $"Notifica #{n.NotificaId}",
                         Messaggio = n.Messaggio,
-                        Priorita = ConvertIntToPriorita(n.Priorita ?? 2),
+                        Priorita = ConvertIntToPriorita(n.Priorita),
                         Letta = n.Stato == "Gestita",
                         DataCreazione = n.DataCreazione
                     })
@@ -222,7 +222,7 @@ namespace Repository.Service
                         TipoNotifica = "SISTEMA",
                         Titolo = $"Notifica #{n.NotificaId}",
                         Messaggio = n.Messaggio,
-                        Priorita = ConvertIntToPriorita(n.Priorita ?? 2),
+                        Priorita = ConvertIntToPriorita(n.Priorita),
                         Letta = n.Stato == "Gestita",
                         DataCreazione = n.DataCreazione
                     })

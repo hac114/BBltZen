@@ -21,7 +21,7 @@ namespace DTO
         public bool Disponibile { get; set; }
         public bool SempreDisponibile { get; set; }
 
-        [Range(0, 10, ErrorMessage = "La priorità deve essere tra 0 e 10")]
+        [Range(1, 10, ErrorMessage = "La priorità deve essere tra 1 e 10")]
         public int Priorita { get; set; }
         public DateTime DataCreazione { get; set; }
         public DateTime DataAggiornamento { get; set; }

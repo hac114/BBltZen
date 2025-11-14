@@ -19,5 +19,7 @@ public partial class NotificheOperative
 
     public string? UtenteGestione { get; set; }
 
-    public int? Priorita { get; set; }
+    public int Priorita { get; set; }
+
+    public string? TipoNotifica { get; set; }
 }

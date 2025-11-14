@@ -13,5 +13,5 @@ public partial class StatisticheCache
 
     public string Metriche { get; set; } = null!;
 
-    public DateTime? DataAggiornamento { get; set; }
+    public DateTime DataAggiornamento { get; set; }
 }

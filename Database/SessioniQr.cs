@@ -25,5 +25,7 @@ public partial class SessioniQr
 
     public string Stato { get; set; } = null!;
 
+    public virtual ICollection<Ordine> Ordine { get; set; } = new List<Ordine>();
+
     public virtual Tavolo Tavolo { get; set; } = null!;
 }

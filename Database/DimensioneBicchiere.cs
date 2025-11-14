@@ -25,5 +25,7 @@ public partial class DimensioneBicchiere
 
     public virtual ICollection<PersonalizzazioneCustom> PersonalizzazioneCustom { get; set; } = new List<PersonalizzazioneCustom>();
 
+    public virtual ICollection<PreferitiCliente> PreferitiCliente { get; set; } = new List<PreferitiCliente>();
+
     public virtual UnitaDiMisura UnitaMisura { get; set; } = null!;
 }

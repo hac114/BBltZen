@@ -67,8 +67,8 @@ namespace Repository.Service
                 ClienteId = entity.ClienteId,
                 DataCreazione = DateTime.Now,
                 DataAggiornamento = DateTime.Now,
-                StatoOrdineId = entity.StatoOrdineId ?? 1, // Default a 1 se null
-                StatoPagamentoId = entity.StatoPagamentoId ?? 1, // Default a 1 se null
+                StatoOrdineId = entity.StatoOrdineId, 
+                StatoPagamentoId = entity.StatoPagamentoId,
                 Totale = entity.Totale,
                 Priorita = entity.Priorita
             };

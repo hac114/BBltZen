@@ -26,7 +26,13 @@ namespace Repository.Service
                     PreferitoId = p.PreferitoId,
                     ClienteId = p.ClienteId,
                     BevandaId = p.BevandaId,
-                    DataAggiunta = p.DataAggiunta
+                    DataAggiunta = p.DataAggiunta,
+                    TipoArticolo = p.TipoArticolo,
+                    NomePersonalizzato = p.NomePersonalizzato,
+                    GradoDolcezza = p.GradoDolcezza,
+                    DimensioneBicchiereId = p.DimensioneBicchiereId,
+                    IngredientiJson = p.IngredientiJson,
+                    NotePersonali = p.NotePersonali
                 })
                 .ToListAsync();
         }
@@ -43,7 +49,13 @@ namespace Repository.Service
                 PreferitoId = preferito.PreferitoId,
                 ClienteId = preferito.ClienteId,
                 BevandaId = preferito.BevandaId,
-                DataAggiunta = preferito.DataAggiunta
+                DataAggiunta = preferito.DataAggiunta,
+                TipoArticolo = preferito.TipoArticolo,
+                NomePersonalizzato = preferito.NomePersonalizzato,
+                GradoDolcezza = preferito.GradoDolcezza,
+                DimensioneBicchiereId = preferito.DimensioneBicchiereId,
+                IngredientiJson = preferito.IngredientiJson,
+                NotePersonali = preferito.NotePersonali
             };
         }
 
@@ -56,7 +68,13 @@ namespace Repository.Service
                     PreferitoId = p.PreferitoId,
                     ClienteId = p.ClienteId,
                     BevandaId = p.BevandaId,
-                    DataAggiunta = p.DataAggiunta
+                    DataAggiunta = p.DataAggiunta,
+                    TipoArticolo = p.TipoArticolo,
+                    NomePersonalizzato = p.NomePersonalizzato,
+                    GradoDolcezza = p.GradoDolcezza,
+                    DimensioneBicchiereId = p.DimensioneBicchiereId,
+                    IngredientiJson = p.IngredientiJson,
+                    NotePersonali = p.NotePersonali
                 })
                 .ToListAsync();
         }
@@ -70,7 +88,13 @@ namespace Repository.Service
                     PreferitoId = p.PreferitoId,
                     ClienteId = p.ClienteId,
                     BevandaId = p.BevandaId,
-                    DataAggiunta = p.DataAggiunta
+                    DataAggiunta = p.DataAggiunta,
+                    TipoArticolo = p.TipoArticolo,
+                    NomePersonalizzato = p.NomePersonalizzato,
+                    GradoDolcezza = p.GradoDolcezza,
+                    DimensioneBicchiereId = p.DimensioneBicchiereId,
+                    IngredientiJson = p.IngredientiJson,
+                    NotePersonali = p.NotePersonali
                 })
                 .ToListAsync();
         }
@@ -87,7 +111,13 @@ namespace Repository.Service
                 PreferitoId = preferito.PreferitoId,
                 ClienteId = preferito.ClienteId,
                 BevandaId = preferito.BevandaId,
-                DataAggiunta = preferito.DataAggiunta
+                DataAggiunta = preferito.DataAggiunta,
+                TipoArticolo = preferito.TipoArticolo,
+                NomePersonalizzato = preferito.NomePersonalizzato,
+                GradoDolcezza = preferito.GradoDolcezza,
+                DimensioneBicchiereId = preferito.DimensioneBicchiereId,
+                IngredientiJson = preferito.IngredientiJson,
+                NotePersonali = preferito.NotePersonali
             };
         }
 
@@ -97,7 +127,13 @@ namespace Repository.Service
             {
                 ClienteId = preferitoDto.ClienteId,
                 BevandaId = preferitoDto.BevandaId,
-                DataAggiunta = DateTime.Now
+                DataAggiunta = DateTime.Now,
+                TipoArticolo = preferitoDto.TipoArticolo ?? "BS", // Default a Bevanda Standard
+                NomePersonalizzato = preferitoDto.NomePersonalizzato,
+                GradoDolcezza = preferitoDto.GradoDolcezza,
+                DimensioneBicchiereId = preferitoDto.DimensioneBicchiereId,
+                IngredientiJson = preferitoDto.IngredientiJson,
+                NotePersonali = preferitoDto.NotePersonali
             };
 
             _context.PreferitiCliente.Add(preferito);
@@ -116,6 +152,12 @@ namespace Repository.Service
             preferito.ClienteId = preferitoDto.ClienteId;
             preferito.BevandaId = preferitoDto.BevandaId;
             preferito.DataAggiunta = preferitoDto.DataAggiunta;
+            preferito.TipoArticolo = preferitoDto.TipoArticolo;
+            preferito.NomePersonalizzato = preferitoDto.NomePersonalizzato;
+            preferito.GradoDolcezza = preferitoDto.GradoDolcezza;
+            preferito.DimensioneBicchiereId = preferitoDto.DimensioneBicchiereId;
+            preferito.IngredientiJson = preferitoDto.IngredientiJson;
+            preferito.NotePersonali = preferitoDto.NotePersonali;
 
             await _context.SaveChangesAsync();
         }

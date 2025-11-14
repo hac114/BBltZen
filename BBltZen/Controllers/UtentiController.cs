@@ -138,7 +138,8 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<UtentiDTO>("Dati utente non validi");
 
                 // Verifica se l'email esiste già
-                if (await _repository.EmailExistsAsync(utenteDto.Email))
+                // CORREZIONE: Aggiungi controllo null per utenteDto.Email
+                if (!string.IsNullOrEmpty(utenteDto.Email) && await _repository.EmailExistsAsync(utenteDto.Email)) // rigo 141 CORRETTO
                     return SafeBadRequest<UtentiDTO>("Email già registrata");
 
                 await _repository.AddAsync(utenteDto);

@@ -591,7 +591,7 @@ namespace Repository.Service
                         StatisticheCacheId = s.Id,
                         TipoStatistica = s.TipoStatistica,
                         DatiCache = s.Metriche, // Usa Metriche invece di DatiCache
-                        DataAggiornamento = s.DataAggiornamento ?? DateTime.MinValue,
+                        DataAggiornamento = s.DataAggiornamento, // rigo 594 CORRETTO - rimuovi ??
                         ScadenzaCache = DateTime.Now.AddHours(1), // Valore default poiché non presente nell'entità
                         DimensioneBytes = 0, // Valore default poiché non presente nell'entità
                         Hits = 0, // Valore default poiché non presente nell'entità

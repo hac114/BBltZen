@@ -195,14 +195,16 @@ namespace BBltZen.Controllers
                 if (!clienteExists)
                     return SafeBadRequest<OrdineDTO>("Cliente non trovato");
 
-                if (ordineDto.StatoOrdineId.HasValue)
+                // CORREZIONE: Rimuovi .HasValue poiché StatoOrdineId è int (non nullable)
+                if (ordineDto.StatoOrdineId > 0) // rigo 198 CORRETTO
                 {
                     var statoOrdineExists = await _context.StatoOrdine.AnyAsync(so => so.StatoOrdineId == ordineDto.StatoOrdineId);
                     if (!statoOrdineExists)
                         return SafeBadRequest<OrdineDTO>("Stato ordine non trovato");
                 }
 
-                if (ordineDto.StatoPagamentoId.HasValue)
+                // CORREZIONE: Rimuovi .HasValue poiché StatoPagamentoId è int (non nullable)
+                if (ordineDto.StatoPagamentoId > 0) // rigo 205 CORRETTO
                 {
                     var statoPagamentoExists = await _context.StatoPagamento.AnyAsync(sp => sp.StatoPagamentoId == ordineDto.StatoPagamentoId);
                     if (!statoPagamentoExists)
@@ -213,9 +215,11 @@ namespace BBltZen.Controllers
                 if (ordineDto.OrdineId > 0 && await _ordineRepository.ExistsAsync(ordineDto.OrdineId)) // ✅ CAMBIATO NOME
                     return SafeBadRequest<OrdineDTO>("Esiste già un ordine con questo ID");
 
-                // ✅ Imposta valori di default se non specificati
-                ordineDto.StatoOrdineId ??= 1; // Default: In attesa
-                ordineDto.StatoPagamentoId ??= 1; // Default: In attesa
+                // ✅ CORREZIONE: Rimuovi ??= poiché sono int (non nullable), usa if
+                if (ordineDto.StatoOrdineId == 0) // rigo 217 CORRETTO
+                    ordineDto.StatoOrdineId = 1;
+                if (ordineDto.StatoPagamentoId == 0) //rigo 218 CORRETTO
+                    ordineDto.StatoPagamentoId = 1;
 
                 var result = await _ordineRepository.AddAsync(ordineDto); // ✅ CAMBIATO NOME
 
@@ -296,14 +300,16 @@ namespace BBltZen.Controllers
                 if (!clienteExists)
                     return SafeBadRequest("Cliente non trovato");
 
-                if (ordineDto.StatoOrdineId.HasValue)
+                // CORREZIONE: Rimuovi .HasValue poiché StatoOrdineId è int (non nullable)
+                if (ordineDto.StatoOrdineId > 0) // RIGO CORRETTO
                 {
                     var statoOrdineExists = await _context.StatoOrdine.AnyAsync(so => so.StatoOrdineId == ordineDto.StatoOrdineId);
                     if (!statoOrdineExists)
                         return SafeBadRequest("Stato ordine non trovato");
                 }
 
-                if (ordineDto.StatoPagamentoId.HasValue)
+                // CORREZIONE: Rimuovi .HasValue poiché StatoPagamentoId è int (non nullable)
+                if (ordineDto.StatoPagamentoId > 0) // RIGO CORRETTO
                 {
                     var statoPagamentoExists = await _context.StatoPagamento.AnyAsync(sp => sp.StatoPagamentoId == ordineDto.StatoPagamentoId);
                     if (!statoPagamentoExists)
