@@ -143,6 +143,8 @@ namespace BBltZen.Services
             };
 
             await _context.TaxRates.AddRangeAsync(taxRates);
+            await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ TaxRates seeded - {taxRates.Length} aliquote create");
         }
 
         private async Task SeedIngredientiAsync()
@@ -244,48 +246,56 @@ namespace BBltZen.Services
         {
             if (await _context.Articolo.AnyAsync()) return;
 
+            var now = DateTime.UtcNow;
+
             var articoli = new[]
             {
                 new Articolo
                 {
                     Tipo = "BS",
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow,
+                    DataCreazione = now,
+                    DataAggiornamento = now,
                     BevandaStandard = new BevandaStandard()
                     {
                         Disponibile = true,
                         SempreDisponibile = true, // ✅ ORDINABILE
                         Prezzo = 4.50m,
-                        DataCreazione = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
+                        DataCreazione = now, // ✅ DATA OBBLIGATORIA
+                        DataAggiornamento = now, // ✅ DATA OBBLIGATORIA
+                        Priorita = 1, // ✅ AGGIUNTO PRIORITÀ (1-10)
+                        PersonalizzazioneId = 1, // ✅ DEVE ESSERE SETTATO
+                        DimensioneBicchiereId = 1 // ✅ DEVE ESSERE SETTATO
                     }
                 },
                 new Articolo
                 {
                     Tipo = "BS",
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow,
+                    DataCreazione = now,
+                    DataAggiornamento = now,
                     BevandaStandard = new BevandaStandard()
                     {
                         Disponibile = true,
                         SempreDisponibile = false, // ✅ NON ORDINABILE
                         Prezzo = 5.00m,
-                        DataCreazione = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
+                        DataCreazione = now, // ✅ DATA OBBLIGATORIA
+                        DataAggiornamento = now, // ✅ DATA OBBLIGATORIA
+                        Priorita = 2, // ✅ AGGIUNTO PRIORITÀ (1-10)
+                        PersonalizzazioneId = 1, // ✅ DEVE ESSERE SETTATO
+                        DimensioneBicchiereId = 1 // ✅ DEVE ESSERE SETTATO
                     }
                 },
                 new Articolo
                 {
                     Tipo = "BC",
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow,
-                    BevandaCustom = new List<BevandaCustom>() 
+                    DataCreazione = now,
+                    DataAggiornamento = now,
+                    BevandaCustom = new List<BevandaCustom>()
                     {
                         new BevandaCustom()
                         {
                             Prezzo = 6.00m,
-                            DataCreazione = DateTime.UtcNow,
-                            DataAggiornamento = DateTime.UtcNow
+                            DataCreazione = now, // ✅ DATA OBBLIGATORIA
+                            DataAggiornamento = now // ✅ DATA OBBLIGATORIA
                         }
                     }
                 },
@@ -293,38 +303,41 @@ namespace BBltZen.Services
                 new Articolo
                 {
                     Tipo = "D",
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow,
-                    Dolce = new Dolce() // ✅ AGGIUNGI PARENTESI ()
+                    DataCreazione = now,
+                    DataAggiornamento = now,
+                    Dolce = new Dolce()
                     {
                         Nome = "Tiramisù",
                         Prezzo = 4.50m,
                         Disponibile = true, // ✅ ORDINABILE
-                        DataCreazione = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
+                        DataCreazione = now, // ✅ DATA OBBLIGATORIA
+                        DataAggiornamento = now, // ✅ DATA OBBLIGATORIA
+                        Priorita = 1 // ✅ AGGIUNTO PRIORITÀ (1-10)
                     }
                 },
                 // ✅ DOLCE - NON ORDINABILE
                 new Articolo
                 {
                     Tipo = "D",
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow,
-                    Dolce = new Dolce() // ✅ AGGIUNGI PARENTESI ()
+                    DataCreazione = now,
+                    DataAggiornamento = now,
+                    Dolce = new Dolce()
                     {
                         Nome = "Cheesecake",
                         Prezzo = 5.00m,
                         Disponibile = false, // ✅ NON ORDINABILE
-                        DataCreazione = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
+                        DataCreazione = now, // ✅ DATA OBBLIGATORIA
+                        DataAggiornamento = now, // ✅ DATA OBBLIGATORIA
+                        Priorita = 2 // ✅ AGGIUNTO PRIORITÀ (1-10)
                     }
                 }
             };
 
             await _context.Articolo.AddRangeAsync(articoli);
-            await _context.SaveChangesAsync();
-            Console.WriteLine("✅ Articoli seeded successfully with correct types and specializations");
-        }        
+            await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
+
+            Console.WriteLine($"✅ Articoli seeded successfully - {articoli.Length} articoli creati");
+        }
 
         private async Task SeedPersonalizzazioniAsync()
         {
@@ -498,17 +511,12 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
+                var dimensione = dimensioniBicchieri.FirstOrDefault();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var dimensioneMedia = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "M");
-                var dimensioneLarge = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "L");
-
-                // ✅ Verifica che le dimensioni esistano
-                if (dimensioneMedia == null || dimensioneLarge == null)
+                if (dimensione == null)
                 {
-                    Console.WriteLine("⚠️  Dimensioni bicchieri non trovate per PersonalizzazioniCustom");
+                    Console.WriteLine("⚠️  DimensioneBicchiere non trovata");
                     return;
                 }
 
@@ -517,28 +525,28 @@ namespace BBltZen.Services
                     new PersonalizzazioneCustom
                     {
                         Nome = "My Custom Tea",
-                        GradoDolcezza = 5,
-                        DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
+                        GradoDolcezza = 2,
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
                         DataCreazione = DateTime.UtcNow,
                         DataAggiornamento = DateTime.UtcNow
                     },
                     new PersonalizzazioneCustom
                     {
                         Nome = "Extra Sweet Mix",
-                        GradoDolcezza = 8,
-                        DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
+                        GradoDolcezza = 3,
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
                         DataCreazione = DateTime.UtcNow,
                         DataAggiornamento = DateTime.UtcNow
                     }
                 };
 
                 await _context.PersonalizzazioneCustom.AddRangeAsync(personalizzazioniCustom);
-                Console.WriteLine("✅ PersonalizzazioniCustom seeded successfully");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ PersonalizzazioniCustom seeded - {personalizzazioniCustom.Length} create");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedPersonalizzazioniCustomAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -615,34 +623,24 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
-                var articoli = await _context.Articolo.Where(a => a.Tipo == "bevanda").ToListAsync();
+                var articoli = await _context.Articolo.Where(a => a.Tipo == "BS").ToListAsync();
                 var personalizzazioni = await _context.Personalizzazione.ToListAsync();
                 var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
 
-                // ✅ Verifica che ci siano abbastanza articoli bevanda
                 if (articoli.Count < 2)
                 {
-                    Console.WriteLine("⚠️  Articoli bevanda insufficienti per BevandeStandard");
+                    Console.WriteLine("⚠️  Articoli BS insufficienti per BevandeStandard");
                     return;
                 }
 
-                // ✅ Usa accesso per indice invece di Skip().FirstAsync()
-                var articoloBevanda1 = articoli[0];
-                var articoloBevanda2 = articoli[1];
+                var articolo1 = articoli[0];
+                var articolo2 = articoli[1];
+                var personalizzazione = personalizzazioni.FirstOrDefault();
+                var dimensione = dimensioniBicchieri.FirstOrDefault();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var personalizzazioneClassic = personalizzazioni.FirstOrDefault(p => p.Nome == "Classic Milk Tea");
-                var personalizzazioneFruit = personalizzazioni.FirstOrDefault(p => p.Nome == "Fruit Fusion");
-
-                var dimensioneMedia = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "M");
-                var dimensioneLarge = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "L");
-
-                // ✅ Verifica che tutte le entità esistano
-                if (personalizzazioneClassic == null || personalizzazioneFruit == null ||
-                    dimensioneMedia == null || dimensioneLarge == null)
+                if (personalizzazione == null || dimensione == null)
                 {
-                    Console.WriteLine("⚠️  Entità mancanti per BevandeStandard");
+                    Console.WriteLine("⚠️  Personalizzazione o DimensioneBicchiere mancanti");
                     return;
                 }
 
@@ -650,11 +648,10 @@ namespace BBltZen.Services
                 {
                     new BevandaStandard
                     {
-                        ArticoloId = articoloBevanda1.ArticoloId,
-                        PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
-                        DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
+                        ArticoloId = articolo1.ArticoloId,
+                        PersonalizzazioneId = personalizzazione.PersonalizzazioneId,
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
                         Prezzo = 4.50m,
-                        ImmagineUrl = "/images/classic-milk-tea.jpg",
                         Disponibile = true,
                         SempreDisponibile = true,
                         Priorita = 1,
@@ -663,13 +660,12 @@ namespace BBltZen.Services
                     },
                     new BevandaStandard
                     {
-                        ArticoloId = articoloBevanda2.ArticoloId,
-                        PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
-                        DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
+                        ArticoloId = articolo2.ArticoloId,
+                        PersonalizzazioneId = personalizzazione.PersonalizzazioneId,
+                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
                         Prezzo = 5.50m,
-                        ImmagineUrl = "/images/fruit-fusion.jpg",
                         Disponibile = true,
-                        SempreDisponibile = true,
+                        SempreDisponibile = false,
                         Priorita = 2,
                         DataCreazione = DateTime.UtcNow,
                         DataAggiornamento = DateTime.UtcNow
@@ -677,12 +673,12 @@ namespace BBltZen.Services
                 };
 
                 await _context.BevandaStandard.AddRangeAsync(bevande);
-                Console.WriteLine("✅ BevandeStandard seeded successfully");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ BevandeStandard seeded - {bevande.Length} bevande create");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedBevandeStandardAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -692,37 +688,24 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
-                var articoli = await _context.Articolo.Where(a => a.Tipo == "bevanda").ToListAsync();
+                var articoli = await _context.Articolo.Where(a => a.Tipo == "BC").ToListAsync();
                 var personalizzazioniCustom = await _context.PersonalizzazioneCustom.ToListAsync();
 
-                // ✅ Verifica che ci siano abbastanza articoli bevanda
-                if (articoli.Count < 3)
+                if (articoli.Count < 1 || personalizzazioniCustom.Count < 1)
                 {
-                    Console.WriteLine("⚠️  Articoli bevanda insufficienti per BevandeCustom (servono almeno 3)");
+                    Console.WriteLine("⚠️  Articoli BC o PersonalizzazioniCustom insufficienti");
                     return;
                 }
 
-                // ✅ Usa accesso per indice invece di Skip(2).FirstAsync()
-                var articoloBevanda3 = articoli[2];
-
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var customTea = personalizzazioniCustom.FirstOrDefault(p => p.Nome == "My Custom Tea");
-                var extraSweet = personalizzazioniCustom.FirstOrDefault(p => p.Nome == "Extra Sweet Mix");
-
-                // ✅ Verifica che tutte le entità esistano
-                if (customTea == null || extraSweet == null)
-                {
-                    Console.WriteLine("⚠️  PersonalizzazioniCustom mancanti per BevandeCustom");
-                    return;
-                }
+                var articolo = articoli[0];
+                var personalizzazione = personalizzazioniCustom[0];
 
                 var bevandeCustom = new[]
                 {
                     new BevandaCustom
                     {
-                        ArticoloId = articoloBevanda3.ArticoloId,
-                        PersCustomId = customTea.PersCustomId,
+                        ArticoloId = articolo.ArticoloId,
+                        PersCustomId = personalizzazione.PersCustomId,
                         Prezzo = 6.00m,
                         DataCreazione = DateTime.UtcNow,
                         DataAggiornamento = DateTime.UtcNow
@@ -730,12 +713,12 @@ namespace BBltZen.Services
                 };
 
                 await _context.BevandaCustom.AddRangeAsync(bevandeCustom);
-                Console.WriteLine("✅ BevandeCustom seeded successfully");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ BevandeCustom seeded - {bevandeCustom.Length} bevande create");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedBevandeCustomAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -745,23 +728,11 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
-                var articoli = await _context.Articolo.Where(a => a.Tipo == "dolce").ToListAsync();
+                var articoli = await _context.Articolo.Where(a => a.Tipo == "D").ToListAsync();
 
-                // ✅ Verifica che ci siano articoli dolce
                 if (!articoli.Any())
                 {
-                    Console.WriteLine("⚠️  Nessun articolo dolce trovato per Dolci");
-                    return;
-                }
-
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var articoloDolce = articoli.FirstOrDefault();
-
-                // ✅ Verifica che l'articolo esista
-                if (articoloDolce == null)
-                {
-                    Console.WriteLine("⚠️  Articolo dolce non trovato");
+                    Console.WriteLine("⚠️  Nessun articolo D trovato per Dolci");
                     return;
                 }
 
@@ -769,11 +740,9 @@ namespace BBltZen.Services
                 {
                     new Dolce
                     {
-                        ArticoloId = articoloDolce.ArticoloId,
+                        ArticoloId = articoli[0].ArticoloId,
                         Nome = "Tiramisù",
                         Prezzo = 5.50m,
-                        Descrizione = "Dolce al cucchiaio classico",
-                        ImmagineUrl = "/images/tiramisu.jpg",
                         Disponibile = true,
                         Priorita = 1,
                         DataCreazione = DateTime.UtcNow,
@@ -782,12 +751,12 @@ namespace BBltZen.Services
                 };
 
                 await _context.Dolce.AddRangeAsync(dolci);
-                Console.WriteLine("✅ Dolci seeded successfully");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ Dolci seeded - {dolci.Length} dolci creati");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedDolciAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -795,19 +764,35 @@ namespace BBltZen.Services
         {
             if (await _context.Cliente.AnyAsync()) return;
 
-            var tavolo1 = await _context.Tavolo.FirstAsync(t => t.Numero == 1);
-
-            var clienti = new[]
+            try
             {
-                new Cliente
-                {
-                    TavoloId = tavolo1.TavoloId,
-                    DataCreazione = DateTime.UtcNow,
-                    DataAggiornamento = DateTime.UtcNow
-                }
-            };
+                var tavoli = await _context.Tavolo.ToListAsync();
+                var tavolo = tavoli.FirstOrDefault();
 
-            await _context.Cliente.AddRangeAsync(clienti);
+                if (tavolo == null)
+                {
+                    Console.WriteLine("⚠️  Nessun tavolo trovato per Clienti");
+                    return;
+                }
+
+                var clienti = new[]
+                {
+                    new Cliente
+                    {
+                        TavoloId = tavolo.TavoloId,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    }
+                };
+
+                await _context.Cliente.AddRangeAsync(clienti);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ Clienti seeded - {clienti.Length} clienti creati");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedClientiAsync: {ex.Message}");
+            }
         }
 
         private async Task SeedUtentiAsync()
@@ -819,8 +804,31 @@ namespace BBltZen.Services
                 new Utenti
                 {
                     Email = "gestore@bubbleteazen.com",
-                    PasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMye3s3B9yX7U7Jq.7c6q8q7q6q8q7q6q8q7", // password: "test123"
+                    PasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMye3s3B9yX7U7Jq.7c6q8q7q6q8q7q6q8q7",
                     TipoUtente = "gestore",
+                    Nome = "Mario",
+                    Cognome = "Rossi",
+                    Telefono = "+39123456789",
+                    DataCreazione = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow,
+                    Attivo = true
+                },
+                new Utenti
+                {
+                    Email = "cliente@email.com",
+                    PasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMye3s3B9yX7U7Jq.7c6q8q7q6q8q7q6q8q7",
+                    TipoUtente = "cliente",
+                    Nome = "Luigi",
+                    Cognome = "Verdi",
+                    Telefono = "+39987654321",
+                    DataCreazione = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow,
+                    Attivo = true
+                },
+                new Utenti
+                {
+                    TipoUtente = "guest",
+                    SessioneGuest = Guid.NewGuid(),
                     DataCreazione = DateTime.UtcNow,
                     DataAggiornamento = DateTime.UtcNow,
                     Attivo = true
@@ -828,6 +836,8 @@ namespace BBltZen.Services
             };
 
             await _context.Utenti.AddRangeAsync(utenti);
+            await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ Utenti seeded - {utenti.Length} utenti creati");
         }
 
         private async Task SeedStatiOrdineAsync()
@@ -836,6 +846,18 @@ namespace BBltZen.Services
 
             var statiOrdine = new[]
             {
+                // ✅ NUOVI STATI AGGIUNTI
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "bozza",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "in_carrello",
+                    Terminale = false
+                },
+                // ✅ STATI ESISTENTI
                 new StatoOrdine
                 {
                     StatoOrdine1 = "In Attesa",
@@ -864,6 +886,9 @@ namespace BBltZen.Services
             };
 
             await _context.StatoOrdine.AddRangeAsync(statiOrdine);
+            await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
+
+            Console.WriteLine($"✅ StatoOrdine seeded successfully - {statiOrdine.Length} stati creati");
         }
 
         private async Task SeedStatiPagamentoAsync()
@@ -872,6 +897,12 @@ namespace BBltZen.Services
 
             var statiPagamento = new[]
             {
+                // ✅ NUOVO STATO AGGIUNTO
+                new StatoPagamento
+                {
+                    StatoPagamento1 = "non_richiesto"
+                },
+                // ✅ STATI ESISTENTI
                 new StatoPagamento
                 {
                     StatoPagamento1 = "Pending"
@@ -891,6 +922,9 @@ namespace BBltZen.Services
             };
 
             await _context.StatoPagamento.AddRangeAsync(statiPagamento);
+            await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
+
+            Console.WriteLine($"✅ StatoPagamento seeded successfully - {statiPagamento.Length} stati creati");
         }
 
         private async Task SeedOrdiniAsync()
@@ -903,15 +937,22 @@ namespace BBltZen.Services
                 var clienti = await _context.Cliente.ToListAsync();
                 var statiOrdine = await _context.StatoOrdine.ToListAsync();
                 var statiPagamento = await _context.StatoPagamento.ToListAsync();
+                var sessioniQr = await _context.SessioniQr.ToListAsync();
 
                 // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
                 var cliente = clienti.FirstOrDefault();
 
                 // ✅ CORRETTO: Usa 'StatoOrdine1' invece di 'NomeStatoOrdine'
                 var statoOrdineInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
+                var statoOrdineBozza = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "bozza");
+                var statoOrdineInCarrello = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "in_carrello");
 
                 // ✅ CORRETTO: Usa 'StatoPagamento1' invece di 'NomeStatoPagamento'  
                 var statoPagamentoPending = statiPagamento.FirstOrDefault(s => s.StatoPagamento1 == "Pending");
+                var statoPagamentoNonRichiesto = statiPagamento.FirstOrDefault(s => s.StatoPagamento1 == "non_richiesto");
+
+                // ✅ Prendi una sessione QR se disponibile
+                var sessioneQr = sessioniQr.FirstOrDefault();
 
                 // ✅ Verifica che tutte le entità esistano
                 if (cliente == null)
@@ -920,48 +961,75 @@ namespace BBltZen.Services
                     return;
                 }
 
-                if (statoOrdineInAttesa == null)
+                if (statoOrdineInAttesa == null || statoOrdineBozza == null || statoOrdineInCarrello == null)
                 {
-                    Console.WriteLine("⚠️  Stato ordine 'In Attesa' non trovato per Ordini");
+                    Console.WriteLine("⚠️  Stati ordine non trovati per Ordini");
                     return;
                 }
 
-                if (statoPagamentoPending == null)
+                if (statoPagamentoPending == null || statoPagamentoNonRichiesto == null)
                 {
-                    Console.WriteLine("⚠️  Stato pagamento 'Pending' non trovato per Ordini");
+                    Console.WriteLine("⚠️  Stati pagamento non trovati per Ordini");
                     return;
                 }
 
                 var ordini = new[]
                 {
+                    // ✅ ORDINE CON SESSIONE QR (se disponibile)
                     new Ordine
                     {
                         ClienteId = cliente.ClienteId,
-                        DataCreazione = DateTime.UtcNow.AddHours(-2),
-                        DataAggiornamento = DateTime.UtcNow.AddHours(-2),
+                        DataCreazione = DateTime.UtcNow.AddHours(-3),
+                        DataAggiornamento = DateTime.UtcNow.AddHours(-3),
                         StatoOrdineId = statoOrdineInAttesa.StatoOrdineId,
                         StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
                         Totale = 12.50m,
-                        Priorita = 1
+                        Priorita = 1,
+                        SessioneId = sessioneQr?.SessioneId // ✅ NUOVO CAMPO - nullable
                     },
+                    // ✅ ORDINE IN BOZZA (senza sessione)
                     new Ordine
                     {
                         ClienteId = cliente.ClienteId,
                         DataCreazione = DateTime.UtcNow.AddHours(-1),
                         DataAggiornamento = DateTime.UtcNow.AddHours(-1),
-                        StatoOrdineId = statoOrdineInAttesa.StatoOrdineId,
-                        StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
+                        StatoOrdineId = statoOrdineBozza.StatoOrdineId,
+                        StatoPagamentoId = statoPagamentoNonRichiesto.StatoPagamentoId, // ✅ Usa nuovo stato
                         Totale = 8.75m,
-                        Priorita = 2
+                        Priorita = 2,
+                        SessioneId = null // ✅ Esplicito null
+                    },
+                    // ✅ ORDINE NEL CARRELLO
+                    new Ordine
+                    {
+                        ClienteId = cliente.ClienteId,
+                        DataCreazione = DateTime.UtcNow.AddMinutes(-30),
+                        DataAggiornamento = DateTime.UtcNow.AddMinutes(-15),
+                        StatoOrdineId = statoOrdineInCarrello.StatoOrdineId,
+                        StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
+                        Totale = 15.25m,
+                        Priorita = 1,
+                        SessioneId = sessioneQr?.SessioneId // ✅ Stessa sessione del primo ordine
                     }
                 };
 
                 await _context.Ordine.AddRangeAsync(ordini);
-                Console.WriteLine("✅ Ordini seeded successfully");
+                await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
+
+                Console.WriteLine($"✅ Ordini seeded successfully - {ordini.Length} ordini creati");
+
+                if (sessioneQr != null)
+                {
+                    Console.WriteLine($"   📱 {ordini.Count(o => o.SessioneId != null)} ordini collegati a sessione QR");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedOrdiniAsync: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"   Inner Exception: {ex.InnerException.Message}");
+                }
                 // Continua senza bloccare tutto il seeding
             }
         }
@@ -1231,6 +1299,7 @@ namespace BBltZen.Services
                 // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var clienti = await _context.Cliente.ToListAsync();
                 var bevandeStandard = await _context.BevandaStandard.ToListAsync();
+                var dimensioniBicchiere = await _context.DimensioneBicchiere.ToListAsync();
 
                 // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
                 var cliente = clienti.FirstOrDefault();
@@ -1238,6 +1307,9 @@ namespace BBltZen.Services
                 // ✅ Cerca le bevande per prezzo usando FirstOrDefault
                 var bevandaClassic = bevandeStandard.FirstOrDefault(b => b.Prezzo == 4.50m);
                 var bevandaFruit = bevandeStandard.FirstOrDefault(b => b.Prezzo == 5.50m);
+
+                // ✅ Prendi una dimensione bicchiere di default
+                var dimensioneDefault = dimensioniBicchiere.FirstOrDefault();
 
                 // ✅ Verifica che tutte le entità esistano
                 if (cliente == null)
@@ -1252,28 +1324,66 @@ namespace BBltZen.Services
                     return;
                 }
 
+                if (dimensioneDefault == null)
+                {
+                    Console.WriteLine("⚠️  Dimensioni bicchiere non trovate per PreferitiCliente");
+                    return;
+                }
+
                 var preferiti = new[]
                 {
                     new PreferitiCliente
                     {
                         ClienteId = cliente.ClienteId,
                         BevandaId = bevandaClassic.ArticoloId,
-                        DataAggiunta = DateTime.UtcNow.AddDays(-7)
+                        DataAggiunta = DateTime.UtcNow.AddDays(-7),
+                        // ✅ AGGIUNTI TUTTI I NUOVI CAMPI
+                        TipoArticolo = "BS", // Bevanda Standard
+                        NomePersonalizzato = "Il mio Bubble Tea Classico",
+                        GradoDolcezza = 2, // Medio (1-3)
+                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
+                        IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte\", \"tapioca\", \"zucchero di canna\"]}",
+                        NotePersonali = "Preferito con poco ghiaccio"
                     },
                     new PreferitiCliente
                     {
                         ClienteId = cliente.ClienteId,
                         BevandaId = bevandaFruit.ArticoloId,
-                        DataAggiunta = DateTime.UtcNow.AddDays(-3)
+                        DataAggiunta = DateTime.UtcNow.AddDays(-3),                        
+                        TipoArticolo = "BS", // Bevanda Standard
+                        NomePersonalizzato = "Bubble Tea Fruttato Estivo",
+                        GradoDolcezza = 3, // Dolce (1-3)
+                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
+                        IngredientiJson = "{\"ingredienti\": [\"tè verde\", \"mango\", \"frutto della passione\", \"tapioca arcobaleno\"]}",
+                        NotePersonali = "Perfetto per l'estate, con extra frutta"
+                    },
+                    // ✅ AGGIUNTO UN TERZO PREFERITO PER TESTARE PIÙ SCENARI
+                    new PreferitiCliente
+                    {
+                        ClienteId = cliente.ClienteId,
+                        BevandaId = bevandaClassic.ArticoloId, // Stessa bevanda ma personalizzazione diversa
+                        DataAggiunta = DateTime.UtcNow.AddDays(-1),
+                        TipoArticolo = "BS",
+                        NomePersonalizzato = "Bubble Tea Light",
+                        GradoDolcezza = 1, // Leggero (1-3)
+                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
+                        IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte di mandorla\", \"tapioca\", \"stevia\"]}",
+                        NotePersonali = "Versione light senza zucchero aggiunto"
                     }
                 };
 
                 await _context.PreferitiCliente.AddRangeAsync(preferiti);
-                Console.WriteLine("✅ PreferitiCliente seeded successfully");
+                await _context.SaveChangesAsync();
+
+                Console.WriteLine($"✅ PreferitiCliente seeded successfully - {preferiti.Length} preferiti creati");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedPreferitiClienteAsync: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"   Inner Exception: {ex.InnerException.Message}");
+                }
                 // Continua senza bloccare tutto il seeding
             }
         }
@@ -1284,24 +1394,15 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var tavoli = await _context.Tavolo.ToListAsync();
                 var clienti = await _context.Cliente.ToListAsync();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var tavolo1 = tavoli.FirstOrDefault(t => t.Numero == 1);
+                var tavolo = tavoli.FirstOrDefault();
                 var cliente = clienti.FirstOrDefault();
 
-                // ✅ Verifica che le entità esistano
-                if (tavolo1 == null)
+                if (tavolo == null)
                 {
-                    Console.WriteLine("⚠️  Tavolo 1 non trovato per SessioniQr");
-                    return;
-                }
-
-                if (cliente == null)
-                {
-                    Console.WriteLine("⚠️  Cliente non trovato per SessioniQr");
+                    Console.WriteLine("⚠️  Nessun tavolo trovato per SessioniQr");
                     return;
                 }
 
@@ -1310,38 +1411,38 @@ namespace BBltZen.Services
                     new SessioniQr
                     {
                         SessioneId = Guid.NewGuid(),
-                        ClienteId = cliente.ClienteId,
+                        ClienteId = cliente?.ClienteId,
                         QrCode = $"QR_{Guid.NewGuid()}",
                         DataCreazione = DateTime.UtcNow,
                         DataScadenza = DateTime.UtcNow.AddHours(2),
                         Utilizzato = true,
                         DataUtilizzo = DateTime.UtcNow.AddMinutes(5),
-                        TavoloId = tavolo1.TavoloId,
+                        TavoloId = tavolo.TavoloId,
                         CodiceSessione = $"SESS_{DateTime.UtcNow:yyyyMMddHHmmss}",
                         Stato = "Completata"
                     },
                     new SessioniQr
                     {
                         SessioneId = Guid.NewGuid(),
-                        ClienteId = null, // Sessione non ancora associata
+                        ClienteId = null,
                         QrCode = $"QR_{Guid.NewGuid()}",
                         DataCreazione = DateTime.UtcNow,
                         DataScadenza = DateTime.UtcNow.AddHours(1),
                         Utilizzato = false,
                         DataUtilizzo = null,
-                        TavoloId = tavolo1.TavoloId,
+                        TavoloId = tavolo.TavoloId,
                         CodiceSessione = $"SESS_{DateTime.UtcNow.AddMinutes(1):yyyyMMddHHmmss}",
                         Stato = "Attiva"
                     }
                 };
 
                 await _context.SessioniQr.AddRangeAsync(sessioniQr);
-                Console.WriteLine("✅ SessioniQr seeded successfully");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ SessioniQr seeded - {sessioniQr.Length} sessioni create");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedSessioniQrAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -1351,15 +1452,12 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var utenti = await _context.Utenti.ToListAsync();
                 var clienti = await _context.Cliente.ToListAsync();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
                 var utente = utenti.FirstOrDefault();
                 var cliente = clienti.FirstOrDefault();
 
-                // ✅ Verifica che le entità esistano (cliente può essere null per alcuni log)
                 if (utente == null)
                 {
                     Console.WriteLine("⚠️  Utente non trovato per LogAccessi");
@@ -1392,7 +1490,6 @@ namespace BBltZen.Services
                     }
                 };
 
-                // ✅ Aggiungi il log con cliente solo se cliente esiste
                 if (cliente != null)
                 {
                     logAccessi.Add(new LogAccessi
@@ -1409,12 +1506,12 @@ namespace BBltZen.Services
                 }
 
                 await _context.LogAccessi.AddRangeAsync(logAccessi);
-                Console.WriteLine($"✅ LogAccessi seeded successfully ({logAccessi.Count} records)");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ LogAccessi seeded - {logAccessi.Count} record creati");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedLogAccessiAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -1422,46 +1519,63 @@ namespace BBltZen.Services
         {
             if (await _context.LogAttivita.AnyAsync()) return;
 
-            var logAttivita = new[]
+            try
             {
-                new LogAttivita
-                {
-                    TipoAttivita = "Sistema",
-                    Descrizione = "Avvio applicazione",
-                    DataEsecuzione = DateTime.UtcNow.AddHours(-4),
-                    Dettagli = "Sistema avviato correttamente"
-                },
-                new LogAttivita
-                {
-                    TipoAttivita = "Database",
-                    Descrizione = "Pulizia cache",
-                    DataEsecuzione = DateTime.UtcNow.AddHours(-3),
-                    Dettagli = "Cache pulita automaticamente"
-                },
-                new LogAttivita
-                {
-                    TipoAttivita = "Ordine",
-                    Descrizione = "Nuovo ordine creato",
-                    DataEsecuzione = DateTime.UtcNow.AddHours(-2),
-                    Dettagli = "Ordine #1 creato dal cliente"
-                },
-                new LogAttivita
-                {
-                    TipoAttivita = "Ordine",
-                    Descrizione = "Stato ordine aggiornato",
-                    DataEsecuzione = DateTime.UtcNow.AddHours(-1),
-                    Dettagli = "Ordine #1 passato in preparazione"
-                },
-                new LogAttivita
-                {
-                    TipoAttivita = "Sistema",
-                    Descrizione = "Backup automatico",
-                    DataEsecuzione = DateTime.UtcNow.AddMinutes(-30),
-                    Dettagli = "Backup database completato"
-                }
-            };
+                var utenti = await _context.Utenti.ToListAsync();
+                var utente = utenti.FirstOrDefault();
 
-            await _context.LogAttivita.AddRangeAsync(logAttivita);
+                var logAttivita = new[]
+                {
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Sistema",
+                        Descrizione = "Avvio applicazione",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-4),
+                        Dettagli = "Sistema avviato correttamente",
+                        UtenteId = null
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Database",
+                        Descrizione = "Pulizia cache",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-3),
+                        Dettagli = "Cache pulita automaticamente",
+                        UtenteId = null
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Ordine",
+                        Descrizione = "Nuovo ordine creato",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-2),
+                        Dettagli = "Ordine #1 creato dal cliente",
+                        UtenteId = utente?.UtenteId
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Ordine",
+                        Descrizione = "Stato ordine aggiornato",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-1),
+                        Dettagli = "Ordine #1 passato in preparazione",
+                        UtenteId = utente?.UtenteId
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Sistema",
+                        Descrizione = "Backup automatico",
+                        DataEsecuzione = DateTime.UtcNow.AddMinutes(-30),
+                        Dettagli = "Backup database completato",
+                        UtenteId = null
+                    }
+                };
+
+                await _context.LogAttivita.AddRangeAsync(logAttivita);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ LogAttivita seeded - {logAttivita.Length} record creati");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedLogAttivitaAsync: {ex.Message}");
+            }
         }
 
         private async Task SeedNotificheOperativeAsync()
@@ -1478,7 +1592,8 @@ namespace BBltZen.Services
                     Stato = "Attiva",
                     DataGestione = null,
                     UtenteGestione = null,
-                    Priorita = 2
+                    Priorita = 2,
+                    TipoNotifica = "RitardoOrdine"
                 },
                 new NotificheOperative
                 {
@@ -1488,7 +1603,8 @@ namespace BBltZen.Services
                     Stato = "Risolta",
                     DataGestione = DateTime.UtcNow.AddMinutes(-30),
                     UtenteGestione = "gestore",
-                    Priorita = 1
+                    Priorita = 1,
+                    TipoNotifica = "ScortaIngrediente"
                 },
                 new NotificheOperative
                 {
@@ -1498,7 +1614,8 @@ namespace BBltZen.Services
                     Stato = "Attiva",
                     DataGestione = null,
                     UtenteGestione = null,
-                    Priorita = 3
+                    Priorita = 3,
+                    TipoNotifica = "SistemaPagamento"
                 },
                 new NotificheOperative
                 {
@@ -1508,11 +1625,14 @@ namespace BBltZen.Services
                     Stato = "Attiva",
                     DataGestione = null,
                     UtenteGestione = null,
-                    Priorita = 2
+                    Priorita = 2,
+                    TipoNotifica = "OrdinePronto"
                 }
             };
 
             await _context.NotificheOperative.AddRangeAsync(notifiche);
+            await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ NotificheOperative seeded - {notifiche.Length} notifiche create");
         }
 
         private async Task SeedStatisticheCacheAsync()
@@ -1552,6 +1672,8 @@ namespace BBltZen.Services
             };
 
             await _context.StatisticheCache.AddRangeAsync(statistiche);
+            await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ StatisticheCache seeded - {statistiche.Length} statistiche create");
         }
     }
 }
