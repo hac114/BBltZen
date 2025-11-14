@@ -512,13 +512,15 @@ namespace BBltZen.Services
             try
             {
                 var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
-                var dimensione = dimensioniBicchieri.FirstOrDefault();
 
-                if (dimensione == null)
+                // ✅ CORREZIONE: Controllo conteggio invece di FirstOrDefault
+                if (dimensioniBicchieri.Count < 1)
                 {
-                    Console.WriteLine("⚠️  DimensioneBicchiere non trovata");
+                    Console.WriteLine("⚠️  DimensioniBicchiere insufficienti per PersonalizzazioniCustom");
                     return;
                 }
+
+                var dimensione = dimensioniBicchieri[0]; // ✅ Accesso per indice
 
                 var personalizzazioniCustom = new[]
                 {
@@ -623,26 +625,23 @@ namespace BBltZen.Services
 
             try
             {
-                var articoli = await _context.Articolo.Where(a => a.Tipo == "BS").ToListAsync();
+                var articoli = await _context.Articolo.ToListAsync();
                 var personalizzazioni = await _context.Personalizzazione.ToListAsync();
                 var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
 
-                if (articoli.Count < 2)
+                // ✅ CORREZIONE: Filtra in memoria invece di Where()
+                var articoliBS = articoli.Where(a => a.Tipo == "BS").ToList();
+
+                if (articoliBS.Count < 2 || personalizzazioni.Count < 1 || dimensioniBicchieri.Count < 1)
                 {
-                    Console.WriteLine("⚠️  Articoli BS insufficienti per BevandeStandard");
+                    Console.WriteLine("⚠️  Articoli BS, Personalizzazioni o Dimensioni insufficienti");
                     return;
                 }
 
-                var articolo1 = articoli[0];
-                var articolo2 = articoli[1];
-                var personalizzazione = personalizzazioni.FirstOrDefault();
-                var dimensione = dimensioniBicchieri.FirstOrDefault();
-
-                if (personalizzazione == null || dimensione == null)
-                {
-                    Console.WriteLine("⚠️  Personalizzazione o DimensioneBicchiere mancanti");
-                    return;
-                }
+                var articolo1 = articoliBS[0];
+                var articolo2 = articoliBS[1];
+                var personalizzazione = personalizzazioni[0];
+                var dimensione = dimensioniBicchieri[0];
 
                 var bevande = new[]
                 {
@@ -688,16 +687,19 @@ namespace BBltZen.Services
 
             try
             {
-                var articoli = await _context.Articolo.Where(a => a.Tipo == "BC").ToListAsync();
+                var articoli = await _context.Articolo.ToListAsync();
                 var personalizzazioniCustom = await _context.PersonalizzazioneCustom.ToListAsync();
 
-                if (articoli.Count < 1 || personalizzazioniCustom.Count < 1)
+                // ✅ CORREZIONE: Filtra in memoria invece di Where()
+                var articoliBC = articoli.Where(a => a.Tipo == "BC").ToList();
+
+                if (articoliBC.Count < 1 || personalizzazioniCustom.Count < 1)
                 {
                     Console.WriteLine("⚠️  Articoli BC o PersonalizzazioniCustom insufficienti");
                     return;
                 }
 
-                var articolo = articoli[0];
+                var articolo = articoliBC[0];
                 var personalizzazione = personalizzazioniCustom[0];
 
                 var bevandeCustom = new[]
@@ -728,9 +730,12 @@ namespace BBltZen.Services
 
             try
             {
-                var articoli = await _context.Articolo.Where(a => a.Tipo == "D").ToListAsync();
+                var articoli = await _context.Articolo.ToListAsync();
 
-                if (!articoli.Any())
+                // ✅ CORREZIONE: Filtra in memoria invece di Where()
+                var articoliD = articoli.Where(a => a.Tipo == "D").ToList();
+
+                if (articoliD.Count < 1)
                 {
                     Console.WriteLine("⚠️  Nessun articolo D trovato per Dolci");
                     return;
@@ -740,7 +745,7 @@ namespace BBltZen.Services
                 {
                     new Dolce
                     {
-                        ArticoloId = articoli[0].ArticoloId,
+                        ArticoloId = articoliD[0].ArticoloId,
                         Nome = "Tiramisù",
                         Prezzo = 5.50m,
                         Disponibile = true,
@@ -933,104 +938,74 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var clienti = await _context.Cliente.ToListAsync();
                 var statiOrdine = await _context.StatoOrdine.ToListAsync();
                 var statiPagamento = await _context.StatoPagamento.ToListAsync();
                 var sessioniQr = await _context.SessioniQr.ToListAsync();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var cliente = clienti.FirstOrDefault();
-
-                // ✅ CORRETTO: Usa 'StatoOrdine1' invece di 'NomeStatoOrdine'
-                var statoOrdineInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
-                var statoOrdineBozza = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "bozza");
-                var statoOrdineInCarrello = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "in_carrello");
-
-                // ✅ CORRETTO: Usa 'StatoPagamento1' invece di 'NomeStatoPagamento'  
-                var statoPagamentoPending = statiPagamento.FirstOrDefault(s => s.StatoPagamento1 == "Pending");
-                var statoPagamentoNonRichiesto = statiPagamento.FirstOrDefault(s => s.StatoPagamento1 == "non_richiesto");
-
-                // ✅ Prendi una sessione QR se disponibile
-                var sessioneQr = sessioniQr.FirstOrDefault();
-
-                // ✅ Verifica che tutte le entità esistano
-                if (cliente == null)
+                // ✅ CORREZIONE: Controllo conteggio invece di FirstOrDefault con condizioni
+                if (clienti.Count < 1 || statiOrdine.Count < 3 || statiPagamento.Count < 2)
                 {
-                    Console.WriteLine("⚠️  Cliente non trovato per Ordini");
+                    Console.WriteLine("⚠️  Clienti, StatiOrdine o StatiPagamento insufficienti per Ordini");
                     return;
                 }
 
-                if (statoOrdineInAttesa == null || statoOrdineBozza == null || statoOrdineInCarrello == null)
-                {
-                    Console.WriteLine("⚠️  Stati ordine non trovati per Ordini");
-                    return;
-                }
+                var cliente = clienti[0]; // ✅ Accesso per indice
 
-                if (statoPagamentoPending == null || statoPagamentoNonRichiesto == null)
-                {
-                    Console.WriteLine("⚠️  Stati pagamento non trovati per Ordini");
-                    return;
-                }
+                // ✅ CORREZIONE: Prendi i primi stati invece di cercare per nome
+                var stato1 = statiOrdine[0]; // Primo stato (es. "bozza")
+                var stato2 = statiOrdine[1]; // Secondo stato (es. "in_carrello")
+                var stato3 = statiOrdine[2]; // Terzo stato (es. "In Attesa")
+
+                var statoPagamento1 = statiPagamento[0]; // Primo stato pagamento
+                var statoPagamento2 = statiPagamento[1]; // Secondo stato pagamento
+
+                var sessioneQr = sessioniQr.Count > 0 ? sessioniQr[0] : null; // ✅ Sessione opzionale
 
                 var ordini = new[]
                 {
-                    // ✅ ORDINE CON SESSIONE QR (se disponibile)
                     new Ordine
                     {
                         ClienteId = cliente.ClienteId,
                         DataCreazione = DateTime.UtcNow.AddHours(-3),
                         DataAggiornamento = DateTime.UtcNow.AddHours(-3),
-                        StatoOrdineId = statoOrdineInAttesa.StatoOrdineId,
-                        StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
+                        StatoOrdineId = stato3.StatoOrdineId, // "In Attesa"
+                        StatoPagamentoId = statoPagamento1.StatoPagamentoId,
                         Totale = 12.50m,
                         Priorita = 1,
-                        SessioneId = sessioneQr?.SessioneId // ✅ NUOVO CAMPO - nullable
+                        SessioneId = sessioneQr?.SessioneId
                     },
-                    // ✅ ORDINE IN BOZZA (senza sessione)
                     new Ordine
                     {
                         ClienteId = cliente.ClienteId,
                         DataCreazione = DateTime.UtcNow.AddHours(-1),
                         DataAggiornamento = DateTime.UtcNow.AddHours(-1),
-                        StatoOrdineId = statoOrdineBozza.StatoOrdineId,
-                        StatoPagamentoId = statoPagamentoNonRichiesto.StatoPagamentoId, // ✅ Usa nuovo stato
+                        StatoOrdineId = stato1.StatoOrdineId, // "bozza"
+                        StatoPagamentoId = statoPagamento2.StatoPagamentoId, // "non_richiesto"
                         Totale = 8.75m,
                         Priorita = 2,
-                        SessioneId = null // ✅ Esplicito null
+                        SessioneId = null
                     },
-                    // ✅ ORDINE NEL CARRELLO
                     new Ordine
                     {
                         ClienteId = cliente.ClienteId,
                         DataCreazione = DateTime.UtcNow.AddMinutes(-30),
                         DataAggiornamento = DateTime.UtcNow.AddMinutes(-15),
-                        StatoOrdineId = statoOrdineInCarrello.StatoOrdineId,
-                        StatoPagamentoId = statoPagamentoPending.StatoPagamentoId,
+                        StatoOrdineId = stato2.StatoOrdineId, // "in_carrello"
+                        StatoPagamentoId = statoPagamento1.StatoPagamentoId,
                         Totale = 15.25m,
                         Priorita = 1,
-                        SessioneId = sessioneQr?.SessioneId // ✅ Stessa sessione del primo ordine
+                        SessioneId = sessioneQr?.SessioneId
                     }
                 };
 
                 await _context.Ordine.AddRangeAsync(ordini);
-                await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
-
-                Console.WriteLine($"✅ Ordini seeded successfully - {ordini.Length} ordini creati");
-
-                if (sessioneQr != null)
-                {
-                    Console.WriteLine($"   📱 {ordini.Count(o => o.SessioneId != null)} ordini collegati a sessione QR");
-                }
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ Ordini seeded - {ordini.Length} ordini creati");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedOrdiniAsync: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"   Inner Exception: {ex.InnerException.Message}");
-                }
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -1218,75 +1193,60 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var ordini = await _context.Ordine.ToListAsync();
                 var statiOrdine = await _context.StatoOrdine.ToListAsync();
 
-                // ✅ Verifica che ci siano abbastanza ordini
-                if (ordini.Count < 2)
+                if (ordini.Count < 2 || statiOrdine.Count < 3)
                 {
-                    Console.WriteLine("⚠️  Ordini insufficienti per StatoStoricoOrdini (servono almeno 2)");
+                    Console.WriteLine("⚠️  Ordini o stati insufficienti per StatoStoricoOrdine");
                     return;
                 }
 
-                // ✅ Usa accesso per indice invece di Skip().FirstAsync()
                 var ordine1 = ordini[0];
                 var ordine2 = ordini[1];
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var statoInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
-                var statoInPreparazione = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Preparazione");
-                var statoPronto = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "Pronto");
-
-                // ✅ Verifica che tutti gli stati esistano
-                if (statoInAttesa == null || statoInPreparazione == null || statoPronto == null)
-                {
-                    Console.WriteLine("⚠️  Stati ordine non trovati per StatoStoricoOrdini");
-                    return;
-                }
+                // ✅ CORREZIONE: Prendi i primi 3 stati invece di cercare per nome
+                var stato1 = statiOrdine[0]; // Primo stato (es. "bozza")
+                var stato2 = statiOrdine[1]; // Secondo stato (es. "in_carrello")  
+                var stato3 = statiOrdine[2]; // Terzo stato (es. "In Attesa")
 
                 var storicoOrdini = new[]
                 {
-                    // Ordine 1 - Cronologia completa
                     new StatoStoricoOrdine
                     {
                         OrdineId = ordine1.OrdineId,
-                        StatoOrdineId = statoInAttesa.StatoOrdineId,
+                        StatoOrdineId = stato1.StatoOrdineId,
                         Inizio = DateTime.UtcNow.AddHours(-2),
-                        Fine = DateTime.UtcNow.AddHours(-1) // Passato a In Preparazione dopo 1 ora
+                        Fine = DateTime.UtcNow.AddHours(-1)
                     },
                     new StatoStoricoOrdine
                     {
                         OrdineId = ordine1.OrdineId,
-                        StatoOrdineId = statoInPreparazione.StatoOrdineId,
+                        StatoOrdineId = stato2.StatoOrdineId,
                         Inizio = DateTime.UtcNow.AddHours(-1),
-                        Fine = DateTime.UtcNow.AddMinutes(-30) // Passato a Pronto dopo 30 minuti
+                        Fine = DateTime.UtcNow.AddMinutes(-30)
                     },
                     new StatoStoricoOrdine
                     {
                         OrdineId = ordine1.OrdineId,
-                        StatoOrdineId = statoPronto.StatoOrdineId,
+                        StatoOrdineId = stato3.StatoOrdineId,
                         Inizio = DateTime.UtcNow.AddMinutes(-30)
-                        // Fine = null -> Stato corrente
                     },
-
-                    // Ordine 2 - Ancora in attesa
                     new StatoStoricoOrdine
                     {
                         OrdineId = ordine2.OrdineId,
-                        StatoOrdineId = statoInAttesa.StatoOrdineId,
+                        StatoOrdineId = stato1.StatoOrdineId,
                         Inizio = DateTime.UtcNow.AddHours(-1)
-                        // Fine = null -> Stato corrente
                     }
                 };
 
                 await _context.StatoStoricoOrdine.AddRangeAsync(storicoOrdini);
-                Console.WriteLine($"✅ StatoStoricoOrdini seeded successfully ({storicoOrdini.Length} records)");
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ StatoStoricoOrdine seeded - {storicoOrdini.Length} record creati");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedStatoStoricoOrdiniAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
         }
 
@@ -1296,51 +1256,32 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var clienti = await _context.Cliente.ToListAsync();
                 var bevandeStandard = await _context.BevandaStandard.ToListAsync();
                 var dimensioniBicchiere = await _context.DimensioneBicchiere.ToListAsync();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var cliente = clienti.FirstOrDefault();
-
-                // ✅ Cerca le bevande per prezzo usando FirstOrDefault
-                var bevandaClassic = bevandeStandard.FirstOrDefault(b => b.Prezzo == 4.50m);
-                var bevandaFruit = bevandeStandard.FirstOrDefault(b => b.Prezzo == 5.50m);
-
-                // ✅ Prendi una dimensione bicchiere di default
-                var dimensioneDefault = dimensioniBicchiere.FirstOrDefault();
-
-                // ✅ Verifica che tutte le entità esistano
-                if (cliente == null)
+                // ✅ CORREZIONE: Controllo conteggio invece di FirstOrDefault con condizioni
+                if (clienti.Count < 1 || bevandeStandard.Count < 2 || dimensioniBicchiere.Count < 1)
                 {
-                    Console.WriteLine("⚠️  Cliente non trovato per PreferitiCliente");
+                    Console.WriteLine("⚠️  Clienti, BevandeStandard o Dimensioni insufficienti per PreferitiCliente");
                     return;
                 }
 
-                if (bevandaClassic == null || bevandaFruit == null)
-                {
-                    Console.WriteLine("⚠️  Bevande standard non trovate per PreferitiCliente");
-                    return;
-                }
-
-                if (dimensioneDefault == null)
-                {
-                    Console.WriteLine("⚠️  Dimensioni bicchiere non trovate per PreferitiCliente");
-                    return;
-                }
+                var cliente = clienti[0]; // ✅ Accesso per indice
+                var bevanda1 = bevandeStandard[0]; // ✅ Prima bevanda
+                var bevanda2 = bevandeStandard[1]; // ✅ Seconda bevanda  
+                var dimensioneDefault = dimensioniBicchiere[0]; // ✅ Accesso per indice
 
                 var preferiti = new[]
                 {
                     new PreferitiCliente
                     {
                         ClienteId = cliente.ClienteId,
-                        BevandaId = bevandaClassic.ArticoloId,
+                        BevandaId = bevanda1.ArticoloId,
                         DataAggiunta = DateTime.UtcNow.AddDays(-7),
-                        // ✅ AGGIUNTI TUTTI I NUOVI CAMPI
-                        TipoArticolo = "BS", // Bevanda Standard
+                        TipoArticolo = "BS",
                         NomePersonalizzato = "Il mio Bubble Tea Classico",
-                        GradoDolcezza = 2, // Medio (1-3)
+                        GradoDolcezza = 2,
                         DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
                         IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte\", \"tapioca\", \"zucchero di canna\"]}",
                         NotePersonali = "Preferito con poco ghiaccio"
@@ -1348,24 +1289,23 @@ namespace BBltZen.Services
                     new PreferitiCliente
                     {
                         ClienteId = cliente.ClienteId,
-                        BevandaId = bevandaFruit.ArticoloId,
-                        DataAggiunta = DateTime.UtcNow.AddDays(-3),                        
-                        TipoArticolo = "BS", // Bevanda Standard
+                        BevandaId = bevanda2.ArticoloId,
+                        DataAggiunta = DateTime.UtcNow.AddDays(-3),
+                        TipoArticolo = "BS",
                         NomePersonalizzato = "Bubble Tea Fruttato Estivo",
-                        GradoDolcezza = 3, // Dolce (1-3)
+                        GradoDolcezza = 3,
                         DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
                         IngredientiJson = "{\"ingredienti\": [\"tè verde\", \"mango\", \"frutto della passione\", \"tapioca arcobaleno\"]}",
                         NotePersonali = "Perfetto per l'estate, con extra frutta"
                     },
-                    // ✅ AGGIUNTO UN TERZO PREFERITO PER TESTARE PIÙ SCENARI
                     new PreferitiCliente
                     {
                         ClienteId = cliente.ClienteId,
-                        BevandaId = bevandaClassic.ArticoloId, // Stessa bevanda ma personalizzazione diversa
+                        BevandaId = bevanda1.ArticoloId,
                         DataAggiunta = DateTime.UtcNow.AddDays(-1),
                         TipoArticolo = "BS",
                         NomePersonalizzato = "Bubble Tea Light",
-                        GradoDolcezza = 1, // Leggero (1-3)
+                        GradoDolcezza = 1,
                         DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
                         IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte di mandorla\", \"tapioca\", \"stevia\"]}",
                         NotePersonali = "Versione light senza zucchero aggiunto"
@@ -1374,17 +1314,11 @@ namespace BBltZen.Services
 
                 await _context.PreferitiCliente.AddRangeAsync(preferiti);
                 await _context.SaveChangesAsync();
-
-                Console.WriteLine($"✅ PreferitiCliente seeded successfully - {preferiti.Length} preferiti creati");
+                Console.WriteLine($"✅ PreferitiCliente seeded - {preferiti.Length} preferiti creati");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedPreferitiClienteAsync: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"   Inner Exception: {ex.InnerException.Message}");
-                }
-                // Continua senza bloccare tutto il seeding
             }
         }
 
