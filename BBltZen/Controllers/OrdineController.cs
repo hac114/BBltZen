@@ -17,7 +17,7 @@ namespace BBltZen.Controllers
     //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
     public class OrdineController : SecureBaseController
     {
-        private readonly IOrdineRepository _ordineRepository; // ✅ CAMBIATO NOME
+        private readonly IOrdineRepository _ordineRepository;
         private readonly BubbleTeaContext _context;
 
         public OrdineController(
@@ -27,9 +27,11 @@ namespace BBltZen.Controllers
             ILogger<OrdineController> logger)
             : base(environment, logger)
         {
-            _ordineRepository = repository; // ✅ CAMBIATO NOME
+            _ordineRepository = repository;
             _context = context;
         }
+
+        // ✅ ENDPOINT ESISTENTI - MANTENUTI
 
         [HttpGet]
         [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
@@ -37,11 +39,9 @@ namespace BBltZen.Controllers
         {
             try
             {
-                var result = await _ordineRepository.GetAllAsync(); // ✅ CAMBIATO NOME
+                var result = await _ordineRepository.GetAllAsync();
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_ALL_ORDINI", "Ordine", "All");
-
                 return Ok(result);
             }
             catch (Exception ex)
@@ -64,14 +64,12 @@ namespace BBltZen.Controllers
                 if (ordineId <= 0)
                     return SafeBadRequest<OrdineDTO>("ID ordine non valido");
 
-                var result = await _ordineRepository.GetByIdAsync(ordineId); // ✅ CAMBIATO NOME
+                var result = await _ordineRepository.GetByIdAsync(ordineId);
 
                 if (result == null)
                     return SafeNotFound<OrdineDTO>("Ordine");
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_ORDINE_BY_ID", "Ordine", ordineId.ToString());
-
                 return Ok(result);
             }
             catch (Exception ex)
@@ -94,16 +92,13 @@ namespace BBltZen.Controllers
                 if (clienteId <= 0)
                     return SafeBadRequest<IEnumerable<OrdineDTO>>("ID cliente non valido");
 
-                // ✅ Controllo esistenza cliente con BubbleTeaContext
                 var clienteExists = await _context.Cliente.AnyAsync(c => c.ClienteId == clienteId);
                 if (!clienteExists)
                     return SafeNotFound<IEnumerable<OrdineDTO>>("Cliente non trovato");
 
-                var result = await _ordineRepository.GetByClienteIdAsync(clienteId); // ✅ CAMBIATO NOME
+                var result = await _ordineRepository.GetByClienteIdAsync(clienteId);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_ORDINI_BY_CLIENTE", "Ordine", clienteId.ToString());
-
                 return Ok(result);
             }
             catch (Exception ex)
@@ -126,16 +121,13 @@ namespace BBltZen.Controllers
                 if (statoOrdineId <= 0)
                     return SafeBadRequest<IEnumerable<OrdineDTO>>("ID stato ordine non valido");
 
-                // ✅ Controllo esistenza stato ordine con BubbleTeaContext
                 var statoExists = await _context.StatoOrdine.AnyAsync(so => so.StatoOrdineId == statoOrdineId);
                 if (!statoExists)
                     return SafeNotFound<IEnumerable<OrdineDTO>>("Stato ordine non trovato");
 
-                var result = await _ordineRepository.GetByStatoOrdineIdAsync(statoOrdineId); // ✅ CAMBIATO NOME
+                var result = await _ordineRepository.GetByStatoOrdineIdAsync(statoOrdineId);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_ORDINI_BY_STATO_ORDINE", "Ordine", statoOrdineId.ToString());
-
                 return Ok(result);
             }
             catch (Exception ex)
@@ -158,16 +150,13 @@ namespace BBltZen.Controllers
                 if (statoPagamentoId <= 0)
                     return SafeBadRequest<IEnumerable<OrdineDTO>>("ID stato pagamento non valido");
 
-                // ✅ Controllo esistenza stato pagamento con BubbleTeaContext
                 var statoExists = await _context.StatoPagamento.AnyAsync(sp => sp.StatoPagamentoId == statoPagamentoId);
                 if (!statoExists)
                     return SafeNotFound<IEnumerable<OrdineDTO>>("Stato pagamento non trovato");
 
-                var result = await _ordineRepository.GetByStatoPagamentoIdAsync(statoPagamentoId); // ✅ CAMBIATO NOME
+                var result = await _ordineRepository.GetByStatoPagamentoIdAsync(statoPagamentoId);
 
-                // ✅ Log per audit
                 LogAuditTrail("GET_ORDINI_BY_STATO_PAGAMENTO", "Ordine", statoPagamentoId.ToString());
-
                 return Ok(result);
             }
             catch (Exception ex)
@@ -177,6 +166,82 @@ namespace BBltZen.Controllers
                     _environment.IsDevelopment()
                         ? $"Errore durante il recupero degli ordini per stato pagamento {statoPagamentoId}: {ex.Message}"
                         : "Errore interno nel recupero ordini per stato pagamento"
+                );
+            }
+        }
+
+        // ✅ NUOVI ENDPOINT PER SESSIONE ID
+
+        [HttpGet("sessione/{sessioneId}")]
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
+        public async Task<ActionResult<IEnumerable<OrdineDTO>>> GetBySessioneId(Guid sessioneId)
+        {
+            try
+            {
+                if (sessioneId == Guid.Empty)
+                    return SafeBadRequest<IEnumerable<OrdineDTO>>("ID sessione non valido");
+
+                // ✅ Controllo esistenza sessione con BubbleTeaContext
+                var sessioneExists = await _context.SessioniQr.AnyAsync(s => s.SessioneId == sessioneId);
+                if (!sessioneExists)
+                    return SafeNotFound<IEnumerable<OrdineDTO>>("Sessione non trovata");
+
+                var result = await _ordineRepository.GetBySessioneIdAsync(sessioneId);
+
+                LogAuditTrail("GET_ORDINI_BY_SESSIONE", "Ordine", sessioneId.ToString());
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero degli ordini per sessione {SessioneId}", sessioneId);
+                return SafeInternalError<IEnumerable<OrdineDTO>>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero degli ordini per sessione {sessioneId}: {ex.Message}"
+                        : "Errore interno nel recupero ordini per sessione"
+                );
+            }
+        }
+
+        [HttpGet("con-sessione")]
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
+        public async Task<ActionResult<IEnumerable<OrdineDTO>>> GetOrdiniConSessione()
+        {
+            try
+            {
+                var result = await _ordineRepository.GetOrdiniConSessioneAsync();
+
+                LogAuditTrail("GET_ORDINI_CON_SESSIONE", "Ordine", "All");
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero degli ordini con sessione");
+                return SafeInternalError<IEnumerable<OrdineDTO>>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero degli ordini con sessione: {ex.Message}"
+                        : "Errore interno nel recupero ordini con sessione"
+                );
+            }
+        }
+
+        [HttpGet("senza-sessione")]
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
+        public async Task<ActionResult<IEnumerable<OrdineDTO>>> GetOrdiniSenzaSessione()
+        {
+            try
+            {
+                var result = await _ordineRepository.GetOrdiniSenzaSessioneAsync();
+
+                LogAuditTrail("GET_ORDINI_SENZA_SESSIONE", "Ordine", "All");
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero degli ordini senza sessione");
+                return SafeInternalError<IEnumerable<OrdineDTO>>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante il recupero degli ordini senza sessione: {ex.Message}"
+                        : "Errore interno nel recupero ordini senza sessione"
                 );
             }
         }
@@ -195,40 +260,45 @@ namespace BBltZen.Controllers
                 if (!clienteExists)
                     return SafeBadRequest<OrdineDTO>("Cliente non trovato");
 
-                // CORREZIONE: Rimuovi .HasValue poiché StatoOrdineId è int (non nullable)
-                if (ordineDto.StatoOrdineId > 0) // rigo 198 CORRETTO
+                if (ordineDto.StatoOrdineId > 0)
                 {
                     var statoOrdineExists = await _context.StatoOrdine.AnyAsync(so => so.StatoOrdineId == ordineDto.StatoOrdineId);
                     if (!statoOrdineExists)
                         return SafeBadRequest<OrdineDTO>("Stato ordine non trovato");
                 }
 
-                // CORREZIONE: Rimuovi .HasValue poiché StatoPagamentoId è int (non nullable)
-                if (ordineDto.StatoPagamentoId > 0) // rigo 205 CORRETTO
+                if (ordineDto.StatoPagamentoId > 0)
                 {
                     var statoPagamentoExists = await _context.StatoPagamento.AnyAsync(sp => sp.StatoPagamentoId == ordineDto.StatoPagamentoId);
                     if (!statoPagamentoExists)
                         return SafeBadRequest<OrdineDTO>("Stato pagamento non trovato");
                 }
 
-                // Verifica se esiste già un ordine con lo stesso ID
-                if (ordineDto.OrdineId > 0 && await _ordineRepository.ExistsAsync(ordineDto.OrdineId)) // ✅ CAMBIATO NOME
+                // ✅ Controllo coerenza SessioneId se presente
+                if (ordineDto.SessioneId.HasValue && ordineDto.SessioneId != Guid.Empty)
+                {
+                    var sessioneExists = await _context.SessioniQr
+                        .AnyAsync(s => s.SessioneId == ordineDto.SessioneId.Value && s.ClienteId == ordineDto.ClienteId);
+                    if (!sessioneExists)
+                        return SafeBadRequest<OrdineDTO>("Sessione non valida o non associata al cliente");
+                }
+
+                if (ordineDto.OrdineId > 0 && await _ordineRepository.ExistsAsync(ordineDto.OrdineId))
                     return SafeBadRequest<OrdineDTO>("Esiste già un ordine con questo ID");
 
-                // ✅ CORREZIONE: Rimuovi ??= poiché sono int (non nullable), usa if
-                if (ordineDto.StatoOrdineId == 0) // rigo 217 CORRETTO
+                if (ordineDto.StatoOrdineId == 0)
                     ordineDto.StatoOrdineId = 1;
-                if (ordineDto.StatoPagamentoId == 0) //rigo 218 CORRETTO
+                if (ordineDto.StatoPagamentoId == 0)
                     ordineDto.StatoPagamentoId = 1;
 
-                var result = await _ordineRepository.AddAsync(ordineDto); // ✅ CAMBIATO NOME
+                var result = await _ordineRepository.AddAsync(ordineDto);
 
-                // ✅ Audit trail e security event
                 LogAuditTrail("CREATE_ORDINE", "Ordine", ordineDto.OrdineId.ToString());
                 LogSecurityEvent("OrdineCreated", new
                 {
                     OrdineId = ordineDto.OrdineId,
                     ClienteId = ordineDto.ClienteId,
+                    SessioneId = ordineDto.SessioneId?.ToString() ?? "Nessuna",
                     StatoOrdineId = ordineDto.StatoOrdineId,
                     StatoPagamentoId = ordineDto.StatoPagamentoId,
                     Totale = ordineDto.Totale,
@@ -295,45 +365,51 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(ordineDto))
                     return SafeBadRequest("Dati ordine non validi");
 
-                // ✅ Controlli avanzati con BubbleTeaContext
                 var clienteExists = await _context.Cliente.AnyAsync(c => c.ClienteId == ordineDto.ClienteId);
                 if (!clienteExists)
                     return SafeBadRequest("Cliente non trovato");
 
-                // CORREZIONE: Rimuovi .HasValue poiché StatoOrdineId è int (non nullable)
-                if (ordineDto.StatoOrdineId > 0) // RIGO CORRETTO
+                if (ordineDto.StatoOrdineId > 0)
                 {
                     var statoOrdineExists = await _context.StatoOrdine.AnyAsync(so => so.StatoOrdineId == ordineDto.StatoOrdineId);
                     if (!statoOrdineExists)
                         return SafeBadRequest("Stato ordine non trovato");
                 }
 
-                // CORREZIONE: Rimuovi .HasValue poiché StatoPagamentoId è int (non nullable)
-                if (ordineDto.StatoPagamentoId > 0) // RIGO CORRETTO
+                if (ordineDto.StatoPagamentoId > 0)
                 {
                     var statoPagamentoExists = await _context.StatoPagamento.AnyAsync(sp => sp.StatoPagamentoId == ordineDto.StatoPagamentoId);
                     if (!statoPagamentoExists)
                         return SafeBadRequest("Stato pagamento non trovato");
                 }
 
-                var existing = await _ordineRepository.GetByIdAsync(ordineId); // ✅ CAMBIATO NOME
+                // ✅ Controllo coerenza SessioneId se presente
+                if (ordineDto.SessioneId.HasValue && ordineDto.SessioneId != Guid.Empty)
+                {
+                    var sessioneExists = await _context.SessioniQr
+                        .AnyAsync(s => s.SessioneId == ordineDto.SessioneId.Value && s.ClienteId == ordineDto.ClienteId);
+                    if (!sessioneExists)
+                        return SafeBadRequest("Sessione non valida o non associata al cliente");
+                }
+
+                var existing = await _ordineRepository.GetByIdAsync(ordineId);
                 if (existing == null)
                     return SafeNotFound("Ordine");
 
-                await _ordineRepository.UpdateAsync(ordineDto); // ✅ CAMBIATO NOME
+                await _ordineRepository.UpdateAsync(ordineDto);
 
-                // ✅ Audit trail e security event
                 LogAuditTrail("UPDATE_ORDINE", "Ordine", ordineDto.OrdineId.ToString());
                 LogSecurityEvent("OrdineUpdated", new
                 {
                     OrdineId = ordineDto.OrdineId,
+                    SessioneId = ordineDto.SessioneId?.ToString() ?? "Nessuna",
                     StatoOrdineId = ordineDto.StatoOrdineId,
                     StatoPagamentoId = ordineDto.StatoPagamentoId,
                     Priorita = ordineDto.Priorita,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow,
                     IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                    Changes = $"StatoOrdine: {existing.StatoOrdineId} → {ordineDto.StatoOrdineId}, StatoPagamento: {existing.StatoPagamentoId} → {ordineDto.StatoPagamentoId}, Priorità: {existing.Priorita} → {ordineDto.Priorita}"
+                    Changes = $"StatoOrdine: {existing.StatoOrdineId} → {ordineDto.StatoOrdineId}, StatoPagamento: {existing.StatoPagamentoId} → {ordineDto.StatoPagamentoId}, Priorità: {existing.Priorita} → {ordineDto.Priorita}, Sessione: {(existing.SessioneId?.ToString() ?? "Nessuna")} → {(ordineDto.SessioneId?.ToString() ?? "Nessuna")}"
                 });
 
                 return NoContent();
@@ -381,23 +457,22 @@ namespace BBltZen.Controllers
                 if (ordineId <= 0)
                     return SafeBadRequest("ID ordine non valido");
 
-                var existing = await _ordineRepository.GetByIdAsync(ordineId); // ✅ CAMBIATO NOME
+                var existing = await _ordineRepository.GetByIdAsync(ordineId);
                 if (existing == null)
                     return SafeNotFound("Ordine");
 
-                // ✅ Controlli avanzati con BubbleTeaContext - Verifica se ci sono order items collegati
                 var orderItemsCollegati = await _context.OrderItem
                     .AnyAsync(oi => oi.OrdineId == ordineId);
                 if (orderItemsCollegati)
                     return SafeBadRequest("Impossibile eliminare: esistono order items collegati a questo ordine");
 
-                await _ordineRepository.DeleteAsync(ordineId); // ✅ CAMBIATO NOME
+                await _ordineRepository.DeleteAsync(ordineId);
 
-                // ✅ Audit trail e security event
                 LogAuditTrail("DELETE_ORDINE", "Ordine", ordineId.ToString());
                 LogSecurityEvent("OrdineDeleted", new
                 {
                     OrdineId = ordineId,
+                    SessioneId = existing.SessioneId?.ToString() ?? "Nessuna",
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow,
                     IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()

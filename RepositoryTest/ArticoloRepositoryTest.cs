@@ -380,15 +380,15 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newArticolo);
+            var result = await _repository.AddAsync(newArticolo);
 
             // Assert
-            Assert.True(newArticolo.ArticoloId > 0);
-            var result = await _repository.GetByIdAsync(newArticolo.ArticoloId);
-            Assert.NotNull(result);
-            Assert.Equal("BC", result.Tipo);
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
+            Assert.True(result.ArticoloId > 0); // ✅ USA result
+            var savedArticolo = await _repository.GetByIdAsync(result.ArticoloId); // ✅ USA result
+            Assert.NotNull(savedArticolo);
+            Assert.Equal("BC", savedArticolo.Tipo);
+            Assert.NotNull(savedArticolo.DataCreazione);
+            Assert.NotNull(savedArticolo.DataAggiornamento);
         }
 
         [Fact]

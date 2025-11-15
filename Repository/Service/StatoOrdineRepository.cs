@@ -91,22 +91,30 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task AddAsync(StatoOrdineDTO statoOrdineDto)
+        public async Task<StatoOrdineDTO> AddAsync(StatoOrdineDTO statoOrdineDto) // ✅ CORRETTO: Ritorna DTO
         {
+            if (statoOrdineDto == null)
+                throw new ArgumentNullException(nameof(statoOrdineDto));
+
             var statoOrdine = new StatoOrdine
             {
                 StatoOrdine1 = statoOrdineDto.StatoOrdine1,
                 Terminale = statoOrdineDto.Terminale
             };
 
-            _context.StatoOrdine.Add(statoOrdine);
+            await _context.StatoOrdine.AddAsync(statoOrdine);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA IL DTO CON L'ID GENERATO
             statoOrdineDto.StatoOrdineId = statoOrdine.StatoOrdineId;
+            return statoOrdineDto;
         }
 
         public async Task UpdateAsync(StatoOrdineDTO statoOrdineDto)
         {
+            if (statoOrdineDto == null)
+                throw new ArgumentNullException(nameof(statoOrdineDto));
+
             var statoOrdine = await _context.StatoOrdine
                 .FirstOrDefaultAsync(s => s.StatoOrdineId == statoOrdineDto.StatoOrdineId);
 

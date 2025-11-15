@@ -10,7 +10,7 @@ namespace Repository.Interface
         Task<ArticoloDTO?> GetByIdAsync(int articoloId);
         Task<IEnumerable<ArticoloDTO>> GetByTipoAsync(string tipo);
         Task<IEnumerable<ArticoloDTO>> GetArticoliOrdinabiliAsync();
-        Task AddAsync(ArticoloDTO articoloDto);
+        Task<ArticoloDTO> AddAsync(ArticoloDTO articoloDto);
         Task UpdateAsync(ArticoloDTO articoloDto);
         Task DeleteAsync(int articoloId);
         Task<bool> ExistsAsync(int articoloId);

@@ -13,5 +13,8 @@ namespace Repository.Interface
         Task<IEnumerable<OrdineDTO>> GetByClienteIdAsync(int clienteId);
         Task<IEnumerable<OrdineDTO>> GetByStatoOrdineIdAsync(int statoOrdineId);
         Task<IEnumerable<OrdineDTO>> GetByStatoPagamentoIdAsync(int statoPagamentoId);
+        Task<IEnumerable<OrdineDTO>> GetBySessioneIdAsync(Guid sessioneId);
+        Task<IEnumerable<OrdineDTO>> GetOrdiniConSessioneAsync();
+        Task<IEnumerable<OrdineDTO>> GetOrdiniSenzaSessioneAsync();
     }
 }

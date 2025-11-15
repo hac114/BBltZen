@@ -218,7 +218,6 @@ namespace BBltZen.Controllers
                     Timestamp = DateTime.UtcNow
                 });
 
-                // ✅ CORREZIONE: Controllo esplicito per null prima di IsModelValid
                 if (articoloDto == null)
                     return SafeBadRequest<ArticoloDTO>("Dati articolo non validi");
 
@@ -232,33 +231,45 @@ namespace BBltZen.Controllers
                 if (!IsTipoValido(articoloDto.Tipo))
                     return SafeBadRequest<ArticoloDTO>($"Tipo articolo non valido: {articoloDto.Tipo}");
 
-                await _repository.AddAsync(articoloDto);
+                var result = await _repository.AddAsync(articoloDto); // ✅ CORREGGI: assegna risultato
 
-                LogAuditTrail("CREATE", "Articolo", articoloDto.ArticoloId.ToString());
+                LogAuditTrail("CREATE", "Articolo", result.ArticoloId.ToString()); // ✅ USA result
                 LogSecurityEvent("ArticoloCreated", new
                 {
-                    ArticoloId = articoloDto.ArticoloId,
-                    Tipo = articoloDto.Tipo,
+                    ArticoloId = result.ArticoloId, // ✅ USA result
+                    Tipo = result.Tipo, // ✅ USA result
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
 
-                return CreatedAtAction(nameof(GetById), new { articoloId = articoloDto.ArticoloId }, articoloDto);
+                return CreatedAtAction(nameof(GetById), new { articoloId = result.ArticoloId }, result); // ✅ USA result
             }
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Errore database durante la creazione dell'articolo");
-                return SafeInternalError<ArticoloDTO>("Errore di sistema durante la creazione dell'articolo");
+                return SafeInternalError<ArticoloDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore database nella creazione articolo: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                        : "Errore di sistema durante la creazione dell'articolo"
+                );
             }
             catch (ArgumentException argEx)
             {
                 _logger.LogWarning(argEx, "Argomento non valido durante la creazione dell'articolo");
-                return SafeBadRequest<ArticoloDTO>(argEx.Message);
+                return SafeBadRequest<ArticoloDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Dati non validi: {argEx.Message}"
+                        : "Dati non validi"
+                );
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dell'articolo");
-                return SafeInternalError<ArticoloDTO>("Errore durante la creazione dell'articolo");
+                return SafeInternalError<ArticoloDTO>(
+                    _environment.IsDevelopment()
+                        ? $"Errore durante la creazione dell'articolo: {ex.Message}"
+                        : "Errore durante la creazione dell'articolo"
+                );
             }
         }
 

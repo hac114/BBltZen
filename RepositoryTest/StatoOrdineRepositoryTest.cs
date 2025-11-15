@@ -37,7 +37,7 @@ namespace RepositoryTest
                 new StatoOrdine
                 {
                     StatoOrdineId = 1,
-                    StatoOrdine1 = "In Attesa",
+                    StatoOrdine1 = "In Coda",
                     Terminale = false
                 },
                 new StatoOrdine
@@ -49,20 +49,38 @@ namespace RepositoryTest
                 new StatoOrdine
                 {
                     StatoOrdineId = 3,
-                    StatoOrdine1 = "Pronto",
+                    StatoOrdine1 = "Pronta consegna",
                     Terminale = false
                 },
                 new StatoOrdine
                 {
                     StatoOrdineId = 4,
-                    StatoOrdine1 = "Completato",
+                    StatoOrdine1 = "Consegnato",
                     Terminale = true
                 },
                 new StatoOrdine
                 {
                     StatoOrdineId = 5,
+                    StatoOrdine1 = "Sospeso",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdineId = 6,
                     StatoOrdine1 = "Annullato",
                     Terminale = true
+                },
+                new StatoOrdine
+                {
+                    StatoOrdineId = 8,
+                    StatoOrdine1 = "Bozza",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdineId = 9,
+                    StatoOrdine1 = "In carrello",
+                    Terminale = false
                 }
             };
 
@@ -78,7 +96,7 @@ namespace RepositoryTest
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(5, result.Count());
+            Assert.Equal(8, result.Count());
         }
 
         [Fact]
@@ -90,7 +108,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.Equal(1, result.StatoOrdineId);
-            Assert.Equal("In Attesa", result.StatoOrdine1);
+            Assert.Equal("In Coda", result.StatoOrdine1);
             Assert.False(result.Terminale);
         }
 
@@ -147,7 +165,7 @@ namespace RepositoryTest
 
             // Assert
             var resultList = result.ToList();
-            Assert.Equal(3, resultList.Count);
+            Assert.Equal(6, resultList.Count);
             Assert.All(resultList, s => Assert.False(s.Terminale));
         }
 

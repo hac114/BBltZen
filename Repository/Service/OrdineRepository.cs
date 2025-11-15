@@ -31,7 +31,8 @@ namespace Repository.Service
                     StatoOrdineId = o.StatoOrdineId,
                     StatoPagamentoId = o.StatoPagamentoId,
                     Totale = o.Totale,
-                    Priorita = o.Priorita
+                    Priorita = o.Priorita,
+                    SessioneId = o.SessioneId // ✅ AGGIUNTO
                 })
                 .ToListAsync();
         }
@@ -53,7 +54,8 @@ namespace Repository.Service
                 StatoOrdineId = ordine.StatoOrdineId,
                 StatoPagamentoId = ordine.StatoPagamentoId,
                 Totale = ordine.Totale,
-                Priorita = ordine.Priorita
+                Priorita = ordine.Priorita,
+                SessioneId = ordine.SessioneId // ✅ AGGIUNTO
             };
         }
 
@@ -67,10 +69,11 @@ namespace Repository.Service
                 ClienteId = entity.ClienteId,
                 DataCreazione = DateTime.Now,
                 DataAggiornamento = DateTime.Now,
-                StatoOrdineId = entity.StatoOrdineId, 
+                StatoOrdineId = entity.StatoOrdineId,
                 StatoPagamentoId = entity.StatoPagamentoId,
                 Totale = entity.Totale,
-                Priorita = entity.Priorita
+                Priorita = entity.Priorita,
+                SessioneId = entity.SessioneId // ✅ AGGIUNTO
             };
 
             await _context.Ordine.AddAsync(ordineEntity);
@@ -100,6 +103,7 @@ namespace Repository.Service
             existingOrdine.StatoPagamentoId = entity.StatoPagamentoId;
             existingOrdine.Totale = entity.Totale;
             existingOrdine.Priorita = entity.Priorita;
+            existingOrdine.SessioneId = entity.SessioneId; // ✅ AGGIUNTO
             existingOrdine.DataAggiornamento = DateTime.Now;
 
             await _context.SaveChangesAsync();
@@ -140,7 +144,8 @@ namespace Repository.Service
                     StatoOrdineId = o.StatoOrdineId,
                     StatoPagamentoId = o.StatoPagamentoId,
                     Totale = o.Totale,
-                    Priorita = o.Priorita
+                    Priorita = o.Priorita,
+                    SessioneId = o.SessioneId // ✅ AGGIUNTO
                 })
                 .ToListAsync();
         }
@@ -159,7 +164,8 @@ namespace Repository.Service
                     StatoOrdineId = o.StatoOrdineId,
                     StatoPagamentoId = o.StatoPagamentoId,
                     Totale = o.Totale,
-                    Priorita = o.Priorita
+                    Priorita = o.Priorita,
+                    SessioneId = o.SessioneId // ✅ AGGIUNTO
                 })
                 .ToListAsync();
         }
@@ -178,7 +184,71 @@ namespace Repository.Service
                     StatoOrdineId = o.StatoOrdineId,
                     StatoPagamentoId = o.StatoPagamentoId,
                     Totale = o.Totale,
-                    Priorita = o.Priorita
+                    Priorita = o.Priorita,
+                    SessioneId = o.SessioneId // ✅ AGGIUNTO
+                })
+                .ToListAsync();
+        }
+
+        // ✅ NUOVO METODO: GetBySessioneIdAsync
+        public async Task<IEnumerable<OrdineDTO>> GetBySessioneIdAsync(Guid sessioneId)
+        {
+            return await _context.Ordine
+                .AsNoTracking()
+                .Where(o => o.SessioneId == sessioneId)
+                .Select(o => new OrdineDTO
+                {
+                    OrdineId = o.OrdineId,
+                    ClienteId = o.ClienteId,
+                    DataCreazione = o.DataCreazione,
+                    DataAggiornamento = o.DataAggiornamento,
+                    StatoOrdineId = o.StatoOrdineId,
+                    StatoPagamentoId = o.StatoPagamentoId,
+                    Totale = o.Totale,
+                    Priorita = o.Priorita,
+                    SessioneId = o.SessioneId
+                })
+                .ToListAsync();
+        }
+
+        // ✅ NUOVO METODO: GetOrdiniConSessioneAsync
+        public async Task<IEnumerable<OrdineDTO>> GetOrdiniConSessioneAsync()
+        {
+            return await _context.Ordine
+                .AsNoTracking()
+                .Where(o => o.SessioneId != null)
+                .Select(o => new OrdineDTO
+                {
+                    OrdineId = o.OrdineId,
+                    ClienteId = o.ClienteId,
+                    DataCreazione = o.DataCreazione,
+                    DataAggiornamento = o.DataAggiornamento,
+                    StatoOrdineId = o.StatoOrdineId,
+                    StatoPagamentoId = o.StatoPagamentoId,
+                    Totale = o.Totale,
+                    Priorita = o.Priorita,
+                    SessioneId = o.SessioneId
+                })
+                .ToListAsync();
+        }
+
+        // ✅ NUOVO METODO: GetOrdiniSenzaSessioneAsync
+        public async Task<IEnumerable<OrdineDTO>> GetOrdiniSenzaSessioneAsync()
+        {
+            return await _context.Ordine
+                .AsNoTracking()
+                .Where(o => o.SessioneId == null)
+                .Select(o => new OrdineDTO
+                {
+                    OrdineId = o.OrdineId,
+                    ClienteId = o.ClienteId,
+                    DataCreazione = o.DataCreazione,
+                    DataAggiornamento = o.DataAggiornamento,
+                    StatoOrdineId = o.StatoOrdineId,
+                    StatoPagamentoId = o.StatoPagamentoId,
+                    Totale = o.Totale,
+                    Priorita = o.Priorita,
+                    SessioneId = o.SessioneId
                 })
                 .ToListAsync();
         }

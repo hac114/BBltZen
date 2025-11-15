@@ -226,22 +226,27 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task AddAsync(ArticoloDTO articoloDto)
+        public async Task<ArticoloDTO> AddAsync(ArticoloDTO articoloDto) // ✅ CORREGGI: ritorna DTO
         {
+            if (articoloDto == null)
+                throw new ArgumentNullException(nameof(articoloDto));
+
             var articolo = new Articolo
             {
                 Tipo = articoloDto.Tipo,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
+                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
+                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
             };
 
-            _context.Articolo.Add(articolo);
+            await _context.Articolo.AddAsync(articolo);
             await _context.SaveChangesAsync();
 
             // Aggiorna il DTO con i valori del database
             articoloDto.ArticoloId = articolo.ArticoloId;
             articoloDto.DataCreazione = articolo.DataCreazione;
             articoloDto.DataAggiornamento = articolo.DataAggiornamento;
+
+            return articoloDto; // ✅ AGGIUNGI return
         }
 
         public async Task UpdateAsync(ArticoloDTO articoloDto)

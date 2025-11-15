@@ -60,21 +60,28 @@ namespace Repository.Service
             };
         }
 
-        public async Task AddAsync(StatoPagamentoDTO statoPagamentoDto)
+        public async Task<StatoPagamentoDTO> AddAsync(StatoPagamentoDTO statoPagamentoDto) // ✅ CORREGGI: ritorna DTO
         {
+            if (statoPagamentoDto == null)
+                throw new ArgumentNullException(nameof(statoPagamentoDto));
+
             var statoPagamento = new StatoPagamento
             {
                 StatoPagamento1 = statoPagamentoDto.StatoPagamento1
             };
 
-            _context.StatoPagamento.Add(statoPagamento);
+            await _context.StatoPagamento.AddAsync(statoPagamento);
             await _context.SaveChangesAsync();
 
             statoPagamentoDto.StatoPagamentoId = statoPagamento.StatoPagamentoId;
+            return statoPagamentoDto; // ✅ AGGIUNGI return
         }
 
         public async Task UpdateAsync(StatoPagamentoDTO statoPagamentoDto)
         {
+            if (statoPagamentoDto == null) // ✅ AGGIUNGI validazione
+                throw new ArgumentNullException(nameof(statoPagamentoDto));
+
             var statoPagamento = await _context.StatoPagamento
                 .FirstOrDefaultAsync(s => s.StatoPagamentoId == statoPagamentoDto.StatoPagamentoId);
 
@@ -82,7 +89,6 @@ namespace Repository.Service
                 throw new ArgumentException($"Stato pagamento con ID {statoPagamentoDto.StatoPagamentoId} non trovato");
 
             statoPagamento.StatoPagamento1 = statoPagamentoDto.StatoPagamento1;
-
             await _context.SaveChangesAsync();
         }
 

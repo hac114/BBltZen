@@ -37,12 +37,12 @@ namespace RepositoryTest
                 new StatoPagamento
                 {
                     StatoPagamentoId = 1,
-                    StatoPagamento1 = "In Attesa"
+                    StatoPagamento1 = "Pendente"
                 },
                 new StatoPagamento
                 {
                     StatoPagamentoId = 2,
-                    StatoPagamento1 = "Pagato"
+                    StatoPagamento1 = "Completato"
                 },
                 new StatoPagamento
                 {
@@ -57,7 +57,7 @@ namespace RepositoryTest
                 new StatoPagamento
                 {
                     StatoPagamentoId = 5,
-                    StatoPagamento1 = "In Elaborazione"
+                    StatoPagamento1 = "Non Richiesto"
                 }
             };
 
@@ -85,7 +85,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.Equal(1, result.StatoPagamentoId);
-            Assert.Equal("In Attesa", result.StatoPagamento1);
+            Assert.Equal("Pendente", result.StatoPagamento1);
         }
 
         [Fact]
@@ -102,12 +102,12 @@ namespace RepositoryTest
         public async Task GetByNomeAsync_ShouldReturnStatoPagamento()
         {
             // Act
-            var result = await _repository.GetByNomeAsync("Pagato");
+            var result = await _repository.GetByNomeAsync("Completato");
 
             // Assert
             Assert.NotNull(result);
             Assert.Equal(2, result.StatoPagamentoId);
-            Assert.Equal("Pagato", result.StatoPagamento1);
+            Assert.Equal("Completato", result.StatoPagamento1);
         }
 
         [Fact]

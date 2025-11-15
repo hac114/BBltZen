@@ -104,23 +104,12 @@ namespace BBltZen.Controllers
                 if (await _repository.ExistsByAliquotaAsync(taxRateDto.Aliquota))
                     return SafeBadRequest<TaxRatesDTO>("Aliquota già esistente");
 
-                await _repository.AddAsync(taxRateDto);
+                // ✅ CORREZIONE: AddAsync ora ritorna il DTO con i valori aggiornati
+                var createdTaxRate = await _repository.AddAsync(taxRateDto);
 
-                // ✅ Recupera l'aliquota creata per ottenere i valori dal database
-                var createdTaxRate = await _repository.GetByAliquotaAsync(taxRateDto.Aliquota);
-                if (createdTaxRate == null)
-                    return SafeInternalError<TaxRatesDTO>("Errore durante il recupero dell'aliquota creata");
-
-                // ✅ Audit trail completo
+                // ✅ SEMPLIFICATO: Audit trail
                 LogAuditTrail("CREATE", "TaxRates", createdTaxRate.TaxRateId.ToString());
-                LogSecurityEvent("TaxRateCreated", new
-                {
-                    TaxRateId = createdTaxRate.TaxRateId,
-                    Aliquota = createdTaxRate.Aliquota,
-                    Descrizione = createdTaxRate.Descrizione,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
+                LogSecurityEvent("TaxRateCreated", $"Created TaxRate ID: {createdTaxRate.TaxRateId}");
 
                 return CreatedAtAction(nameof(GetById), new { id = createdTaxRate.TaxRateId }, createdTaxRate);
             }
@@ -165,18 +154,12 @@ namespace BBltZen.Controllers
                 if (await _repository.ExistsByAliquotaAsync(taxRateDto.Aliquota, id))
                     return SafeBadRequest("Aliquota già esistente");
 
+                // ✅ CORREZIONE: UpdateAsync ora aggiorna automaticamente DataAggiornamento
                 await _repository.UpdateAsync(taxRateDto);
 
-                // ✅ Audit trail completo
+                // ✅ SEMPLIFICATO: Audit trail
                 LogAuditTrail("UPDATE", "TaxRates", taxRateDto.TaxRateId.ToString());
-                LogSecurityEvent("TaxRateUpdated", new
-                {
-                    TaxRateId = taxRateDto.TaxRateId,
-                    Aliquota = taxRateDto.Aliquota,
-                    Descrizione = taxRateDto.Descrizione,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
+                LogSecurityEvent("TaxRateUpdated", $"Updated TaxRate ID: {taxRateDto.TaxRateId}");
 
                 return NoContent();
             }
@@ -213,16 +196,9 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(id);
 
-                // ✅ Audit trail completo
+                // ✅ SEMPLIFICATO: Audit trail
                 LogAuditTrail("DELETE", "TaxRates", id.ToString());
-                LogSecurityEvent("TaxRateDeleted", new
-                {
-                    TaxRateId = id,
-                    Aliquota = taxRate.Aliquota,
-                    Descrizione = taxRate.Descrizione,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
+                LogSecurityEvent("TaxRateDeleted", $"Deleted TaxRate ID: {id}");
 
                 return NoContent();
             }

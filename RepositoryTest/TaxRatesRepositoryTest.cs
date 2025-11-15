@@ -132,16 +132,16 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newTaxRate);
+            var result = await _repository.AddAsync(newTaxRate); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            Assert.True(newTaxRate.TaxRateId > 0);
-            var result = await _repository.GetByIdAsync(newTaxRate.TaxRateId);
-            Assert.NotNull(result);
-            Assert.Equal(5.00m, result.Aliquota);
-            Assert.Equal("IVA Speciale", result.Descrizione);
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
+            Assert.True(result.TaxRateId > 0); // ✅ USA result
+            var savedTaxRate = await _repository.GetByIdAsync(result.TaxRateId); // ✅ USA result
+            Assert.NotNull(savedTaxRate);
+            Assert.Equal(5.00m, savedTaxRate.Aliquota);
+            Assert.Equal("IVA Speciale", savedTaxRate.Descrizione);
+            Assert.NotNull(savedTaxRate.DataCreazione);
+            Assert.NotNull(savedTaxRate.DataAggiornamento);
         }
 
         [Fact]

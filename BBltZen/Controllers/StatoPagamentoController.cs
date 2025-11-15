@@ -134,21 +134,20 @@ namespace BBltZen.Controllers
                 if (statoPagamentoDto.StatoPagamentoId > 0 && await _repository.ExistsAsync(statoPagamentoDto.StatoPagamentoId))
                     return SafeBadRequest<StatoPagamentoDTO>("Esiste già uno stato pagamento con questo ID");
 
-                await _repository.AddAsync(statoPagamentoDto);
+                var result = await _repository.AddAsync(statoPagamentoDto); // ✅ CORREGGI: assegna risultato
 
                 // ✅ Audit trail e security event
-                LogAuditTrail("CREATE_STATO_PAGAMENTO", "StatoPagamento", statoPagamentoDto.StatoPagamentoId.ToString());
                 LogSecurityEvent("StatoPagamentoCreated", new
                 {
-                    StatoPagamentoId = statoPagamentoDto.StatoPagamentoId,
-                    Nome = statoPagamentoDto.StatoPagamento1,
+                    result.StatoPagamentoId,  // ✅ BIANCO - sintassi simplified
+                    Nome = result.StatoPagamento1,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow,
                     IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
                 });
 
                 return CreatedAtAction(nameof(GetById),
-                    new { id = statoPagamentoDto.StatoPagamentoId },
+                    new { id = result.StatoPagamentoId },
                     statoPagamentoDto);
             }
             catch (DbUpdateException dbEx)

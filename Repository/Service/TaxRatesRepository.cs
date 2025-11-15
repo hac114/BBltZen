@@ -69,27 +69,35 @@ namespace Repository.Service
             };
         }
 
-        public async Task AddAsync(TaxRatesDTO taxRateDto)
+        public async Task<TaxRatesDTO> AddAsync(TaxRatesDTO taxRateDto) // ✅ CORREGGI: ritorna DTO
         {
+            if (taxRateDto == null)
+                throw new ArgumentNullException(nameof(taxRateDto));
+
             var taxRate = new TaxRates
             {
                 Aliquota = taxRateDto.Aliquota,
                 Descrizione = taxRateDto.Descrizione,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
+                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
+                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
             };
 
-            _context.TaxRates.Add(taxRate);
+            await _context.TaxRates.AddAsync(taxRate);
             await _context.SaveChangesAsync();
 
             // Aggiorna il DTO con i valori del database
             taxRateDto.TaxRateId = taxRate.TaxRateId;
             taxRateDto.DataCreazione = taxRate.DataCreazione;
             taxRateDto.DataAggiornamento = taxRate.DataAggiornamento;
+
+            return taxRateDto; // ✅ AGGIUNGI return
         }
 
         public async Task UpdateAsync(TaxRatesDTO taxRateDto)
         {
+            if (taxRateDto == null) // ✅ AGGIUNGI validazione
+                throw new ArgumentNullException(nameof(taxRateDto));
+
             var taxRate = await _context.TaxRates
                 .FirstOrDefaultAsync(t => t.TaxRateId == taxRateDto.TaxRateId);
 
@@ -98,7 +106,7 @@ namespace Repository.Service
 
             taxRate.Aliquota = taxRateDto.Aliquota;
             taxRate.Descrizione = taxRateDto.Descrizione;
-            taxRate.DataAggiornamento = DateTime.Now;
+            taxRate.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
 
             await _context.SaveChangesAsync();
 
