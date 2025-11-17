@@ -171,19 +171,19 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newBevandaCustom);
+            var result = await _repository.AddAsync(newBevandaCustom); // ✅ CORREGGI: assegna risultato
 
             // Assert
             // ✅ CORRETTO: Usa gli ID generati dal repository
-            Assert.True(newBevandaCustom.BevandaCustomId > 0);
-            Assert.True(newBevandaCustom.ArticoloId > 0);
+            Assert.True(result.BevandaCustomId > 0);
+            Assert.True(result.ArticoloId > 0);
 
-            var result = await _repository.GetByIdAsync(newBevandaCustom.BevandaCustomId);
-            Assert.NotNull(result);
-            Assert.Equal(7.00m, result.Prezzo);
-            Assert.Equal(2, result.PersCustomId);
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
+            var savedBevanda = await _repository.GetByIdAsync(result.BevandaCustomId);
+            Assert.NotNull(savedBevanda);
+            Assert.Equal(7.00m, savedBevanda.Prezzo);
+            Assert.Equal(2, savedBevanda.PersCustomId);
+            Assert.NotNull(savedBevanda.DataCreazione);
+            Assert.NotNull(savedBevanda.DataAggiornamento);
         }
 
         [Fact]
@@ -212,6 +212,7 @@ namespace RepositoryTest
             Assert.Equal(2, result.PersCustomId);
             // ✅ CORRETTO: Verifica che ArticoloId non sia cambiato
             Assert.Equal(existing.ArticoloId, result.ArticoloId);
+            Assert.NotNull(result.DataAggiornamento); // ✅ Verifica data aggiornamento
         }
 
         [Fact]
@@ -283,6 +284,60 @@ namespace RepositoryTest
 
             // Assert
             Assert.False(result);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithValidData_ShouldSetCorrectTimestamps()
+        {
+            // Arrange
+            var newBevandaCustom = new BevandaCustomDTO
+            {
+                PersCustomId = 1,
+                Prezzo = 8.50m
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newBevandaCustom);
+
+            // Assert
+            var savedBevanda = await _repository.GetByIdAsync(result.BevandaCustomId);
+            Assert.NotNull(savedBevanda);
+
+            // ✅ VERIFICA SEMPLICE: Le date sono impostate e non sono DateTime.MinValue
+            Assert.NotEqual(DateTime.MinValue, savedBevanda.DataCreazione);
+            Assert.NotEqual(DateTime.MinValue, savedBevanda.DataAggiornamento);
+
+            // ✅ VERIFICA LOGICA: Per una nuova entità, DataCreazione e DataAggiornamento dovrebbero essere uguali
+            // Usa una tolleranza di 1 secondo per evitare problemi di precisione
+            Assert.True(
+                Math.Abs((savedBevanda.DataCreazione - savedBevanda.DataAggiornamento).TotalSeconds) < 1,
+                "DataCreazione e DataAggiornamento dovrebbero essere quasi uguali per una nuova entità"
+            );
+
+            // ✅ VERIFICA CHE LE DATE SIANO RAGIONEVOLI (non nel futuro e non troppo nel passato)
+            Assert.True(savedBevanda.DataCreazione <= DateTime.Now);
+            Assert.True(savedBevanda.DataCreazione >= DateTime.Now.AddMinutes(-1));
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldRemoveBevandaCustomButNotArticolo()
+        {
+            // Arrange
+            var bevandaCustomId = 1;
+            var existing = await _repository.GetByIdAsync(bevandaCustomId);
+            Assert.NotNull(existing);
+            var articoloId = existing.ArticoloId;
+
+            // Act
+            await _repository.DeleteAsync(bevandaCustomId);
+
+            // Assert
+            var result = await _repository.GetByIdAsync(bevandaCustomId);
+            Assert.Null(result);
+
+            // ✅ Verifica che l'articolo associato esista ancora
+            var articolo = await _context.Articolo.FindAsync(articoloId);
+            Assert.NotNull(articolo); // ✅ L'articolo dovrebbe ancora esistere
         }
     }
 }

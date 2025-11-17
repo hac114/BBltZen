@@ -264,21 +264,19 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newBevanda);
+            var result = await _repository.AddAsync(newBevanda); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            // ✅ Ora usa newBevanda.ArticoloId che è stato generato dal repository
-            var result = await _repository.GetByIdAsync(newBevanda.ArticoloId);
-            Assert.NotNull(result);
-            Assert.Equal(7.00m, result.Prezzo);
-            Assert.True(result.Disponibile);
-            Assert.False(result.SempreDisponibile); // ✅ Aggiungi questa verifica
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
-
-            // ✅ Verifica che l'ArticoloId sia stato effettivamente generato
-            Assert.True(newBevanda.ArticoloId > 0);
-            Assert.Equal(newBevanda.ArticoloId, result.ArticoloId);
+            // ✅ Ora usa result.ArticoloId che è stato generato dal repository
+            Assert.True(result.ArticoloId > 0);
+            var savedBevanda = await _repository.GetByIdAsync(result.ArticoloId);
+            Assert.NotNull(savedBevanda);
+            Assert.Equal(7.00m, savedBevanda.Prezzo);
+            Assert.True(savedBevanda.Disponibile);
+            Assert.False(savedBevanda.SempreDisponibile);
+            Assert.Equal(4, savedBevanda.Priorita); // ✅ Verifica priorità
+            Assert.NotNull(savedBevanda.DataCreazione);
+            Assert.NotNull(savedBevanda.DataAggiornamento);
         }
 
         [Fact]
@@ -294,7 +292,7 @@ namespace RepositoryTest
                 ImmagineUrl = "url_updated.jpg",
                 Disponibile = false,
                 SempreDisponibile = false,
-                Priorita = 5
+                Priorita = 5 // ✅ Priorità aggiornata
             };
 
             // Act
@@ -305,8 +303,9 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.Equal(6.50m, result.Prezzo);
             Assert.False(result.Disponibile);
-            Assert.Equal(5, result.Priorita);
+            Assert.Equal(5, result.Priorita); // ✅ Verifica priorità aggiornata
             Assert.Equal("url_updated.jpg", result.ImmagineUrl);
+            Assert.NotNull(result.DataAggiornamento); // ✅ Verifica data aggiornamento
         }
 
         [Fact]
@@ -491,81 +490,143 @@ namespace RepositoryTest
         [Fact]
         public async Task GetPrimoPianoAsync_ShouldOrderByPrioritaDescending()
         {
-            // Arrange - Pulizia COMPLETA per InMemory
-            _context.BevandaStandard.RemoveRange(_context.BevandaStandard);
-            await _context.SaveChangesAsync();
+            // ✅ USA UN CONTESTO COMPLETAMENTE ISOLATO per questo test
+            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
+                .UseInMemoryDatabase(databaseName: $"PrimoPianoOrderTest_{Guid.NewGuid()}")
+                .Options;
 
-            // Verifica che sia vuoto
-            var countBefore = await _context.BevandaStandard.CountAsync();
-            if (countBefore > 0)
+            using var isolatedContext = new BubbleTeaContext(options);
+            var isolatedRepository = new BevandaStandardRepository(isolatedContext);
+
+            // ✅ INIZIALIZZA SOLO I DATI NECESSARI
+            isolatedContext.Database.EnsureCreated();
+
+            // Crea personalizzazioni necessarie
+            var personalizzazioni = new List<Personalizzazione>
             {
-                throw new Exception($"Il database non è vuoto! Contiene {countBefore} bevande.");
-            }
+                new Personalizzazione
+                {
+                    PersonalizzazioneId = 1,
+                    Nome = "Classica",
+                    Descrizione = "Personalizzazione classica",
+                    DtCreazione = DateTime.Now
+                },
+                new Personalizzazione
+                {
+                    PersonalizzazioneId = 2,
+                    Nome = "Premium",
+                    Descrizione = "Personalizzazione premium",
+                    DtCreazione = DateTime.Now
+                }
+            };
 
+            // Crea dimensioni bicchiere necessarie
+            var dimensioniBicchiere = new List<DimensioneBicchiere>
+            {
+                new DimensioneBicchiere
+                {
+                    DimensioneBicchiereId = 1,
+                    Sigla = "S",
+                    Descrizione = "Piccolo",
+                    Capienza = 350.0m,
+                    UnitaMisuraId = 1,
+                    PrezzoBase = 0.50m,
+                    Moltiplicatore = 1.0m
+                },
+                new DimensioneBicchiere
+                {
+                    DimensioneBicchiereId = 2,
+                    Sigla = "M",
+                    Descrizione = "Medio",
+                    Capienza = 500.0m,
+                    UnitaMisuraId = 1,
+                    PrezzoBase = 1.00m,
+                    Moltiplicatore = 1.2m
+                }
+            };
+
+            // Crea articoli per le bevande
+            var articoli = new List<Articolo>
+            {
+                new Articolo { Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
+                new Articolo { Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+            };
+
+            isolatedContext.Personalizzazione.AddRange(personalizzazioni);
+            isolatedContext.DimensioneBicchiere.AddRange(dimensioniBicchiere);
+            isolatedContext.Articolo.AddRange(articoli);
+            await isolatedContext.SaveChangesAsync();
+
+            var articoloId1 = articoli[0].ArticoloId;
+            var articoloId2 = articoli[1].ArticoloId;
+            var articoloId3 = articoli[2].ArticoloId;
+
+            // ✅ CREA SOLO LE 3 BEVANDE PER QUESTO TEST
             var bevande = new List<BevandaStandard>
-    {
-        new BevandaStandard
-        {
-            ArticoloId = 10,
-            PersonalizzazioneId = 1,
-            DimensioneBicchiereId = 1,
-            Prezzo = 5.00m,
-            Disponibile = true,
-            SempreDisponibile = true,
-            Priorita = 3,
-            DataCreazione = DateTime.Now
-        },
-        new BevandaStandard
-        {
-            ArticoloId = 11,
-            PersonalizzazioneId = 2,
-            DimensioneBicchiereId = 2,
-            Prezzo = 6.00m,
-            Disponibile = true,
-            SempreDisponibile = true,
-            Priorita = 1,
-            DataCreazione = DateTime.Now
-        },
-        new BevandaStandard
-        {
-            ArticoloId = 12,
-            PersonalizzazioneId = 1,
-            DimensioneBicchiereId = 1,
-            Prezzo = 4.50m,
-            Disponibile = true,
-            SempreDisponibile = true,
-            Priorita = 5,
-            DataCreazione = DateTime.Now
-        }
-    };
-
-            await _context.BevandaStandard.AddRangeAsync(bevande);
-            await _context.SaveChangesAsync();
-
-            // DEBUG: Verifica cosa c'è nel database
-            var allBevande = await _context.BevandaStandard.ToListAsync();
-            Console.WriteLine($"DEBUG - Bevande nel database: {allBevande.Count}");
-            foreach (var b in allBevande)
             {
-                Console.WriteLine($"DEBUG - ArticoloId: {b.ArticoloId}, Priorita: {b.Priorita}, Disponibile: {b.Disponibile}");
-            }
+                new BevandaStandard
+                {
+                    ArticoloId = articoloId1,
+                    PersonalizzazioneId = 1,
+                    DimensioneBicchiereId = 1,
+                    Prezzo = 5.00m,
+                    Disponibile = true,
+                    SempreDisponibile = true,
+                    Priorita = 3, // Priorità media
+                    DataCreazione = DateTime.Now,
+                    DataAggiornamento = DateTime.Now
+                },
+                new BevandaStandard
+                {
+                    ArticoloId = articoloId2,
+                    PersonalizzazioneId = 2,
+                    DimensioneBicchiereId = 2,
+                    Prezzo = 6.00m,
+                    Disponibile = true,
+                    SempreDisponibile = true,
+                    Priorita = 1, // Priorità più bassa
+                    DataCreazione = DateTime.Now,
+                    DataAggiornamento = DateTime.Now
+                },
+                new BevandaStandard
+                {
+                    ArticoloId = articoloId3,
+                    PersonalizzazioneId = 1,
+                    DimensioneBicchiereId = 1,
+                    Prezzo = 4.50m,
+                    Disponibile = true,
+                    SempreDisponibile = true,
+                    Priorita = 5, // Priorità più alta
+                    DataCreazione = DateTime.Now,
+                    DataAggiornamento = DateTime.Now
+                }
+            };
+
+            isolatedContext.BevandaStandard.AddRange(bevande);
+            await isolatedContext.SaveChangesAsync();
+
+            // ✅ DEBUG: Verifica cosa c'è nel database isolato
+            var countBefore = await isolatedContext.BevandaStandard.CountAsync();
+            Console.WriteLine($"DEBUG - Bevande nel database isolato: {countBefore}");
 
             // Act
-            var result = await _repository.GetPrimoPianoAsync();
-
-            // DEBUG: Verifica il risultato
-            var resultList = result.ToList();
-            Console.WriteLine($"DEBUG - Risultati GetPrimoPianoAsync: {resultList.Count}");
-            foreach (var item in resultList)
-            {
-                Console.WriteLine($"DEBUG - Result ArticoloId: {item.ArticoloId}, Priorita: {item.Priorita}");
-            }
+            var result = await isolatedRepository.GetPrimoPianoAsync();
 
             // Assert
+            var resultList = result.ToList();
+
+            // ✅ VERIFICA CHE CI SIANO ESATTAMENTE 3 BEVANDE
             Assert.Equal(3, resultList.Count);
-            Assert.Equal(5, resultList[0].Priorita);
-            Assert.Equal(3, resultList[1].Priorita);
-            Assert.Equal(1, resultList[2].Priorita);
+
+            // ✅ VERIFICA ORDINAMENTO PER PRIORITÀ DESCENDENTE
+            Assert.Equal(5, resultList[0].Priorita); // Priorità più alta prima
+            Assert.Equal(3, resultList[1].Priorita); // Priorità media
+            Assert.Equal(1, resultList[2].Priorita); // Priorità più bassa ultima
+
+            // ✅ VERIFICA CHE TUTTE LE BEVANDE SIANO DISPONIBILI E SEMPRE DISPONIBILI
+            Assert.All(resultList, bs => Assert.True(bs.Disponibile));
+            Assert.All(resultList, bs => Assert.True(bs.SempreDisponibile));
         }
 
         [Fact]
@@ -573,17 +634,29 @@ namespace RepositoryTest
         {
             // Arrange - Crea una bevanda in secondo piano
             await CleanTableAsync<BevandaStandard>();
+            await CleanTableAsync<Articolo>(); // ✅ PULISCI ANCHE ARTICOLI
+
+            // Crea nuovo articolo
+            var articolo = new Articolo
+            {
+                Tipo = "BS",
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
+            };
+            _context.Articolo.Add(articolo);
+            await _context.SaveChangesAsync();
 
             var bevandaSecondoPiano = new BevandaStandard
             {
-                ArticoloId = 20,
+                ArticoloId = articolo.ArticoloId, // ✅ USA ArticoloId generato
                 PersonalizzazioneId = 1,
                 DimensioneBicchiereId = 1,
                 Prezzo = 5.00m,
                 Disponibile = false, // Secondo piano
                 SempreDisponibile = true, // Ma visibile
-                Priorita = 1,
-                DataCreazione = DateTime.Now
+                Priorita = 1, // ✅ Priorità NOT NULL
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
             };
 
             _context.BevandaStandard.Add(bevandaSecondoPiano);
@@ -597,7 +670,8 @@ namespace RepositoryTest
             Assert.Single(resultList);
             Assert.False(resultList[0].Disponibile);
             Assert.True(resultList[0].SempreDisponibile);
-            Assert.Equal(20, resultList[0].ArticoloId);
+            Assert.Equal(articolo.ArticoloId, resultList[0].ArticoloId);
+            Assert.Equal(1, resultList[0].Priorita); // ✅ Verifica priorità
         }
 
         [Fact]

@@ -48,7 +48,6 @@ namespace RepositoryTest
 
             _context.SaveChanges();
         }
-
         [Fact]
         public async Task AddAsync_Should_Add_SessioneQr()
         {
@@ -65,11 +64,11 @@ namespace RepositoryTest
             };
 
             // Act
-            await _sessioniQrRepository.AddAsync(sessioneDto);
+            var result = await _sessioniQrRepository.AddAsync(sessioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Assert
-            var result = await _sessioniQrRepository.GetByIdAsync(sessioneDto.SessioneId);
             Assert.NotNull(result);
+            Assert.True(result.SessioneId != Guid.Empty); // ✅ VERIFICA ID generato
             Assert.Equal("QR_TEST_001", result.QrCode);
             Assert.Equal(1, result.TavoloId);
             Assert.Equal(1, result.ClienteId);
@@ -93,14 +92,14 @@ namespace RepositoryTest
                 DataScadenza = DateTime.Now.AddHours(2),
                 Utilizzato = false
             };
-            await _sessioniQrRepository.AddAsync(sessioneDto);
+            var addedSession = await _sessioniQrRepository.AddAsync(sessioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
-            var result = await _sessioniQrRepository.GetByIdAsync(sessioneDto.SessioneId);
+            var result = await _sessioniQrRepository.GetByIdAsync(addedSession.SessioneId); // ✅ USA ID dal risultato
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(sessioneDto.SessioneId, result.SessioneId);
+            Assert.Equal(addedSession.SessioneId, result.SessioneId);
             Assert.Equal("QR_TEST_002", result.QrCode);
             Assert.Equal(1, result.TavoloId);
             Assert.Equal(1, result.ClienteId);
@@ -131,7 +130,7 @@ namespace RepositoryTest
                 DataScadenza = DateTime.Now.AddHours(1),
                 Utilizzato = false
             };
-            await _sessioniQrRepository.AddAsync(sessioneDto);
+            var addedSession = await _sessioniQrRepository.AddAsync(sessioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
             var result = await _sessioniQrRepository.GetByQrCodeAsync("QR_UNIQUE_001");
@@ -139,7 +138,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.Equal("QR_UNIQUE_001", result.QrCode);
-            Assert.Equal(sessioneDto.SessioneId, result.SessioneId);
+            Assert.Equal(addedSession.SessioneId, result.SessioneId); // ✅ USA ID dal risultato
         }
 
         [Fact]
@@ -286,11 +285,11 @@ namespace RepositoryTest
                 DataScadenza = DateTime.Now.AddHours(1),
                 Utilizzato = false
             };
-            await _sessioniQrRepository.AddAsync(sessioneDto);
+            var addedSession = await _sessioniQrRepository.AddAsync(sessioneDto); // ✅ CAMBIATO: assegna risultato
 
             var updateDto = new SessioniQrDTO
             {
-                SessioneId = sessioneDto.SessioneId,
+                SessioneId = addedSession.SessioneId, // ✅ USA ID dal risultato
                 TavoloId = 2,
                 ClienteId = 2,
                 CodiceSessione = "T2_AGGIORNATO",
@@ -305,7 +304,7 @@ namespace RepositoryTest
             await _sessioniQrRepository.UpdateAsync(updateDto);
 
             // Assert
-            var updated = await _sessioniQrRepository.GetByIdAsync(sessioneDto.SessioneId);
+            var updated = await _sessioniQrRepository.GetByIdAsync(addedSession.SessioneId);
             Assert.NotNull(updated);
             Assert.Equal("QR_AGGIORNATO", updated.QrCode);
             Assert.Equal(2, updated.TavoloId);
@@ -416,6 +415,94 @@ namespace RepositoryTest
 
             // Assert
             Assert.Equal(2, result.Count());
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Correct_Timestamps()
+        {
+            // Arrange
+            var sessioneDto = new SessioniQrDTO
+            {
+                TavoloId = 1,
+                ClienteId = 1,
+                CodiceSessione = "T1_TIMESTAMP_TEST",
+                Stato = "Attiva",
+                QrCode = "QR_TIMESTAMP",
+                DataScadenza = DateTime.Now.AddHours(1),
+                Utilizzato = false
+            };
+
+            // Act
+            var result = await _sessioniQrRepository.AddAsync(sessioneDto);
+
+            // Assert - ✅ USA ToString per evitare problemi di millisecondi
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataCreazione?.ToString("yyyy-MM-dd HH:mm:ss"));
+            Assert.Equal("Attiva", result.Stato);
+            Assert.False(result.Utilizzato);
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Default_Values_When_Null()
+        {
+            // Arrange
+            var sessioneDto = new SessioniQrDTO
+            {
+                TavoloId = 1,
+                CodiceSessione = "T1_DEFAULT_TEST",
+                QrCode = "QR_DEFAULT",
+                DataScadenza = DateTime.Now.AddHours(1)
+                // ✅ INTENZIONALMENTE NON SETTO: Stato, Utilizzato
+            };
+
+            // Act
+            var result = await _sessioniQrRepository.AddAsync(sessioneDto);
+
+            // Assert - ✅ VERIFICA CHE I VALORI DEFAULT SIANO APPLICATI
+            Assert.Equal("Attiva", result.Stato);
+            Assert.False(result.Utilizzato);
+            Assert.NotNull(result.DataCreazione);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_Should_Update_DataUtilizzo_When_Utilizzato_Changes()
+        {
+            // Arrange
+            var sessioneDto = new SessioniQrDTO
+            {
+                TavoloId = 1,
+                ClienteId = 1,
+                CodiceSessione = "T1_UTILIZZO_TEST",
+                Stato = "Attiva",
+                QrCode = "QR_UTILIZZO",
+                DataScadenza = DateTime.Now.AddHours(1),
+                Utilizzato = false
+            };
+            var addedSession = await _sessioniQrRepository.AddAsync(sessioneDto);
+
+            var updateDto = new SessioniQrDTO
+            {
+                SessioneId = addedSession.SessioneId,
+                TavoloId = 1,
+                ClienteId = 1,
+                CodiceSessione = "T1_UTILIZZO_TEST",
+                Stato = "Utilizzata",
+                QrCode = "QR_UTILIZZO",
+                DataScadenza = DateTime.Now.AddHours(1),
+                Utilizzato = true,
+                DataUtilizzo = DateTime.Now
+            };
+
+            // Act
+            await _sessioniQrRepository.UpdateAsync(updateDto);
+
+            // Assert
+            var updated = await _sessioniQrRepository.GetByIdAsync(addedSession.SessioneId);
+            Assert.NotNull(updated);
+            Assert.True(updated.Utilizzato);
+            Assert.NotNull(updated.DataUtilizzo);
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         updated.DataUtilizzo?.ToString("yyyy-MM-dd HH:mm:ss"));
         }
     }
 }

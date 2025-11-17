@@ -89,8 +89,11 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task AddAsync(BevandaCustomDTO bevandaCustomDto)
+        public async Task<BevandaCustomDTO> AddAsync(BevandaCustomDTO bevandaCustomDto) // ✅ CORREGGI: ritorna DTO
         {
+            if (bevandaCustomDto == null)
+                throw new ArgumentNullException(nameof(bevandaCustomDto));
+
             // ✅ CORREZIONE: Prima crea il record in ARTICOLO
             var articolo = new Articolo
             {
@@ -105,12 +108,11 @@ namespace Repository.Service
             // ✅ CORREZIONE: Poi crea la bevanda custom con gli ID generati
             var bevandaCustom = new BevandaCustom
             {
-                BevandaCustomId = 0, // ✅ Lascia che il database generi l'ID
                 ArticoloId = articolo.ArticoloId, // ✅ USA ArticoloId generato automaticamente
                 PersCustomId = bevandaCustomDto.PersCustomId,
                 Prezzo = bevandaCustomDto.Prezzo,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
+                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
+                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
             };
 
             _context.BevandaCustom.Add(bevandaCustom);
@@ -121,10 +123,15 @@ namespace Repository.Service
             bevandaCustomDto.ArticoloId = bevandaCustom.ArticoloId;
             bevandaCustomDto.DataCreazione = bevandaCustom.DataCreazione;
             bevandaCustomDto.DataAggiornamento = bevandaCustom.DataAggiornamento;
+
+            return bevandaCustomDto; // ✅ AGGIUNGI return
         }
 
         public async Task UpdateAsync(BevandaCustomDTO bevandaCustomDto)
         {
+            if (bevandaCustomDto == null) // ✅ AGGIUNGI validazione
+                throw new ArgumentNullException(nameof(bevandaCustomDto));
+
             var bevandaCustom = await _context.BevandaCustom
                 .FirstOrDefaultAsync(bc => bc.BevandaCustomId == bevandaCustomDto.BevandaCustomId);
 
@@ -134,7 +141,7 @@ namespace Repository.Service
             bevandaCustom.ArticoloId = bevandaCustomDto.ArticoloId;
             bevandaCustom.PersCustomId = bevandaCustomDto.PersCustomId;
             bevandaCustom.Prezzo = bevandaCustomDto.Prezzo;
-            bevandaCustom.DataAggiornamento = DateTime.Now;
+            bevandaCustom.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
 
             await _context.SaveChangesAsync();
 

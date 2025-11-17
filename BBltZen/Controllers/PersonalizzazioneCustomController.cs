@@ -113,33 +113,38 @@ namespace BBltZen.Controllers
         [HttpPost]
         //[Authorize(Roles = "admin,barista")]
         [AllowAnonymous]
-        public async Task<ActionResult<PersonalizzazioneCustomDTO>> Create([FromBody] PersonalizzazioneCustomDTO personalizzazioneCustomDto) // ✅ AGGIUNTO [FromBody]
+        public async Task<ActionResult<PersonalizzazioneCustomDTO>> Create([FromBody] PersonalizzazioneCustomDTO personalizzazioneCustomDto)
         {
             try
             {
                 if (!IsModelValid(personalizzazioneCustomDto))
                     return SafeBadRequest<PersonalizzazioneCustomDTO>("Dati personalizzazione non validi");
 
-                await _repository.AddAsync(personalizzazioneCustomDto);
+                // ✅ CORREZIONE: AddAsync ora ritorna il DTO con PersCustomId generato
+                var createdPersonalizzazione = await _repository.AddAsync(personalizzazioneCustomDto);
 
-                LogAuditTrail("CREATE_PERSONALIZZAZIONE_CUSTOM", "PersonalizzazioneCustom", personalizzazioneCustomDto.PersCustomId.ToString());
-                LogSecurityEvent("PersonalizzazioneCustomCreated", new
-                {
-                    PersCustomId = personalizzazioneCustomDto.PersCustomId,
-                    Nome = personalizzazioneCustomDto.Nome,
-                    GradoDolcezza = personalizzazioneCustomDto.GradoDolcezza,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("CREATE", "PersonalizzazioneCustom", createdPersonalizzazione.PersCustomId.ToString());
+                LogSecurityEvent("PersonalizzazioneCustomCreated", $"Created PersonalizzazioneCustom ID: {createdPersonalizzazione.PersCustomId}");
 
                 return CreatedAtAction(nameof(GetById),
-                    new { persCustomId = personalizzazioneCustomDto.PersCustomId },
-                    personalizzazioneCustomDto);
+                    new { persCustomId = createdPersonalizzazione.PersCustomId },
+                    createdPersonalizzazione);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione della personalizzazione custom");
+                return SafeInternalError<PersonalizzazioneCustomDTO>("Errore durante il salvataggio dei dati");
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante la creazione della personalizzazione custom");
+                return SafeBadRequest<PersonalizzazioneCustomDTO>(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione della personalizzazione custom");
-                return SafeInternalError("Errore durante la creazione della personalizzazione");
+                return SafeInternalError<PersonalizzazioneCustomDTO>(ex.Message);
             }
         }
 
@@ -147,7 +152,7 @@ namespace BBltZen.Controllers
         [HttpPut("{persCustomId}")]
         //[Authorize(Roles = "admin,barista")]
         [AllowAnonymous]
-        public async Task<ActionResult> Update(int persCustomId, [FromBody] PersonalizzazioneCustomDTO personalizzazioneCustomDto) // ✅ AGGIUNTO [FromBody]
+        public async Task<ActionResult> Update(int persCustomId, [FromBody] PersonalizzazioneCustomDTO personalizzazioneCustomDto)
         {
             try
             {
@@ -166,20 +171,26 @@ namespace BBltZen.Controllers
 
                 await _repository.UpdateAsync(personalizzazioneCustomDto);
 
-                LogAuditTrail("UPDATE_PERSONALIZZAZIONE_CUSTOM", "PersonalizzazioneCustom", personalizzazioneCustomDto.PersCustomId.ToString());
-                LogSecurityEvent("PersonalizzazioneCustomUpdated", new
-                {
-                    PersCustomId = personalizzazioneCustomDto.PersCustomId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("UPDATE", "PersonalizzazioneCustom", personalizzazioneCustomDto.PersCustomId.ToString());
+                LogSecurityEvent("PersonalizzazioneCustomUpdated", $"Updated PersonalizzazioneCustom ID: {personalizzazioneCustomDto.PersCustomId}");
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento della personalizzazione custom {PersCustomId}", persCustomId);
+                return SafeInternalError("Errore durante l'aggiornamento dei dati");
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento della personalizzazione custom {PersCustomId}", persCustomId);
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento della personalizzazione custom {PersCustomId}", persCustomId);
-                return SafeInternalError("Errore durante l'aggiornamento della personalizzazione");
+                return SafeInternalError(ex.Message);
             }
         }
 
@@ -207,20 +218,21 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(persCustomId);
 
-                LogAuditTrail("DELETE_PERSONALIZZAZIONE_CUSTOM", "PersonalizzazioneCustom", persCustomId.ToString());
-                LogSecurityEvent("PersonalizzazioneCustomDeleted", new
-                {
-                    PersCustomId = persCustomId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("DELETE", "PersonalizzazioneCustom", persCustomId.ToString());
+                LogSecurityEvent("PersonalizzazioneCustomDeleted", $"Deleted PersonalizzazioneCustom ID: {persCustomId}");
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione della personalizzazione custom {PersCustomId}", persCustomId);
+                return SafeInternalError("Errore durante l'eliminazione dei dati");
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione della personalizzazione custom {PersCustomId}", persCustomId);
-                return SafeInternalError("Errore durante l'eliminazione della personalizzazione");
+                return SafeInternalError(ex.Message);
             }
         }
     }

@@ -14,33 +14,36 @@ namespace Repository.Service
             _context = context;
         }
 
-        public async Task<UnitaDiMisuraDTO?> GetByIdAsync(int id)
+        private UnitaDiMisuraDTO MapToDTO(UnitaDiMisura unita)
         {
-            return await _context.UnitaDiMisura
-                .Where(u => u.UnitaMisuraId == id)
-                .Select(u => new UnitaDiMisuraDTO
-                {
-                    UnitaMisuraId = u.UnitaMisuraId,
-                    Sigla = u.Sigla,
-                    Descrizione = u.Descrizione
-                })
-                .FirstOrDefaultAsync();
+            return new UnitaDiMisuraDTO
+            {
+                UnitaMisuraId = unita.UnitaMisuraId,
+                Sigla = unita.Sigla,
+                Descrizione = unita.Descrizione
+            };
         }
 
-        public async Task<List<UnitaDiMisuraDTO>> GetAllAsync()
+        public async Task<UnitaDiMisuraDTO?> GetByIdAsync(int id)
+        {
+            var unita = await _context.UnitaDiMisura
+                .FirstOrDefaultAsync(u => u.UnitaMisuraId == id);
+
+            return unita == null ? null : MapToDTO(unita);
+        }
+
+        public async Task<IEnumerable<UnitaDiMisuraDTO>> GetAllAsync()
         {
             return await _context.UnitaDiMisura
-                .Select(u => new UnitaDiMisuraDTO
-                {
-                    UnitaMisuraId = u.UnitaMisuraId,
-                    Sigla = u.Sigla,
-                    Descrizione = u.Descrizione
-                })
+                .Select(u => MapToDTO(u))
                 .ToListAsync();
         }
 
-        public async Task AddAsync(UnitaDiMisuraDTO unitaDto)
+        public async Task<UnitaDiMisuraDTO> AddAsync(UnitaDiMisuraDTO unitaDto)
         {
+            if (unitaDto == null)
+                throw new ArgumentNullException(nameof(unitaDto));
+
             var unita = new UnitaDiMisura
             {
                 Sigla = unitaDto.Sigla,
@@ -50,8 +53,9 @@ namespace Repository.Service
             _context.UnitaDiMisura.Add(unita);
             await _context.SaveChangesAsync();
 
-            // Aggiorna l'ID generato
+            // ✅ AGGIORNA DTO CON ID GENERATO
             unitaDto.UnitaMisuraId = unita.UnitaMisuraId;
+            return unitaDto; // ✅ IMPORTANTE: ritorna il DTO
         }
 
         public async Task UpdateAsync(UnitaDiMisuraDTO unitaDto)
@@ -76,6 +80,34 @@ namespace Repository.Service
                 _context.UnitaDiMisura.Remove(unita);
                 await _context.SaveChangesAsync();
             }
+        }
+
+        // ✅ METODO ESISTENZA MANCANTE
+        public async Task<bool> ExistsAsync(int id)
+        {
+            return await _context.UnitaDiMisura
+                .AnyAsync(u => u.UnitaMisuraId == id);
+        }
+
+        // ✅ METODI PER SIGLA UNIVOCA
+        public async Task<bool> SiglaExistsAsync(string sigla)
+        {
+            return await _context.UnitaDiMisura
+                .AnyAsync(u => u.Sigla == sigla);
+        }
+
+        public async Task<bool> SiglaExistsForOtherAsync(int id, string sigla)
+        {
+            return await _context.UnitaDiMisura
+                .AnyAsync(u => u.UnitaMisuraId != id && u.Sigla == sigla);
+        }
+
+        public async Task<UnitaDiMisuraDTO?> GetBySiglaAsync(string sigla)
+        {
+            var unita = await _context.UnitaDiMisura
+                .FirstOrDefaultAsync(u => u.Sigla == sigla);
+
+            return unita == null ? null : MapToDTO(unita);
         }
     }
 }

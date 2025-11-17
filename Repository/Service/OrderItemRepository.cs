@@ -18,36 +18,9 @@ namespace Repository.Service
             _context = context;
         }
 
-        public async Task<IEnumerable<OrderItemDTO>> GetAllAsync()
+        // ✅ METODO HELPER PER MAPPING - DA AGGIUNGERE
+        private static OrderItemDTO MapToDTO(OrderItem orderItem)
         {
-            return await _context.OrderItem
-                .AsNoTracking()
-                .Select(oi => new OrderItemDTO
-                {
-                    OrderItemId = oi.OrderItemId,
-                    OrdineId = oi.OrdineId,
-                    ArticoloId = oi.ArticoloId,
-                    Quantita = oi.Quantita,
-                    PrezzoUnitario = oi.PrezzoUnitario,
-                    ScontoApplicato = oi.ScontoApplicato,
-                    Imponibile = oi.Imponibile,
-                    DataCreazione = oi.DataCreazione,
-                    DataAggiornamento = oi.DataAggiornamento,
-                    TipoArticolo = oi.TipoArticolo,
-                    TotaleIvato = oi.TotaleIvato,
-                    TaxRateId = oi.TaxRateId
-                })
-                .ToListAsync();
-        }
-
-        public async Task<OrderItemDTO?> GetByIdAsync(int id)
-        {
-            var orderItem = await _context.OrderItem
-                .AsNoTracking()
-                .FirstOrDefaultAsync(oi => oi.OrderItemId == id);
-
-            if (orderItem == null) return null;
-
             return new OrderItemDTO
             {
                 OrderItemId = orderItem.OrderItemId,
@@ -65,8 +38,29 @@ namespace Repository.Service
             };
         }
 
-        public async Task AddAsync(OrderItemDTO orderItemDto)
+        public async Task<IEnumerable<OrderItemDTO>> GetAllAsync()
         {
+            return await _context.OrderItem
+                .AsNoTracking()
+                .Select(oi => MapToDTO(oi))
+                .ToListAsync();
+        }
+
+        // ✅ METODO GetByIdAsync CORRETTO CON MapToDTO
+        public async Task<OrderItemDTO?> GetByIdAsync(int id)
+        {
+            var orderItem = await _context.OrderItem
+                .AsNoTracking()
+                .FirstOrDefaultAsync(oi => oi.OrderItemId == id);
+
+            return orderItem == null ? null : MapToDTO(orderItem);
+        }
+
+        public async Task<OrderItemDTO> AddAsync(OrderItemDTO orderItemDto) // ✅ CAMBIATO: ritorna DTO
+        {
+            if (orderItemDto == null)
+                throw new ArgumentNullException(nameof(orderItemDto));
+
             var orderItem = new OrderItem
             {
                 OrdineId = orderItemDto.OrdineId,
@@ -77,7 +71,7 @@ namespace Repository.Service
                 Imponibile = orderItemDto.Imponibile,
                 DataCreazione = DateTime.Now,
                 DataAggiornamento = DateTime.Now,
-                TipoArticolo = orderItemDto.TipoArticolo,
+                TipoArticolo = orderItemDto.TipoArticolo ?? "BS", // ✅ DEFAULT per Bevanda Standard
                 TotaleIvato = orderItemDto.TotaleIvato,
                 TaxRateId = orderItemDto.TaxRateId
             };
@@ -85,10 +79,13 @@ namespace Repository.Service
             _context.OrderItem.Add(orderItem);
             await _context.SaveChangesAsync();
 
-            // Aggiorna il DTO con i valori del database
+            // ✅ Aggiorna DTO con valori dal database
             orderItemDto.OrderItemId = orderItem.OrderItemId;
             orderItemDto.DataCreazione = orderItem.DataCreazione;
             orderItemDto.DataAggiornamento = orderItem.DataAggiornamento;
+            orderItemDto.TipoArticolo = orderItem.TipoArticolo;
+
+            return orderItemDto; // ✅ IMPORTANTE: ritorna il DTO
         }
 
         public async Task UpdateAsync(OrderItemDTO orderItemDto)
@@ -138,21 +135,7 @@ namespace Repository.Service
             return await _context.OrderItem
                 .AsNoTracking()
                 .Where(oi => oi.OrdineId == ordineId)
-                .Select(oi => new OrderItemDTO
-                {
-                    OrderItemId = oi.OrderItemId,
-                    OrdineId = oi.OrdineId,
-                    ArticoloId = oi.ArticoloId,
-                    Quantita = oi.Quantita,
-                    PrezzoUnitario = oi.PrezzoUnitario,
-                    ScontoApplicato = oi.ScontoApplicato,
-                    Imponibile = oi.Imponibile,
-                    DataCreazione = oi.DataCreazione,
-                    DataAggiornamento = oi.DataAggiornamento,
-                    TipoArticolo = oi.TipoArticolo,
-                    TotaleIvato = oi.TotaleIvato,
-                    TaxRateId = oi.TaxRateId
-                })
+                .Select(oi => MapToDTO(oi))
                 .ToListAsync();
         }
 
@@ -161,21 +144,7 @@ namespace Repository.Service
             return await _context.OrderItem
                 .AsNoTracking()
                 .Where(oi => oi.ArticoloId == articoloId)
-                .Select(oi => new OrderItemDTO
-                {
-                    OrderItemId = oi.OrderItemId,
-                    OrdineId = oi.OrdineId,
-                    ArticoloId = oi.ArticoloId,
-                    Quantita = oi.Quantita,
-                    PrezzoUnitario = oi.PrezzoUnitario,
-                    ScontoApplicato = oi.ScontoApplicato,
-                    Imponibile = oi.Imponibile,
-                    DataCreazione = oi.DataCreazione,
-                    DataAggiornamento = oi.DataAggiornamento,
-                    TipoArticolo = oi.TipoArticolo,
-                    TotaleIvato = oi.TotaleIvato,
-                    TaxRateId = oi.TaxRateId
-                })
+                .Select(oi => MapToDTO(oi))
                 .ToListAsync();
         }
     }

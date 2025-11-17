@@ -33,17 +33,16 @@ namespace RepositoryTest
 
             var clienteDto = new ClienteDTO
             {
-                TavoloId = tavolo.TavoloId,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
+                TavoloId = tavolo.TavoloId
+                // ✅ RIMOSSO: DataCreazione e DataAggiornamento (vengono settati dal repository)
             };
 
             // Act
-            await _clienteRepository.AddAsync(clienteDto);
+            var result = await _clienteRepository.AddAsync(clienteDto); // ✅ CAMBIATO: assegna il risultato
 
             // Assert
-            var result = await _clienteRepository.GetByIdAsync(clienteDto.ClienteId);
             Assert.NotNull(result);
+            Assert.True(result.ClienteId > 0); // ✅ VERIFICA ID generato
             Assert.Equal(tavolo.TavoloId, result.TavoloId);
         }
 
@@ -128,18 +127,8 @@ namespace RepositoryTest
         public async Task UpdateAsync_Should_Update_Cliente()
         {
             // Arrange
-            var tavolo1 = new Database.Tavolo
-            {
-                Numero = 1,
-                Zona = "Terrazza",
-                Disponibile = true
-            };
-            var tavolo2 = new Database.Tavolo
-            {
-                Numero = 2,
-                Zona = "Interno",
-                Disponibile = true
-            };
+            var tavolo1 = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            var tavolo2 = new Database.Tavolo { Numero = 2, Zona = "Interno", Disponibile = true };
             _context.Tavolo.AddRange(tavolo1, tavolo2);
             await _context.SaveChangesAsync();
 
@@ -150,8 +139,8 @@ namespace RepositoryTest
             var updateDto = new ClienteDTO
             {
                 ClienteId = cliente.ClienteId,
-                TavoloId = tavolo2.TavoloId,
-                DataAggiornamento = DateTime.Now
+                TavoloId = tavolo2.TavoloId
+                // ✅ RIMOSSO: DataAggiornamento (viene settato dal repository)
             };
 
             // Act
@@ -161,6 +150,7 @@ namespace RepositoryTest
             var updated = await _clienteRepository.GetByIdAsync(cliente.ClienteId);
             Assert.NotNull(updated);
             Assert.Equal(tavolo2.TavoloId, updated.TavoloId);
+            // ✅ POTREMMO AGGIUNGERE: verifica che DataAggiornamento sia stato aggiornato
         }
 
         [Fact]
@@ -188,6 +178,109 @@ namespace RepositoryTest
             Assert.Null(deleted);
         }
 
-        // I test rimanenti continuano allo stesso modo, rimuovendo QrCode...
+        [Fact]
+        public async Task AddAsync_Should_Set_Correct_Timestamps()
+        {
+            // Arrange
+            var tavolo = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            _context.Tavolo.Add(tavolo);
+            await _context.SaveChangesAsync();
+
+            var clienteDto = new ClienteDTO { TavoloId = tavolo.TavoloId };
+
+            // Act
+            var result = await _clienteRepository.AddAsync(clienteDto);
+
+            // Assert - ✅ USA ToString("yyyy-MM-dd HH:mm:ss") per confronto senza millisecondi
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataCreazione.ToString("yyyy-MM-dd HH:mm:ss"));
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento.ToString("yyyy-MM-dd HH:mm:ss"));
+            Assert.Equal(result.DataCreazione.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Correct_Timestamps_WithTolerance()
+        {
+            // Arrange
+            var tavolo = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            _context.Tavolo.Add(tavolo);
+            await _context.SaveChangesAsync();
+
+            var clienteDto = new ClienteDTO { TavoloId = tavolo.TavoloId };
+
+            // Act
+            var result = await _clienteRepository.AddAsync(clienteDto);
+
+            // Assert - ✅ CONFRONTO CON TOLLERANZA DI 1 SECONDO
+            var timeTolerance = TimeSpan.FromSeconds(1);
+
+            Assert.True((DateTime.Now - result.DataCreazione).Duration() <= timeTolerance);
+            Assert.True((DateTime.Now - result.DataAggiornamento).Duration() <= timeTolerance);
+            Assert.Equal(result.DataCreazione.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+
+        [Fact]
+        public async Task UpdateAsync_Should_Update_DataAggiornamento()
+        {
+            // Arrange
+            var tavolo1 = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            var tavolo2 = new Database.Tavolo { Numero = 2, Zona = "Interno", Disponibile = true };
+            _context.Tavolo.AddRange(tavolo1, tavolo2);
+            await _context.SaveChangesAsync();
+
+            var cliente = new Database.Cliente { TavoloId = tavolo1.TavoloId };
+            _context.Cliente.Add(cliente);
+            await _context.SaveChangesAsync();
+
+            var originalUpdateTime = cliente.DataAggiornamento;
+
+            var updateDto = new ClienteDTO
+            {
+                ClienteId = cliente.ClienteId,
+                TavoloId = tavolo2.TavoloId
+            };
+
+            // Act - ✅ ATTENDI 1ms per essere sicuro del cambiamento
+            await Task.Delay(1);
+            await _clienteRepository.UpdateAsync(updateDto);
+
+            // Assert - ✅ USA Compare() invece di operatori diretti
+            var updated = await _clienteRepository.GetByIdAsync(cliente.ClienteId);
+            Assert.NotNull(updated);
+            Assert.True(DateTime.Compare(updated.DataAggiornamento, originalUpdateTime) > 0);
+        }
+
+        [Fact]
+        public async Task AddAsync_With_Occupied_Tavolo_Should_Throw_Exception()
+        {
+            // Arrange
+            var tavolo = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            _context.Tavolo.Add(tavolo);
+            await _context.SaveChangesAsync();
+
+            // Crea primo cliente per il tavolo
+            var primoCliente = new Database.Cliente { TavoloId = tavolo.TavoloId };
+            _context.Cliente.Add(primoCliente);
+            await _context.SaveChangesAsync();
+
+            var secondoClienteDto = new ClienteDTO { TavoloId = tavolo.TavoloId };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                _clienteRepository.AddAsync(secondoClienteDto));
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_With_InvalidId_Should_Return_Null()
+        {
+            // Act
+            var result = await _clienteRepository.GetByIdAsync(999);
+
+            // Assert
+            Assert.Null(result);
+        }
     }
 }

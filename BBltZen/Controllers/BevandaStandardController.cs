@@ -233,6 +233,7 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(bevandaStandardDto))
                     return SafeBadRequest<BevandaStandardDTO>("Dati bevanda standard non validi");
 
+                // ✅ CORREZIONE: AddAsync ora ritorna il DTO con ArticoloId generato
                 if (bevandaStandardDto.ArticoloId > 0 && await _repository.ExistsAsync(bevandaStandardDto.ArticoloId))
                     return SafeBadRequest<BevandaStandardDTO>($"Esiste già una bevanda standard con ArticoloId {bevandaStandardDto.ArticoloId}");
 
@@ -242,24 +243,29 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<BevandaStandardDTO>("Esiste già una bevanda standard con la stessa combinazione di personalizzazione e dimensione bicchiere");
                 }
 
-                await _repository.AddAsync(bevandaStandardDto);
+                // ✅ CORREZIONE: AddAsync ora ritorna il DTO aggiornato
+                var createdBevanda = await _repository.AddAsync(bevandaStandardDto);
 
-                LogAuditTrail("CREATE_BEVANDA_STANDARD", "BevandaStandard", bevandaStandardDto.ArticoloId.ToString());
-                LogSecurityEvent("BevandaStandardCreated", new
-                {
-                    ArticoloId = bevandaStandardDto.ArticoloId,
-                    PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId,
-                    DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("CREATE", "BevandaStandard", createdBevanda.ArticoloId.ToString());
+                LogSecurityEvent("BevandaStandardCreated", $"Created BevandaStandard ID: {createdBevanda.ArticoloId}");
 
-                return CreatedAtAction(nameof(GetById), new { articoloId = bevandaStandardDto.ArticoloId }, bevandaStandardDto);
+                return CreatedAtAction(nameof(GetById), new { articoloId = createdBevanda.ArticoloId }, createdBevanda);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione della bevanda standard");
+                return SafeInternalError<BevandaStandardDTO>("Errore durante il salvataggio dei dati");
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante la creazione della bevanda standard");
+                return SafeBadRequest<BevandaStandardDTO>(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione della bevanda standard");
-                return SafeInternalError("Errore durante la creazione della bevanda standard");
+                return SafeInternalError<BevandaStandardDTO>(ex.Message);
             }
         }
 
@@ -284,27 +290,43 @@ namespace BBltZen.Controllers
                 if (existing == null)
                     return SafeNotFound("Bevanda standard");
 
+                // ✅ CORREZIONE: Validazione duplicati (escludendo l'ID corrente)
+                if (await _repository.ExistsByCombinazioneAsync(
+                    bevandaStandardDto.PersonalizzazioneId,
+                    bevandaStandardDto.DimensioneBicchiereId))
+                {
+                    // ✅ VERIFICA se la combinazione appartiene a un'altra bevanda
+                    var existingWithSameCombo = await _context.BevandaStandard
+                        .FirstOrDefaultAsync(bs => bs.PersonalizzazioneId == bevandaStandardDto.PersonalizzazioneId &&
+                                                 bs.DimensioneBicchiereId == bevandaStandardDto.DimensioneBicchiereId &&
+                                                 bs.ArticoloId != articoloId);
+
+                    if (existingWithSameCombo != null)
+                        return SafeBadRequest("Esiste già una bevanda standard con la stessa combinazione di personalizzazione e dimensione bicchiere");
+                }
+
                 await _repository.UpdateAsync(bevandaStandardDto);
 
-                LogAuditTrail("UPDATE_BEVANDA_STANDARD", "BevandaStandard", bevandaStandardDto.ArticoloId.ToString());
-                LogSecurityEvent("BevandaStandardUpdated", new
-                {
-                    ArticoloId = bevandaStandardDto.ArticoloId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("UPDATE", "BevandaStandard", bevandaStandardDto.ArticoloId.ToString());
+                LogSecurityEvent("BevandaStandardUpdated", $"Updated BevandaStandard ID: {bevandaStandardDto.ArticoloId}");
 
                 return NoContent();
             }
-            catch (System.ArgumentException ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogWarning(ex, "Tentativo di aggiornamento di bevanda standard inesistente {ArticoloId}", articoloId);
-                return SafeNotFound("Bevanda standard");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento della bevanda standard {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'aggiornamento dei dati");
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento della bevanda standard {ArticoloId}", articoloId);
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento della bevanda standard {ArticoloId}", articoloId);
-                return SafeInternalError("Errore durante l'aggiornamento della bevanda standard");
+                return SafeInternalError(ex.Message);
             }
         }
 
@@ -332,20 +354,21 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(articoloId);
 
-                LogAuditTrail("DELETE_BEVANDA_STANDARD", "BevandaStandard", articoloId.ToString());
-                LogSecurityEvent("BevandaStandardDeleted", new
-                {
-                    ArticoloId = articoloId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("DELETE", "BevandaStandard", articoloId.ToString());
+                LogSecurityEvent("BevandaStandardDeleted", $"Deleted BevandaStandard ID: {articoloId}");
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione della bevanda standard {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'eliminazione dei dati");
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione della bevanda standard {ArticoloId}", articoloId);
-                return SafeInternalError("Errore durante l'eliminazione della bevanda standard");
+                return SafeInternalError(ex.Message);
             }
         }
     }

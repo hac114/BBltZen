@@ -17,104 +17,55 @@ namespace Repository.Service
             _context = context;
         }
 
+        private static SessioniQrDTO MapToDTO(SessioniQr sessioneQr)
+        {
+            return new SessioniQrDTO
+            {
+                SessioneId = sessioneQr.SessioneId,
+                TavoloId = sessioneQr.TavoloId,
+                ClienteId = sessioneQr.ClienteId,
+                CodiceSessione = sessioneQr.CodiceSessione,
+                Stato = sessioneQr.Stato,
+                QrCode = sessioneQr.QrCode,
+                DataCreazione = sessioneQr.DataCreazione,
+                DataScadenza = sessioneQr.DataScadenza,
+                Utilizzato = sessioneQr.Utilizzato,
+                DataUtilizzo = sessioneQr.DataUtilizzo
+            };
+        }
+
         public async Task<IEnumerable<SessioniQrDTO>> GetAllAsync()
         {
             return await _context.SessioniQr
-                .Select(s => new SessioniQrDTO
-                {
-                    SessioneId = s.SessioneId,
-                    TavoloId = s.TavoloId,
-                    ClienteId = s.ClienteId,
-                    CodiceSessione = s.CodiceSessione,
-                    Stato = s.Stato,
-                    QrCode = s.QrCode,
-                    DataCreazione = s.DataCreazione,
-                    DataScadenza = s.DataScadenza,
-                    Utilizzato = s.Utilizzato,
-                    DataUtilizzo = s.DataUtilizzo
-                })
+                .Select(s => MapToDTO(s)) // ✅ USA MapToDTO
                 .ToListAsync();
         }
 
-        public async Task<SessioniQrDTO> GetByIdAsync(Guid sessioneId)
+        public async Task<SessioniQrDTO?> GetByIdAsync(Guid sessioneId)
         {
             var sessioneQr = await _context.SessioniQr.FindAsync(sessioneId);
-            if (sessioneQr == null) return null;
-
-            return new SessioniQrDTO
-            {
-                SessioneId = sessioneQr.SessioneId,
-                TavoloId = sessioneQr.TavoloId,
-                ClienteId = sessioneQr.ClienteId,
-                CodiceSessione = sessioneQr.CodiceSessione,
-                Stato = sessioneQr.Stato,
-                QrCode = sessioneQr.QrCode,
-                DataCreazione = sessioneQr.DataCreazione,
-                DataScadenza = sessioneQr.DataScadenza,
-                Utilizzato = sessioneQr.Utilizzato,
-                DataUtilizzo = sessioneQr.DataUtilizzo
-            };
+            return sessioneQr == null ? null : MapToDTO(sessioneQr);
         }
 
-        public async Task<SessioniQrDTO> GetByQrCodeAsync(string qrCode)
+        public async Task<SessioniQrDTO?> GetByQrCodeAsync(string qrCode)
         {
             var sessioneQr = await _context.SessioniQr
                 .FirstOrDefaultAsync(s => s.QrCode == qrCode);
-            if (sessioneQr == null) return null;
-
-            return new SessioniQrDTO
-            {
-                SessioneId = sessioneQr.SessioneId,
-                TavoloId = sessioneQr.TavoloId,
-                ClienteId = sessioneQr.ClienteId,
-                CodiceSessione = sessioneQr.CodiceSessione,
-                Stato = sessioneQr.Stato,
-                QrCode = sessioneQr.QrCode,
-                DataCreazione = sessioneQr.DataCreazione,
-                DataScadenza = sessioneQr.DataScadenza,
-                Utilizzato = sessioneQr.Utilizzato,
-                DataUtilizzo = sessioneQr.DataUtilizzo
-            };
+            return sessioneQr == null ? null : MapToDTO(sessioneQr);
         }
 
-        public async Task<SessioniQrDTO> GetByCodiceSessioneAsync(string codiceSessione)
+        public async Task<SessioniQrDTO?> GetByCodiceSessioneAsync(string codiceSessione)
         {
             var sessioneQr = await _context.SessioniQr
                 .FirstOrDefaultAsync(s => s.CodiceSessione == codiceSessione);
-            if (sessioneQr == null) return null;
-
-            return new SessioniQrDTO
-            {
-                SessioneId = sessioneQr.SessioneId,
-                TavoloId = sessioneQr.TavoloId,
-                ClienteId = sessioneQr.ClienteId,
-                CodiceSessione = sessioneQr.CodiceSessione,
-                Stato = sessioneQr.Stato,
-                QrCode = sessioneQr.QrCode,
-                DataCreazione = sessioneQr.DataCreazione,
-                DataScadenza = sessioneQr.DataScadenza,
-                Utilizzato = sessioneQr.Utilizzato,
-                DataUtilizzo = sessioneQr.DataUtilizzo
-            };
+            return sessioneQr == null ? null : MapToDTO(sessioneQr);
         }
 
         public async Task<IEnumerable<SessioniQrDTO>> GetByClienteIdAsync(int clienteId)
         {
             return await _context.SessioniQr
                 .Where(s => s.ClienteId == clienteId)
-                .Select(s => new SessioniQrDTO
-                {
-                    SessioneId = s.SessioneId,
-                    TavoloId = s.TavoloId,
-                    ClienteId = s.ClienteId,
-                    CodiceSessione = s.CodiceSessione,
-                    Stato = s.Stato,
-                    QrCode = s.QrCode,
-                    DataCreazione = s.DataCreazione,
-                    DataScadenza = s.DataScadenza,
-                    Utilizzato = s.Utilizzato,
-                    DataUtilizzo = s.DataUtilizzo
-                })
+                .Select(s => MapToDTO(s)) // ✅ USA MapToDTO
                 .ToListAsync();
         }
 
@@ -122,19 +73,7 @@ namespace Repository.Service
         {
             return await _context.SessioniQr
                 .Where(s => s.TavoloId == tavoloId)
-                .Select(s => new SessioniQrDTO
-                {
-                    SessioneId = s.SessioneId,
-                    TavoloId = s.TavoloId,
-                    ClienteId = s.ClienteId,
-                    CodiceSessione = s.CodiceSessione,
-                    Stato = s.Stato,
-                    QrCode = s.QrCode,
-                    DataCreazione = s.DataCreazione,
-                    DataScadenza = s.DataScadenza,
-                    Utilizzato = s.Utilizzato,
-                    DataUtilizzo = s.DataUtilizzo
-                })
+                .Select(s => MapToDTO(s)) // ✅ USA MapToDTO
                 .ToListAsync();
         }
 
@@ -142,19 +81,7 @@ namespace Repository.Service
         {
             return await _context.SessioniQr
                 .Where(s => s.Utilizzato == false || s.Utilizzato == null)
-                .Select(s => new SessioniQrDTO
-                {
-                    SessioneId = s.SessioneId,
-                    TavoloId = s.TavoloId,
-                    ClienteId = s.ClienteId,
-                    CodiceSessione = s.CodiceSessione,
-                    Stato = s.Stato,
-                    QrCode = s.QrCode,
-                    DataCreazione = s.DataCreazione,
-                    DataScadenza = s.DataScadenza,
-                    Utilizzato = s.Utilizzato,
-                    DataUtilizzo = s.DataUtilizzo
-                })
+                .Select(s => MapToDTO(s)) // ✅ USA MapToDTO
                 .ToListAsync();
         }
 
@@ -162,43 +89,39 @@ namespace Repository.Service
         {
             return await _context.SessioniQr
                 .Where(s => s.DataScadenza <= DateTime.Now)
-                .Select(s => new SessioniQrDTO
-                {
-                    SessioneId = s.SessioneId,
-                    TavoloId = s.TavoloId,
-                    ClienteId = s.ClienteId,
-                    CodiceSessione = s.CodiceSessione,
-                    Stato = s.Stato,
-                    QrCode = s.QrCode,
-                    DataCreazione = s.DataCreazione,
-                    DataScadenza = s.DataScadenza,
-                    Utilizzato = s.Utilizzato,
-                    DataUtilizzo = s.DataUtilizzo
-                })
+                .Select(s => MapToDTO(s)) // ✅ USA MapToDTO
                 .ToListAsync();
         }
 
-        public async Task AddAsync(SessioniQrDTO sessioneQrDto)
+        public async Task<SessioniQrDTO> AddAsync(SessioniQrDTO sessioneQrDto)
         {
+            if (sessioneQrDto == null)
+                throw new ArgumentNullException(nameof(sessioneQrDto));
+
             var sessione = new SessioniQr
             {
                 SessioneId = Guid.NewGuid(),
                 TavoloId = sessioneQrDto.TavoloId,
                 ClienteId = sessioneQrDto.ClienteId,
                 CodiceSessione = sessioneQrDto.CodiceSessione,
-                Stato = sessioneQrDto.Stato,
+                Stato = sessioneQrDto.Stato ?? "Attiva",
                 QrCode = sessioneQrDto.QrCode,
                 DataCreazione = DateTime.Now,
                 DataScadenza = sessioneQrDto.DataScadenza,
-                Utilizzato = sessioneQrDto.Utilizzato,
+                Utilizzato = sessioneQrDto.Utilizzato ?? false,
                 DataUtilizzo = sessioneQrDto.DataUtilizzo
             };
 
             await _context.SessioniQr.AddAsync(sessione);
             await _context.SaveChangesAsync();
 
+            // ✅ Aggiorna DTO con valori dal database
             sessioneQrDto.SessioneId = sessione.SessioneId;
             sessioneQrDto.DataCreazione = sessione.DataCreazione;
+            sessioneQrDto.Stato = sessione.Stato;
+            sessioneQrDto.Utilizzato = sessione.Utilizzato;
+
+            return sessioneQrDto;
         }
 
         public async Task UpdateAsync(SessioniQrDTO sessioneQrDto)

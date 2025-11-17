@@ -227,8 +227,11 @@ namespace Repository.Service
             .ToList();
         }
 
-        public async Task AddAsync(BevandaStandardDTO bevandaStandardDto)
+        public async Task<BevandaStandardDTO> AddAsync(BevandaStandardDTO bevandaStandardDto) // ✅ CORREGGI: ritorna DTO
         {
+            if (bevandaStandardDto == null)
+                throw new ArgumentNullException(nameof(bevandaStandardDto));
+
             // ✅ CORREZIONE: Prima crea il record in ARTICOLO
             var articolo = new Articolo
             {
@@ -250,9 +253,9 @@ namespace Repository.Service
                 ImmagineUrl = bevandaStandardDto.ImmagineUrl,
                 Disponibile = bevandaStandardDto.Disponibile,
                 SempreDisponibile = bevandaStandardDto.SempreDisponibile,
-                Priorita = bevandaStandardDto.Priorita,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
+                Priorita = bevandaStandardDto.Priorita, // ✅ NOT NULL - valore dal DTO
+                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
+                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
             };
 
             _context.BevandaStandard.Add(bevandaStandard);
@@ -262,10 +265,15 @@ namespace Repository.Service
             bevandaStandardDto.ArticoloId = bevandaStandard.ArticoloId;
             bevandaStandardDto.DataCreazione = bevandaStandard.DataCreazione;
             bevandaStandardDto.DataAggiornamento = bevandaStandard.DataAggiornamento;
+
+            return bevandaStandardDto; // ✅ AGGIUNGI return
         }
 
         public async Task UpdateAsync(BevandaStandardDTO bevandaStandardDto)
         {
+            if (bevandaStandardDto == null) // ✅ AGGIUNGI validazione
+                throw new ArgumentNullException(nameof(bevandaStandardDto));
+
             var bevandaStandard = await _context.BevandaStandard
                 .FirstOrDefaultAsync(bs => bs.ArticoloId == bevandaStandardDto.ArticoloId);
 
@@ -278,8 +286,8 @@ namespace Repository.Service
             bevandaStandard.ImmagineUrl = bevandaStandardDto.ImmagineUrl;
             bevandaStandard.Disponibile = bevandaStandardDto.Disponibile;
             bevandaStandard.SempreDisponibile = bevandaStandardDto.SempreDisponibile;
-            bevandaStandard.Priorita = bevandaStandardDto.Priorita;
-            bevandaStandard.DataAggiornamento = DateTime.Now;
+            bevandaStandard.Priorita = bevandaStandardDto.Priorita; // ✅ NOT NULL - valore dal DTO
+            bevandaStandard.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
 
             await _context.SaveChangesAsync();
 

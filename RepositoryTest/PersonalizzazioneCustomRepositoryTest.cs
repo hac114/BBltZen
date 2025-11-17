@@ -165,22 +165,25 @@ namespace RepositoryTest
             // Arrange
             var newPersonalizzazione = new PersonalizzazioneCustomDTO
             {
-                PersCustomId = 4,
+                // ❌ RIMUOVI PersCustomId - viene generato automaticamente dal database!
                 Nome = "Nuova Personalizzazione",
                 GradoDolcezza = 4,
                 DimensioneBicchiereId = 2
             };
 
             // Act
-            await _repository.AddAsync(newPersonalizzazione);
+            var result = await _repository.AddAsync(newPersonalizzazione); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            var result = await _repository.GetByIdAsync(4);
-            Assert.NotNull(result);
-            Assert.Equal("Nuova Personalizzazione", result.Nome);
-            Assert.Equal(4, result.GradoDolcezza);
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
+            // ✅ Ora usa result.PersCustomId che è stato generato dal repository
+            Assert.True(result.PersCustomId > 0);
+            var savedPersonalizzazione = await _repository.GetByIdAsync(result.PersCustomId);
+            Assert.NotNull(savedPersonalizzazione);
+            Assert.Equal("Nuova Personalizzazione", savedPersonalizzazione.Nome);
+            Assert.Equal(4, savedPersonalizzazione.GradoDolcezza);
+            Assert.Equal(2, savedPersonalizzazione.DimensioneBicchiereId);
+            Assert.NotNull(savedPersonalizzazione.DataCreazione);
+            Assert.NotNull(savedPersonalizzazione.DataAggiornamento);
         }
 
         [Fact]
@@ -204,6 +207,7 @@ namespace RepositoryTest
             Assert.Equal("Dolce Leggero Modificato", result.Nome);
             Assert.Equal(1, result.GradoDolcezza);
             Assert.Equal(2, result.DimensioneBicchiereId);
+            Assert.NotNull(result.DataAggiornamento); // ✅ Verifica data aggiornamento
         }
 
         [Fact]
@@ -235,6 +239,49 @@ namespace RepositoryTest
 
             // Assert
             Assert.False(result);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithNullNome_ShouldUseDefaultValue()
+        {
+            // Arrange
+            var newPersonalizzazione = new PersonalizzazioneCustomDTO
+            {
+                Nome = null!, // ✅ Testa il comportamento con nome null
+                GradoDolcezza = 3,
+                DimensioneBicchiereId = 1
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newPersonalizzazione);
+
+            // Assert
+            var savedPersonalizzazione = await _repository.GetByIdAsync(result.PersCustomId);
+            Assert.NotNull(savedPersonalizzazione);
+            Assert.Equal("Bevanda Custom", savedPersonalizzazione.Nome); // ✅ Verifica valore default
+            Assert.Equal(3, savedPersonalizzazione.GradoDolcezza);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_WithNullNome_ShouldUseDefaultValue()
+        {
+            // Arrange
+            var updateDto = new PersonalizzazioneCustomDTO
+            {
+                PersCustomId = 1,
+                Nome = null!, // ✅ Testa il comportamento con nome null
+                GradoDolcezza = 2,
+                DimensioneBicchiereId = 1
+            };
+
+            // Act
+            await _repository.UpdateAsync(updateDto);
+
+            // Assert
+            var result = await _repository.GetByIdAsync(1);
+            Assert.NotNull(result);
+            Assert.Equal("Bevanda Custom", result.Nome); // ✅ Verifica valore default
+            Assert.Equal(2, result.GradoDolcezza);
         }
     }
 }

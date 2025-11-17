@@ -54,11 +54,11 @@ namespace RepositoryTest
             };
 
             // Act
-            await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
+            var result = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Assert
-            var result = await _dimensioneBicchiereRepository.GetByIdAsync(dimensioneDto.DimensioneBicchiereId);
             Assert.NotNull(result);
+            Assert.True(result.DimensioneBicchiereId > 0); // ✅ VERIFICA ID generato
             Assert.Equal("M", result.Sigla);
             Assert.Equal("Medio", result.Descrizione);
             Assert.Equal(400.0m, result.Capienza);
@@ -80,14 +80,14 @@ namespace RepositoryTest
                 PrezzoBase = 4.50m,
                 Moltiplicatore = 1.2m
             };
-            await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
+            var addedDimensione = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
-            var result = await _dimensioneBicchiereRepository.GetByIdAsync(dimensioneDto.DimensioneBicchiereId);
+            var result = await _dimensioneBicchiereRepository.GetByIdAsync(addedDimensione.DimensioneBicchiereId); // ✅ USA ID dal risultato
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(dimensioneDto.DimensioneBicchiereId, result.DimensioneBicchiereId);
+            Assert.Equal(addedDimensione.DimensioneBicchiereId, result.DimensioneBicchiereId);
             Assert.Equal("G", result.Sigla);
             Assert.Equal("Grande", result.Descrizione);
             Assert.Equal(500.0m, result.Capienza);
@@ -141,19 +141,25 @@ namespace RepositoryTest
                 }
             };
 
+            // ✅ CORRETTO: Assegna i risultati per ottenere gli ID
+            var addedDimensioni = new List<DimensioneBicchiereDTO>();
             foreach (var dimensione in dimensioniList)
             {
-                await _dimensioneBicchiereRepository.AddAsync(dimensione);
+                var result1 = await _dimensioneBicchiereRepository.AddAsync(dimensione);
+                addedDimensioni.Add(result1);
             }
 
             // Act
             var result = await _dimensioneBicchiereRepository.GetAllAsync();
 
-            // Assert
-            Assert.Equal(3, result.Count);
+            // Assert - ✅ CORREZIONE: Usa Count() invece di Count
+            Assert.Equal(3, result.Count()); // ✅ Count() per IEnumerable
             Assert.Contains(result, d => d.Sigla == "S");
             Assert.Contains(result, d => d.Sigla == "M");
             Assert.Contains(result, d => d.Sigla == "L");
+
+            // ✅ VERIFICA CHE TUTTI GLI ID SIANO STATI GENERATI
+            Assert.All(addedDimensioni, d => Assert.True(d.DimensioneBicchiereId > 0));
         }
 
         [Fact]
@@ -169,11 +175,11 @@ namespace RepositoryTest
                 PrezzoBase = 3.50m,
                 Moltiplicatore = 1.0m
             };
-            await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
+            var addedDimensione = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto); // ✅ CAMBIATO: assegna risultato
 
             var updateDto = new DimensioneBicchiereDTO
             {
-                DimensioneBicchiereId = dimensioneDto.DimensioneBicchiereId,
+                DimensioneBicchiereId = addedDimensione.DimensioneBicchiereId, // ✅ USA ID dal risultato
                 Sigla = "M+",
                 Descrizione = "Medio Plus",
                 Capienza = 450.0m,
@@ -186,7 +192,7 @@ namespace RepositoryTest
             await _dimensioneBicchiereRepository.UpdateAsync(updateDto);
 
             // Assert
-            var updated = await _dimensioneBicchiereRepository.GetByIdAsync(dimensioneDto.DimensioneBicchiereId);
+            var updated = await _dimensioneBicchiereRepository.GetByIdAsync(addedDimensione.DimensioneBicchiereId);
             Assert.NotNull(updated);
             Assert.Equal("M+", updated.Sigla);
             Assert.Equal("Medio Plus", updated.Descrizione);
@@ -196,22 +202,23 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task UpdateAsync_Should_Not_Throw_For_NonExisting_Id()
+        public async Task UpdateAsync_Should_Throw_For_NonExisting_Id()
         {
             // Arrange
-            var updateDto = new DimensioneBicchiereDTO
+            var nonExistingDto = new DimensioneBicchiereDTO
             {
                 DimensioneBicchiereId = 999,
                 Sigla = "TEST",
                 Descrizione = "Test",
-                Capienza = 100.0m,
+                Capienza = 500,
                 UnitaMisuraId = 1,
-                PrezzoBase = 1.00m,
+                PrezzoBase = 2.50m,
                 Moltiplicatore = 1.0m
             };
 
-            // Act & Assert - Non dovrebbe lanciare eccezioni
-            await _dimensioneBicchiereRepository.UpdateAsync(updateDto);
+            // Act & Assert - DOVREBBE lanciare eccezione
+            // ✅ CORREZIONE: usa _dimensioneBicchiereRepository invece di _repository
+            await Assert.ThrowsAsync<ArgumentException>(() => _dimensioneBicchiereRepository.UpdateAsync(nonExistingDto));
         }
 
         [Fact]
@@ -227,13 +234,13 @@ namespace RepositoryTest
                 PrezzoBase = 5.50m,
                 Moltiplicatore = 1.5m
             };
-            await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
+            var addedDimensione = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
-            await _dimensioneBicchiereRepository.DeleteAsync(dimensioneDto.DimensioneBicchiereId);
+            await _dimensioneBicchiereRepository.DeleteAsync(addedDimensione.DimensioneBicchiereId); // ✅ USA ID dal risultato
 
             // Assert
-            var deleted = await _dimensioneBicchiereRepository.GetByIdAsync(dimensioneDto.DimensioneBicchiereId);
+            var deleted = await _dimensioneBicchiereRepository.GetByIdAsync(addedDimensione.DimensioneBicchiereId);
             Assert.Null(deleted);
         }
 
@@ -259,10 +266,10 @@ namespace RepositoryTest
             };
 
             // Act
-            await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
+            var result = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Assert
-            Assert.True(dimensioneDto.DimensioneBicchiereId > 0);
+            Assert.True(result.DimensioneBicchiereId > 0); // ✅ VERIFICA sul risultato
         }
 
         [Fact]
@@ -284,11 +291,11 @@ namespace RepositoryTest
                 Sigla = "T",
                 Descrizione = "Test",
                 Capienza = 350.0m,
-                UnitaMisuraId = 1, // Deve esistere nel setup
+                UnitaMisuraId = 1,
                 PrezzoBase = 3.00m,
                 Moltiplicatore = 0.9m
             };
-            await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
+            var addedDimensione = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
             var result = await _dimensioneBicchiereRepository.GetAllAsync();
@@ -313,18 +320,54 @@ namespace RepositoryTest
                 Moltiplicatore = 0.9m
             };
 
-            await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
-            Console.WriteLine($"ID assegnato: {dimensioneDto.DimensioneBicchiereId}");
-
-            // Debug: query diretta
-            var directQuery = await _context.DimensioneBicchiere
-                .Where(d => d.DimensioneBicchiereId == dimensioneDto.DimensioneBicchiereId)
-                .FirstOrDefaultAsync();
-            Console.WriteLine($"Query diretta: {directQuery?.Sigla}");
+            var result = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
-            var result = await _dimensioneBicchiereRepository.GetByIdAsync(dimensioneDto.DimensioneBicchiereId);
-            Console.WriteLine($"Repository result: {result?.Sigla}");
+            var retrieved = await _dimensioneBicchiereRepository.GetByIdAsync(result.DimensioneBicchiereId); // ✅ USA ID dal risultato
+
+            // Assert
+            Assert.NotNull(retrieved);
+            Assert.Equal("DEBUG", retrieved.Sigla);
+        }
+
+        [Fact]
+        public async Task ExistsAsync_Should_Return_Correct_Value()
+        {
+            // Arrange
+            var dimensioneDto = new DimensioneBicchiereDTO
+            {
+                Sigla = "EX",
+                Descrizione = "Exists Test",
+                Capienza = 350.0m,
+                UnitaMisuraId = 1,
+                PrezzoBase = 3.00m,
+                Moltiplicatore = 0.9m
+            };
+            var addedDimensione = await _dimensioneBicchiereRepository.AddAsync(dimensioneDto);
+
+            // Act & Assert
+            Assert.True(await _dimensioneBicchiereRepository.ExistsAsync(addedDimensione.DimensioneBicchiereId));
+            Assert.False(await _dimensioneBicchiereRepository.ExistsAsync(999));
+        }
+
+        [Fact]
+        public async Task UpdateAsync_With_NonExisting_Id_Should_Throw_Exception()
+        {
+            // Arrange
+            var updateDto = new DimensioneBicchiereDTO
+            {
+                DimensioneBicchiereId = 999,
+                Sigla = "TEST",
+                Descrizione = "Test",
+                Capienza = 100.0m,
+                UnitaMisuraId = 1,
+                PrezzoBase = 1.00m,
+                Moltiplicatore = 1.0m
+            };
+
+            // Act & Assert - ✅ ORA DOVREBBE LANCIARE ECCEZIONE
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                _dimensioneBicchiereRepository.UpdateAsync(updateDto));
         }
     }
 }

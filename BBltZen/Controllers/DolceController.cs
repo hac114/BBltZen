@@ -38,7 +38,7 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetAllAsync();
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti i dolci");
                 return SafeInternalError<IEnumerable<DolceDTO>>("Errore durante il recupero dei dolci");
@@ -61,7 +61,7 @@ namespace BBltZen.Controllers
 
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero del dolce {ArticoloId}", articoloId);
                 return SafeInternalError<DolceDTO>("Errore durante il recupero del dolce");
@@ -77,7 +77,7 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetDisponibiliAsync();
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dei dolci disponibili");
                 return SafeInternalError<IEnumerable<DolceDTO>>("Errore durante il recupero dei dolci disponibili");
@@ -90,13 +90,14 @@ namespace BBltZen.Controllers
         {
             try
             {
-                if (priorita <= 0)
-                    return SafeBadRequest<IEnumerable<DolceDTO>>("Priorità non valida");
+                // ✅ CORREZIONE: Priorità può essere 0 (valore minimo consentito)
+                if (priorita < 0 || priorita > 10)
+                    return SafeBadRequest<IEnumerable<DolceDTO>>("Priorità non valida (deve essere tra 0 e 10)");
 
                 var result = await _repository.GetByPrioritaAsync(priorita);
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dei dolci per priorità {Priorita}", priorita);
                 return SafeInternalError<IEnumerable<DolceDTO>>("Errore durante il recupero dei dolci per priorità");
@@ -121,28 +122,31 @@ namespace BBltZen.Controllers
                 if (nomeEsistente)
                     return SafeBadRequest<DolceDTO>($"Esiste già un dolce con il nome '{dolceDto.Nome}'");
 
-                await _repository.AddAsync(dolceDto);
+                // ✅ CORREZIONE: AddAsync ora ritorna il DTO con ArticoloId generato
+                var createdDolce = await _repository.AddAsync(dolceDto);
 
-                LogAuditTrail("CREATE_DOLCE", "Dolce", dolceDto.ArticoloId.ToString());
-                LogSecurityEvent("DolceCreated", new
-                {
-                    ArticoloId = dolceDto.ArticoloId,
-                    Nome = dolceDto.Nome,
-                    Prezzo = dolceDto.Prezzo,
-                    Disponibile = dolceDto.Disponibile,
-                    Priorita = dolceDto.Priorita,
-                    User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = System.DateTime.UtcNow
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("CREATE", "Dolce", createdDolce.ArticoloId.ToString());
+                LogSecurityEvent("DolceCreated", $"Created Dolce ID: {createdDolce.ArticoloId}");
 
                 return CreatedAtAction(nameof(GetById),
-                    new { articoloId = dolceDto.ArticoloId },
-                    dolceDto);
+                    new { articoloId = createdDolce.ArticoloId },
+                    createdDolce);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione del dolce");
+                return SafeInternalError<DolceDTO>("Errore durante il salvataggio dei dati");
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante la creazione del dolce");
+                return SafeBadRequest<DolceDTO>(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione del dolce");
-                return SafeInternalError<DolceDTO>("Errore durante la creazione del dolce");
+                return SafeInternalError<DolceDTO>(ex.Message);
             }
         }
 
@@ -173,29 +177,26 @@ namespace BBltZen.Controllers
 
                 await _repository.UpdateAsync(dolceDto);
 
-                LogAuditTrail("UPDATE_DOLCE", "Dolce", dolceDto.ArticoloId.ToString());
-                LogSecurityEvent("DolceUpdated", new
-                {
-                    ArticoloId = dolceDto.ArticoloId,
-                    Nome = dolceDto.Nome,
-                    Prezzo = dolceDto.Prezzo,
-                    Disponibile = dolceDto.Disponibile,
-                    Priorita = dolceDto.Priorita,
-                    User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = System.DateTime.UtcNow
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("UPDATE", "Dolce", dolceDto.ArticoloId.ToString());
+                LogSecurityEvent("DolceUpdated", $"Updated Dolce ID: {dolceDto.ArticoloId}");
 
                 return NoContent();
             }
-            catch (System.ArgumentException ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogWarning(ex, "Tentativo di aggiornamento di un dolce non trovato {ArticoloId}", articoloId);
-                return SafeNotFound("Dolce");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento del dolce {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'aggiornamento dei dati");
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento del dolce {ArticoloId}", articoloId);
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento del dolce {ArticoloId}", articoloId);
-                return SafeInternalError("Errore durante l'aggiornamento del dolce");
+                return SafeInternalError(ex.Message);
             }
         }
 
@@ -220,21 +221,21 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(articoloId);
 
-                LogAuditTrail("DELETE_DOLCE", "Dolce", articoloId.ToString());
-                LogSecurityEvent("DolceDeleted", new
-                {
-                    ArticoloId = articoloId,
-                    Nome = existing.Nome,
-                    User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = System.DateTime.UtcNow
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("DELETE", "Dolce", articoloId.ToString());
+                LogSecurityEvent("DolceDeleted", $"Deleted Dolce ID: {articoloId}");
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione del dolce {ArticoloId}", articoloId);
+                return SafeInternalError("Errore durante l'eliminazione dei dati");
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione del dolce {ArticoloId}", articoloId);
-                return SafeInternalError("Errore durante l'eliminazione del dolce");
+                return SafeInternalError(ex.Message);
             }
         }
     }

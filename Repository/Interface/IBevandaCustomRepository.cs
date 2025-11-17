@@ -11,7 +11,7 @@ namespace Repository.Interface
         Task<BevandaCustomDTO?> GetByIdAsync(int bevandaCustomId);
         Task<BevandaCustomDTO?> GetByArticoloIdAsync(int articoloId);
         Task<IEnumerable<BevandaCustomDTO>> GetByPersCustomIdAsync(int persCustomId);
-        Task AddAsync(BevandaCustomDTO bevandaCustomDto);
+        Task<BevandaCustomDTO> AddAsync(BevandaCustomDTO bevandaCustomDto);
         Task UpdateAsync(BevandaCustomDTO bevandaCustomDto);
         Task DeleteAsync(int bevandaCustomId);
         Task<bool> ExistsAsync(int bevandaCustomId);

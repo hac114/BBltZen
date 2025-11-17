@@ -25,19 +25,20 @@ namespace RepositoryTest
             var utenteDto = new UtentiDTO
             {
                 Email = "test@example.com",
-                PasswordHash = "hashed_password",
-                TipoUtente = "cliente",
-                DataCreazione = DateTime.Now,
-                Attivo = true
+                PasswordHash = "hashed_password"
+                // ✅ RIMOSSO: TipoUtente, DataCreazione, Attivo (vengono settati dal repository)
             };
 
             // Act
-            await _repository.AddAsync(utenteDto);
+            var result = await _repository.AddAsync(utenteDto); // ✅ CAMBIATO: assegna risultato
 
             // Assert
-            var utenti = await _repository.GetAllAsync();
-            Assert.Single(utenti);
-            Assert.Equal("test@example.com", utenti.First().Email);
+            Assert.NotNull(result);
+            Assert.True(result.UtenteId > 0); // ✅ VERIFICA ID generato
+            Assert.Equal("test@example.com", result.Email);
+            Assert.Equal("cliente", result.TipoUtente); // ✅ VERIFICA DEFAULT
+            Assert.True(result.Attivo); // ✅ VERIFICA DEFAULT
+            Assert.NotNull(result.DataCreazione); // ✅ VERIFICA timestamp
         }
 
         [Fact]
@@ -47,20 +48,19 @@ namespace RepositoryTest
             var utenteDto = new UtentiDTO
             {
                 Email = "getbyid@example.com",
-                PasswordHash = "hashed_password",
-                TipoUtente = "cliente",
-                Attivo = true
+                PasswordHash = "hashed_password"
+                // ✅ RIMOSSO: TipoUtente, Attivo (vengono settati dal repository)
             };
-            await _repository.AddAsync(utenteDto);
-            var utenteId = utenteDto.UtenteId;
+            var addedUtente = await _repository.AddAsync(utenteDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
-            var result = await _repository.GetByIdAsync(utenteId);
+            var result = await _repository.GetByIdAsync(addedUtente.UtenteId); // ✅ USA ID dal risultato
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(utenteId, result.UtenteId);
+            Assert.Equal(addedUtente.UtenteId, result.UtenteId);
             Assert.Equal("getbyid@example.com", result.Email);
+            Assert.Equal("cliente", result.TipoUtente); // ✅ VERIFICA DEFAULT
         }
 
         [Fact]
@@ -80,11 +80,9 @@ namespace RepositoryTest
             var utenteDto = new UtentiDTO
             {
                 Email = "unique@example.com",
-                PasswordHash = "hashed_password",
-                TipoUtente = "cliente",
-                Attivo = true
+                PasswordHash = "hashed_password"
             };
-            await _repository.AddAsync(utenteDto);
+            var addedUtente = await _repository.AddAsync(utenteDto); // ✅ CAMBIATO: assegna risultato
 
             // Act
             var result = await _repository.GetByEmailAsync("unique@example.com");
@@ -92,6 +90,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.Equal("unique@example.com", result.Email);
+            Assert.Equal(addedUtente.UtenteId, result.UtenteId); // ✅ VERIFICA ID
         }
 
         [Fact]
@@ -151,22 +150,24 @@ namespace RepositoryTest
             var utenteDto = new UtentiDTO
             {
                 Email = "original@example.com",
-                PasswordHash = "original_hash",
-                TipoUtente = "cliente",
-                Attivo = true
+                PasswordHash = "original_hash"
             };
-            await _repository.AddAsync(utenteDto);
+            var addedUtente = await _repository.AddAsync(utenteDto); // ✅ CAMBIATO: assegna risultato
 
             // Act - Update
-            utenteDto.Email = "updated@example.com";
-            utenteDto.PasswordHash = "updated_hash";
-            utenteDto.TipoUtente = "admin";
-            utenteDto.Attivo = false;
+            var updateDto = new UtentiDTO
+            {
+                UtenteId = addedUtente.UtenteId, // ✅ USA ID dal risultato
+                Email = "updated@example.com",
+                PasswordHash = "updated_hash",
+                TipoUtente = "admin",
+                Attivo = false
+            };
 
-            await _repository.UpdateAsync(utenteDto);
+            await _repository.UpdateAsync(updateDto);
 
             // Assert
-            var updated = await _repository.GetByIdAsync(utenteDto.UtenteId);
+            var updated = await _repository.GetByIdAsync(addedUtente.UtenteId);
             Assert.NotNull(updated);
             Assert.Equal("updated@example.com", updated.Email);
             Assert.Equal("updated_hash", updated.PasswordHash);
@@ -273,6 +274,97 @@ namespace RepositoryTest
 
             // Assert
             Assert.Equal(2, allUtenti.Count());
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Default_Values()
+        {
+            // Arrange
+            var utenteDto = new UtentiDTO
+            {
+                Email = "default@example.com",
+                PasswordHash = "hashed_password"
+                // ✅ INTENZIONALMENTE NON SETTO: TipoUtente, Attivo
+            };
+
+            // Act
+            var result = await _repository.AddAsync(utenteDto);
+
+            // Assert - ✅ USA ToString per evitare problemi di millisecondi
+            Assert.Equal("cliente", result.TipoUtente);
+            Assert.True(result.Attivo);
+
+            // ✅ CORRETTO: Confronta solo data/ora senza millisecondi
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataCreazione?.ToString("yyyy-MM-dd HH:mm:ss"));
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento?.ToString("yyyy-MM-dd HH:mm:ss"));
+
+            // ✅ OPPURE usa TimeSpan per tolleranza
+            var timeTolerance = TimeSpan.FromSeconds(1);
+            Assert.True((DateTime.Now - result.DataCreazione.Value).Duration() <= timeTolerance);
+            Assert.True((DateTime.Now - result.DataAggiornamento.Value).Duration() <= timeTolerance);
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Correct_Timestamps()
+        {
+            // Arrange
+            var utenteDto = new UtentiDTO
+            {
+                Email = "timestamp@example.com",
+                PasswordHash = "hashed_password"
+            };
+
+            // Act
+            var result = await _repository.AddAsync(utenteDto);
+
+            // Assert - ✅ USA ToString per evitare problemi di millisecondi
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataCreazione?.ToString("yyyy-MM-dd HH:mm:ss"));
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento?.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+
+        [Fact]
+        public async Task UpdateAsync_Should_Update_DataAggiornamento()
+        {
+            // Arrange
+            var utenteDto = new UtentiDTO
+            {
+                Email = "update@example.com",
+                PasswordHash = "original_hash"
+            };
+            var addedUtente = await _repository.AddAsync(utenteDto);
+
+            var originalUpdateTime = addedUtente.DataAggiornamento;
+
+            var updateDto = new UtentiDTO
+            {
+                UtenteId = addedUtente.UtenteId,
+                Email = "updated@example.com",
+                PasswordHash = "updated_hash",
+                TipoUtente = "admin"
+            };
+
+            // Act - ✅ ATTENDI 1ms per essere sicuro del cambiamento
+            await Task.Delay(1);
+            await _repository.UpdateAsync(updateDto);
+
+            // Assert
+            var updated = await _repository.GetByIdAsync(addedUtente.UtenteId);
+            Assert.NotNull(updated);
+            Assert.True(DateTime.Compare(updated.DataAggiornamento.Value, originalUpdateTime.Value) > 0);
+        }
+
+        [Fact]
+        public async Task GetByEmailAsync_With_InvalidEmail_Should_Return_Null()
+        {
+            // Act
+            var result = await _repository.GetByEmailAsync("nonexistent@example.com");
+
+            // Assert
+            Assert.Null(result);
         }
     }
 }

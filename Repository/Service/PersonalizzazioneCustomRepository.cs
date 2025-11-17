@@ -87,37 +87,46 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task AddAsync(PersonalizzazioneCustomDTO personalizzazioneCustomDto)
+        public async Task<PersonalizzazioneCustomDTO> AddAsync(PersonalizzazioneCustomDTO personalizzazioneCustomDto) // ✅ CORREGGI: ritorna DTO
         {
+            if (personalizzazioneCustomDto == null)
+                throw new ArgumentNullException(nameof(personalizzazioneCustomDto));
+
             var personalizzazioneCustom = new PersonalizzazioneCustom
             {
-                PersCustomId = personalizzazioneCustomDto.PersCustomId,
-                Nome = personalizzazioneCustomDto.Nome,
+                Nome = personalizzazioneCustomDto.Nome ?? "Bevanda Custom", // ✅ NOT NULL - valore default
                 GradoDolcezza = personalizzazioneCustomDto.GradoDolcezza,
                 DimensioneBicchiereId = personalizzazioneCustomDto.DimensioneBicchiereId,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
+                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
+                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
             };
 
             _context.PersonalizzazioneCustom.Add(personalizzazioneCustom);
             await _context.SaveChangesAsync();
 
+            // Aggiorna il DTO con i valori del database
+            personalizzazioneCustomDto.PersCustomId = personalizzazioneCustom.PersCustomId;
             personalizzazioneCustomDto.DataCreazione = personalizzazioneCustom.DataCreazione;
             personalizzazioneCustomDto.DataAggiornamento = personalizzazioneCustom.DataAggiornamento;
+
+            return personalizzazioneCustomDto; // ✅ AGGIUNGI return
         }
 
         public async Task UpdateAsync(PersonalizzazioneCustomDTO personalizzazioneCustomDto)
         {
+            if (personalizzazioneCustomDto == null) // ✅ AGGIUNGI validazione
+                throw new ArgumentNullException(nameof(personalizzazioneCustomDto));
+
             var personalizzazioneCustom = await _context.PersonalizzazioneCustom
                 .FirstOrDefaultAsync(pc => pc.PersCustomId == personalizzazioneCustomDto.PersCustomId);
 
             if (personalizzazioneCustom == null)
                 throw new ArgumentException($"PersonalizzazioneCustom con PersCustomId {personalizzazioneCustomDto.PersCustomId} non trovata");
 
-            personalizzazioneCustom.Nome = personalizzazioneCustomDto.Nome;
+            personalizzazioneCustom.Nome = personalizzazioneCustomDto.Nome ?? "Bevanda Custom"; // ✅ NOT NULL - valore default
             personalizzazioneCustom.GradoDolcezza = personalizzazioneCustomDto.GradoDolcezza;
             personalizzazioneCustom.DimensioneBicchiereId = personalizzazioneCustomDto.DimensioneBicchiereId;
-            personalizzazioneCustom.DataAggiornamento = DateTime.Now;
+            personalizzazioneCustom.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
 
             await _context.SaveChangesAsync();
 

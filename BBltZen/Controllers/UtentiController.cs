@@ -44,7 +44,6 @@ namespace BBltZen.Controllers
 
         // GET: api/Utenti/5
         [HttpGet("{id}")]
-        //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult<UtentiDTO>> GetById(int id)
         {
             try
@@ -53,11 +52,7 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<UtentiDTO>("ID utente non valido");
 
                 var utente = await _repository.GetByIdAsync(id);
-
-                if (utente == null)
-                    return SafeNotFound<UtentiDTO>("Utente");
-
-                return Ok(utente);
+                return utente == null ? SafeNotFound<UtentiDTO>("Utente") : Ok(utente);
             }
             catch (Exception ex)
             {
@@ -68,7 +63,6 @@ namespace BBltZen.Controllers
 
         // GET: api/Utenti/email/test@example.com
         [HttpGet("email/{email}")]
-        //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult<UtentiDTO>> GetByEmail(string email)
         {
             try
@@ -77,11 +71,7 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<UtentiDTO>("Email non valida");
 
                 var utente = await _repository.GetByEmailAsync(email);
-
-                if (utente == null)
-                    return SafeNotFound<UtentiDTO>("Utente");
-
-                return Ok(utente);
+                return utente == null ? SafeNotFound<UtentiDTO>("Utente") : Ok(utente);
             }
             catch (Exception ex)
             {
@@ -129,7 +119,7 @@ namespace BBltZen.Controllers
 
         // POST: api/Utenti
         [HttpPost]
-        [AllowAnonymous] // ✅ REGISTRAZIONE PUBBLICA
+        [AllowAnonymous]
         public async Task<ActionResult<UtentiDTO>> Create([FromBody] UtentiDTO utenteDto)
         {
             try
@@ -137,30 +127,27 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(utenteDto))
                     return SafeBadRequest<UtentiDTO>("Dati utente non validi");
 
-                // Verifica se l'email esiste già
-                // CORREZIONE: Aggiungi controllo null per utenteDto.Email
-                if (!string.IsNullOrEmpty(utenteDto.Email) && await _repository.EmailExistsAsync(utenteDto.Email)) // rigo 141 CORRETTO
+                // ✅ Verifica se l'email esiste già
+                if (!string.IsNullOrEmpty(utenteDto.Email) && await _repository.EmailExistsAsync(utenteDto.Email))
                     return SafeBadRequest<UtentiDTO>("Email già registrata");
 
-                await _repository.AddAsync(utenteDto);
-
-                // ✅ Recupera l'utente creato per ottenere i valori dal database
-                var createdUtente = await _repository.GetByEmailAsync(utenteDto.Email);
-                if (createdUtente == null)
-                    return SafeInternalError<UtentiDTO>("Errore durante il recupero dell'utente creato");
+                // ✅ CORRETTO: Assegna il risultato di AddAsync
+                var result = await _repository.AddAsync(utenteDto);
 
                 // ✅ Audit trail completo
-                LogAuditTrail("CREATE", "Utenti", createdUtente.UtenteId.ToString());
+                LogAuditTrail("CREATE", "Utenti", result.UtenteId.ToString());
+
+                // ✅ CORRETTO: Sintassi semplificata
                 LogSecurityEvent("UtenteCreated", new
                 {
-                    UtenteId = createdUtente.UtenteId,
-                    Email = createdUtente.Email,
-                    TipoUtente = createdUtente.TipoUtente,
+                    result.UtenteId,
+                    result.Email,
+                    result.TipoUtente,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
 
-                return CreatedAtAction(nameof(GetById), new { id = createdUtente.UtenteId }, createdUtente);
+                return CreatedAtAction(nameof(GetById), new { id = result.UtenteId }, result);
             }
             catch (DbUpdateException dbEx)
             {
@@ -181,18 +168,11 @@ namespace BBltZen.Controllers
 
         // PUT: api/Utenti/5
         [HttpPut("{id}")]
-        //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult> Update(int id, [FromBody] UtentiDTO utenteDto)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest("ID utente non valido");
-
-                if (id != utenteDto.UtenteId)
-                    return SafeBadRequest("ID utente non corrispondente");
-
-                if (!IsModelValid(utenteDto))
+                if (id <= 0 || id != utenteDto.UtenteId || !IsModelValid(utenteDto))
                     return SafeBadRequest("Dati utente non validi");
 
                 var existing = await _repository.GetByIdAsync(id);
@@ -201,14 +181,15 @@ namespace BBltZen.Controllers
 
                 await _repository.UpdateAsync(utenteDto);
 
-                // ✅ Audit trail completo
                 LogAuditTrail("UPDATE", "Utenti", utenteDto.UtenteId.ToString());
+
+                // ✅ CORRETTO: Sintassi semplificata
                 LogSecurityEvent("UtenteUpdated", new
                 {
-                    UtenteId = utenteDto.UtenteId,
-                    Email = utenteDto.Email,
-                    TipoUtente = utenteDto.TipoUtente,
-                    Attivo = utenteDto.Attivo,
+                    utenteDto.UtenteId,
+                    utenteDto.Email,
+                    utenteDto.TipoUtente,
+                    utenteDto.Attivo,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -220,10 +201,9 @@ namespace BBltZen.Controllers
                 _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'utente {Id}", id);
                 return SafeInternalError("Errore durante l'aggiornamento dei dati");
             }
-            catch (ArgumentException argEx)
+            catch (ArgumentException)
             {
-                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento dell'utente {Id}", id);
-                return SafeBadRequest(argEx.Message);
+                return SafeBadRequest("Utente non trovato");
             }
             catch (Exception ex)
             {
@@ -234,7 +214,7 @@ namespace BBltZen.Controllers
 
         // DELETE: api/Utenti/5
         [HttpDelete("{id}")]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")]
         public async Task<ActionResult> Delete(int id)
         {
             try
@@ -250,10 +230,12 @@ namespace BBltZen.Controllers
 
                 // ✅ Audit trail completo
                 LogAuditTrail("DELETE", "Utenti", id.ToString());
+
+                // ✅ CORRETTO: Sintassi semplificata
                 LogSecurityEvent("UtenteDeleted", new
                 {
                     UtenteId = id,
-                    Email = utente.Email,
+                    utente.Email, // ✅ SEMPLIFICATO: invece di Email = utente.Email
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -274,16 +256,14 @@ namespace BBltZen.Controllers
 
         // GET: api/Utenti/check-email/test@example.com
         [HttpGet("check-email/{email}")]
-        [AllowAnonymous] // ✅ VERIFICA EMAIL PUBBLICA
+        [AllowAnonymous]
         public async Task<ActionResult<bool>> CheckEmailExists(string email)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(email))
-                    return SafeBadRequest<bool>("Email non valida");
-
-                var exists = await _repository.EmailExistsAsync(email);
-                return Ok(exists);
+                return string.IsNullOrWhiteSpace(email)
+                    ? SafeBadRequest<bool>("Email non valida")
+                    : Ok(await _repository.EmailExistsAsync(email));
             }
             catch (Exception ex)
             {
@@ -294,16 +274,13 @@ namespace BBltZen.Controllers
 
         // GET: api/Utenti/exists/5
         [HttpGet("exists/{id}")]
-        //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult<bool>> Exists(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest<bool>("ID utente non valido");
-
-                var exists = await _repository.ExistsAsync(id);
-                return Ok(exists);
+                return id <= 0
+                    ? SafeBadRequest<bool>("ID utente non valido")
+                    : Ok(await _repository.ExistsAsync(id));
             }
             catch (Exception ex)
             {
@@ -312,9 +289,8 @@ namespace BBltZen.Controllers
             }
         }
 
-        // PATCH: api/Utenti/5/attiva
+        /// PATCH: api/Utenti/5/attiva
         [HttpPatch("{id}/attiva")]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult> AttivaUtente(int id)
         {
             try
@@ -327,16 +303,15 @@ namespace BBltZen.Controllers
                     return SafeNotFound("Utente");
 
                 utente.Attivo = true;
-                utente.DataAggiornamento = DateTime.Now;
-
                 await _repository.UpdateAsync(utente);
 
-                // ✅ Audit trail completo
                 LogAuditTrail("ACTIVATE", "Utenti", id.ToString());
+
+                // ✅ CORRETTO: Sintassi semplificata
                 LogSecurityEvent("UtenteActivated", new
                 {
                     UtenteId = id,
-                    Email = utente.Email,
+                    utente.Email,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -357,7 +332,6 @@ namespace BBltZen.Controllers
 
         // PATCH: api/Utenti/5/disattiva
         [HttpPatch("{id}/disattiva")]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
         public async Task<ActionResult> DisattivaUtente(int id)
         {
             try
@@ -370,16 +344,15 @@ namespace BBltZen.Controllers
                     return SafeNotFound("Utente");
 
                 utente.Attivo = false;
-                utente.DataAggiornamento = DateTime.Now;
-
                 await _repository.UpdateAsync(utente);
 
-                // ✅ Audit trail completo
                 LogAuditTrail("DEACTIVATE", "Utenti", id.ToString());
+
+                // ✅ CORRETTO: Sintassi semplificata
                 LogSecurityEvent("UtenteDeactivated", new
                 {
                     UtenteId = id,
-                    Email = utente.Email,
+                    utente.Email,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });

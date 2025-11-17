@@ -1,20 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
-namespace DTO
+public class UnitaDiMisuraDTO
 {
-    public class UnitaDiMisuraDTO
-    {
-        public int UnitaMisuraId { get; set; }
+    public int UnitaMisuraId { get; set; }
 
-        [StringLength(2, ErrorMessage = "La sigla non può superare 2 caratteri")]
-        public string Sigla { get; set; } = null!;
+    [Required(ErrorMessage = "La sigla è obbligatoria")]
+    [StringLength(10, ErrorMessage = "La sigla non può superare 10 caratteri")] // ✅ AGGIUSTATO: 10 caratteri come DB
+    [RegularExpression(@"^[A-Z]+$", ErrorMessage = "La sigla deve contenere solo lettere maiuscole")]
+    public string Sigla { get; set; } = null!;
 
-        [StringLength(10, ErrorMessage = "La descrizione non può superare 10 caratteri")]
-        public string Descrizione { get; set; } = null!;
-    }
+    [Required(ErrorMessage = "La descrizione è obbligatoria")]
+    [StringLength(50, ErrorMessage = "La descrizione non può superare 50 caratteri")] // ✅ AGGIUSTATO: 50 caratteri come DB
+    public string Descrizione { get; set; } = null!;
 }

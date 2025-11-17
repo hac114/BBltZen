@@ -10,7 +10,7 @@ namespace Repository.Interface
         Task<DolceDTO?> GetByIdAsync(int articoloId);
         Task<IEnumerable<DolceDTO>> GetDisponibiliAsync();
         Task<IEnumerable<DolceDTO>> GetByPrioritaAsync(int priorita);
-        Task AddAsync(DolceDTO dolceDto);
+        Task<DolceDTO> AddAsync(DolceDTO dolceDto);
         Task UpdateAsync(DolceDTO dolceDto);
         Task DeleteAsync(int articoloId);
         Task<bool> ExistsAsync(int articoloId);

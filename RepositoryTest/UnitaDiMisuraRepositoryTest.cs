@@ -30,11 +30,11 @@ namespace RepositoryTest
             };
 
             // Act
-            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+            var result = await _unitaDiMisuraRepository.AddAsync(unitaDto); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            var result = await _unitaDiMisuraRepository.GetByIdAsync(unitaDto.UnitaMisuraId);
             Assert.NotNull(result);
+            Assert.True(result.UnitaMisuraId > 0); // ✅ VERIFICA ID generato
             Assert.Equal("ml", result.Sigla);
             Assert.Equal("Millilitri", result.Descrizione);
         }
@@ -48,14 +48,14 @@ namespace RepositoryTest
                 Sigla = "g",
                 Descrizione = "Grammi"
             };
-            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+            var addedUnita = await _unitaDiMisuraRepository.AddAsync(unitaDto); // ✅ CORREGGI: assegna risultato
 
             // Act
-            var result = await _unitaDiMisuraRepository.GetByIdAsync(unitaDto.UnitaMisuraId);
+            var result = await _unitaDiMisuraRepository.GetByIdAsync(addedUnita.UnitaMisuraId); // ✅ USA ID dal risultato
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(unitaDto.UnitaMisuraId, result.UnitaMisuraId);
+            Assert.Equal(addedUnita.UnitaMisuraId, result.UnitaMisuraId);
             Assert.Equal("g", result.Sigla);
             Assert.Equal("Grammi", result.Descrizione);
         }
@@ -75,25 +75,31 @@ namespace RepositoryTest
         {
             // Arrange
             var unitaList = new List<UnitaDiMisuraDTO>
-            {
-                new UnitaDiMisuraDTO { Sigla = "ml", Descrizione = "Millilitri" },
-                new UnitaDiMisuraDTO { Sigla = "g", Descrizione = "Grammi" },
-                new UnitaDiMisuraDTO { Sigla = "cl", Descrizione = "Centilitri" }
-            };
+    {
+        new UnitaDiMisuraDTO { Sigla = "ml", Descrizione = "Millilitri" },
+        new UnitaDiMisuraDTO { Sigla = "g", Descrizione = "Grammi" },
+        new UnitaDiMisuraDTO { Sigla = "cl", Descrizione = "Centilitri" }
+    };
 
+            // ✅ CORREGGI: Assegna i risultati per ottenere gli ID
+            var addedUnita = new List<UnitaDiMisuraDTO>();
             foreach (var unita in unitaList)
             {
-                await _unitaDiMisuraRepository.AddAsync(unita);
+                var result1 = await _unitaDiMisuraRepository.AddAsync(unita);
+                addedUnita.Add(result1);
             }
 
             // Act
             var result = await _unitaDiMisuraRepository.GetAllAsync();
 
             // Assert
-            Assert.Equal(3, result.Count);
+            Assert.Equal(3, result.Count()); // ✅ CORREGGI: Count() per IEnumerable
             Assert.Contains(result, u => u.Sigla == "ml");
             Assert.Contains(result, u => u.Sigla == "g");
             Assert.Contains(result, u => u.Sigla == "cl");
+
+            // ✅ VERIFICA CHE TUTTI GLI ID SIANO STATI GENERATI
+            Assert.All(addedUnita, u => Assert.True(u.UnitaMisuraId > 0));
         }
 
         [Fact]
@@ -105,11 +111,11 @@ namespace RepositoryTest
                 Sigla = "ml",
                 Descrizione = "Millilitri"
             };
-            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+            var addedUnita = await _unitaDiMisuraRepository.AddAsync(unitaDto); // ✅ CORREGGI: assegna risultato
 
             var updateDto = new UnitaDiMisuraDTO
             {
-                UnitaMisuraId = unitaDto.UnitaMisuraId,
+                UnitaMisuraId = addedUnita.UnitaMisuraId, // ✅ USA ID dal risultato
                 Sigla = "ML",
                 Descrizione = "MILLILITRI"
             };
@@ -118,7 +124,7 @@ namespace RepositoryTest
             await _unitaDiMisuraRepository.UpdateAsync(updateDto);
 
             // Assert
-            var updated = await _unitaDiMisuraRepository.GetByIdAsync(unitaDto.UnitaMisuraId);
+            var updated = await _unitaDiMisuraRepository.GetByIdAsync(addedUnita.UnitaMisuraId);
             Assert.NotNull(updated);
             Assert.Equal("ML", updated.Sigla);
             Assert.Equal("MILLILITRI", updated.Descrizione);
@@ -148,13 +154,13 @@ namespace RepositoryTest
                 Sigla = "oz",
                 Descrizione = "Oncie"
             };
-            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+            var addedUnita = await _unitaDiMisuraRepository.AddAsync(unitaDto); // ✅ CORREGGI: assegna risultato
 
             // Act
-            await _unitaDiMisuraRepository.DeleteAsync(unitaDto.UnitaMisuraId);
+            await _unitaDiMisuraRepository.DeleteAsync(addedUnita.UnitaMisuraId); // ✅ USA ID dal risultato
 
             // Assert
-            var deleted = await _unitaDiMisuraRepository.GetByIdAsync(unitaDto.UnitaMisuraId);
+            var deleted = await _unitaDiMisuraRepository.GetByIdAsync(addedUnita.UnitaMisuraId);
             Assert.Null(deleted);
         }
 
@@ -176,10 +182,10 @@ namespace RepositoryTest
             };
 
             // Act
-            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+            var result = await _unitaDiMisuraRepository.AddAsync(unitaDto); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            Assert.True(unitaDto.UnitaMisuraId > 0);
+            Assert.True(result.UnitaMisuraId > 0); // ✅ VERIFICA sul risultato
         }
 
         [Fact]
@@ -190,6 +196,80 @@ namespace RepositoryTest
 
             // Assert
             Assert.Empty(result);
+        }
+
+        [Fact]
+        public async Task ExistsAsync_Should_Return_Correct_Value()
+        {
+            // Arrange
+            var unitaDto = new UnitaDiMisuraDTO
+            {
+                Sigla = "kg",
+                Descrizione = "Chilogrammi"
+            };
+            var addedUnita = await _unitaDiMisuraRepository.AddAsync(unitaDto);
+
+            // Act & Assert
+            Assert.True(await _unitaDiMisuraRepository.ExistsAsync(addedUnita.UnitaMisuraId));
+            Assert.False(await _unitaDiMisuraRepository.ExistsAsync(999));
+        }
+
+        [Fact]
+        public async Task SiglaExistsAsync_Should_Return_Correct_Value()
+        {
+            // Arrange
+            var unitaDto = new UnitaDiMisuraDTO
+            {
+                Sigla = "cm",
+                Descrizione = "Centimetri"
+            };
+            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+
+            // Act & Assert
+            Assert.True(await _unitaDiMisuraRepository.SiglaExistsAsync("cm"));
+            Assert.False(await _unitaDiMisuraRepository.SiglaExistsAsync("km"));
+        }
+
+        [Fact]
+        public async Task SiglaExistsForOtherAsync_Should_Return_Correct_Value()
+        {
+            // Arrange
+            var unita1 = await _unitaDiMisuraRepository.AddAsync(new UnitaDiMisuraDTO
+            {
+                Sigla = "mm",
+                Descrizione = "Millimetri"
+            });
+
+            var unita2 = await _unitaDiMisuraRepository.AddAsync(new UnitaDiMisuraDTO
+            {
+                Sigla = "dm",
+                Descrizione = "Decimetri"
+            });
+
+            // Act & Assert
+            Assert.True(await _unitaDiMisuraRepository.SiglaExistsForOtherAsync(unita1.UnitaMisuraId, "dm"));
+            Assert.False(await _unitaDiMisuraRepository.SiglaExistsForOtherAsync(unita1.UnitaMisuraId, "mm"));
+            Assert.False(await _unitaDiMisuraRepository.SiglaExistsForOtherAsync(unita1.UnitaMisuraId, "km"));
+        }
+
+        [Fact]
+        public async Task GetBySiglaAsync_Should_Return_Correct_Unita()
+        {
+            // Arrange
+            var unitaDto = new UnitaDiMisuraDTO
+            {
+                Sigla = "lb",
+                Descrizione = "Libbre"
+            };
+            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+
+            // Act
+            var result = await _unitaDiMisuraRepository.GetBySiglaAsync("lb");
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal("lb", result.Sigla);
+            Assert.Equal("Libbre", result.Descrizione);
         }
     }
 }

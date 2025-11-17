@@ -13,17 +13,10 @@ namespace RepositoryTest
     public class OrderItemRepositoryTest : BaseTest
     {
         private readonly OrderItemRepository _repository;
-        private readonly BubbleTeaContext _context;
 
         public OrderItemRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"OrderItemTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
-            _repository = new OrderItemRepository(_context);
-
+            _repository = new OrderItemRepository(_context); // ✅ USA _context della BaseTest
             InitializeTestData();
         }
 
@@ -275,22 +268,21 @@ namespace RepositoryTest
                 PrezzoUnitario = 5.50m,
                 ScontoApplicato = 0.25m,
                 Imponibile = 10.75m,
-                TipoArticolo = "Bevanda Custom",
+                TipoArticolo = "BC", // ✅ USA CODICE BREVE (BS, BC, DO)
                 TotaleIvato = 13.12m,
                 TaxRateId = 1
             };
 
             // Act
-            await _repository.AddAsync(newOrderItem);
+            var result = await _repository.AddAsync(newOrderItem); // ✅ CAMBIATO: assegna risultato
 
             // Assert
-            Assert.True(newOrderItem.OrderItemId > 0);
-            var result = await _repository.GetByIdAsync(newOrderItem.OrderItemId);
             Assert.NotNull(result);
+            Assert.True(result.OrderItemId > 0); // ✅ VERIFICA ID generato
             Assert.Equal(2, result.OrdineId);
             Assert.Equal(2, result.ArticoloId);
             Assert.Equal(2, result.Quantita);
-            Assert.Equal("Bevanda Custom", result.TipoArticolo);
+            Assert.Equal("BC", result.TipoArticolo);
             Assert.NotNull(result.DataCreazione);
             Assert.NotNull(result.DataAggiornamento);
         }
@@ -299,16 +291,19 @@ namespace RepositoryTest
         public async Task UpdateAsync_ShouldUpdateExistingOrderItem()
         {
             // Arrange
+            var existingItem = await _repository.GetByIdAsync(1); // ✅ PRIMA recupera l'item esistente
+            Assert.NotNull(existingItem);
+
             var updateDto = new OrderItemDTO
             {
-                OrderItemId = 1,
+                OrderItemId = existingItem.OrderItemId, // ✅ USA ID dal risultato
                 OrdineId = 1,
                 ArticoloId = 1,
                 Quantita = 5, // Quantità modificata
                 PrezzoUnitario = 5.00m,
                 ScontoApplicato = 1.00m, // Sconto modificato
                 Imponibile = 24.00m,
-                TipoArticolo = "Bevanda Standard Modificata",
+                TipoArticolo = "BS", // ✅ USA CODICE BREVE
                 TotaleIvato = 29.28m,
                 TaxRateId = 1
             };
@@ -317,11 +312,11 @@ namespace RepositoryTest
             await _repository.UpdateAsync(updateDto);
 
             // Assert
-            var result = await _repository.GetByIdAsync(1);
+            var result = await _repository.GetByIdAsync(existingItem.OrderItemId);
             Assert.NotNull(result);
             Assert.Equal(5, result.Quantita);
             Assert.Equal(1.00m, result.ScontoApplicato);
-            Assert.Equal("Bevanda Standard Modificata", result.TipoArticolo);
+            Assert.Equal("BS", result.TipoArticolo);
         }
 
         [Fact]
@@ -375,6 +370,137 @@ namespace RepositoryTest
 
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentException>(() => _repository.UpdateAsync(updateDto));
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Default_Values_When_Null()
+        {
+            // Arrange
+            var newOrderItem = new OrderItemDTO
+            {
+                OrdineId = 2,
+                ArticoloId = 2,
+                Quantita = 2,
+                PrezzoUnitario = 5.50m,
+                ScontoApplicato = 0.25m,
+                Imponibile = 10.75m,
+                // ✅ INTENZIONALMENTE NON SETTO: TipoArticolo
+                TotaleIvato = 13.12m,
+                TaxRateId = 1
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newOrderItem);
+
+            // Assert - ✅ VERIFICA CHE I VALORI DEFAULT SIANO APPLICATI
+            Assert.Equal("BS", result.TipoArticolo); // ✅ DEFAULT dal repository
+            Assert.NotNull(result.DataCreazione);
+            Assert.NotNull(result.DataAggiornamento);
+
+            // ✅ CORRETTO: Confronta solo data/ora senza millisecondi
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataCreazione.ToString("yyyy-MM-dd HH:mm:ss"));
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Correct_Timestamps()
+        {
+            // Arrange
+            var newOrderItem = new OrderItemDTO
+            {
+                OrdineId = 2,
+                ArticoloId = 2,
+                Quantita = 2,
+                PrezzoUnitario = 5.50m,
+                ScontoApplicato = 0.25m,
+                Imponibile = 10.75m,
+                TipoArticolo = "BC",
+                TotaleIvato = 13.12m,
+                TaxRateId = 1
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newOrderItem);
+
+            // Assert - ✅ USA ToString per evitare problemi di millisecondi
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataCreazione.ToString("yyyy-MM-dd HH:mm:ss"));
+            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+
+        [Fact]
+        public async Task UpdateAsync_Should_Update_DataAggiornamento()
+        {
+            // Arrange
+            var existingItem = await _repository.GetByIdAsync(1);
+            Assert.NotNull(existingItem);
+
+            var originalUpdateTime = existingItem.DataAggiornamento;
+
+            var updateDto = new OrderItemDTO
+            {
+                OrderItemId = existingItem.OrderItemId,
+                OrdineId = 1,
+                ArticoloId = 1,
+                Quantita = 5,
+                PrezzoUnitario = 5.00m,
+                ScontoApplicato = 1.00m,
+                Imponibile = 24.00m,
+                TipoArticolo = "BS",
+                TotaleIvato = 29.28m,
+                TaxRateId = 1
+            };
+
+            // Act - ✅ ATTENDI 10ms per essere sicuro del cambiamento
+            await Task.Delay(10);
+            await _repository.UpdateAsync(updateDto);
+
+            // Assert - ✅ USA Compare() invece di operatori diretti
+            var result = await _repository.GetByIdAsync(existingItem.OrderItemId);
+            Assert.NotNull(result);
+            Assert.True(DateTime.Compare(result.DataAggiornamento, originalUpdateTime) > 0);
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_With_InvalidId_Should_Return_Null()
+        {
+            // Act
+            var result = await _repository.GetByIdAsync(999);
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Set_Correct_Timestamps_WithTolerance()
+        {
+            // Arrange
+            var newOrderItem = new OrderItemDTO
+            {
+                OrdineId = 2,
+                ArticoloId = 2,
+                Quantita = 2,
+                PrezzoUnitario = 5.50m,
+                ScontoApplicato = 0.25m,
+                Imponibile = 10.75m,
+                TipoArticolo = "BC",
+                TotaleIvato = 13.12m,
+                TaxRateId = 1
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newOrderItem);
+
+            // Assert - ✅ CONFRONTO CON TOLLERANZA DI 1 SECONDO
+            var timeTolerance = TimeSpan.FromSeconds(1);
+
+            Assert.True((DateTime.Now - result.DataCreazione).Duration() <= timeTolerance);
+            Assert.True((DateTime.Now - result.DataAggiornamento).Duration() <= timeTolerance);
+            Assert.Equal(result.DataCreazione.ToString("yyyy-MM-dd HH:mm:ss"),
+                         result.DataAggiornamento.ToString("yyyy-MM-dd HH:mm:ss"));
         }
     }
 }

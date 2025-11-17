@@ -11,9 +11,11 @@ namespace DTO
     {
         public int ArticoloId { get; set; }
 
+        [Required(ErrorMessage = "Il nome è obbligatorio")]
         [StringLength(100, ErrorMessage = "Il nome non può superare 100 caratteri")]
         public string Nome { get; set; } = null!;
 
+        [Required(ErrorMessage = "Il prezzo è obbligatorio")]
         [Range(0.01, 50, ErrorMessage = "Il prezzo deve essere tra 0.01 e 50")]
         public decimal Prezzo { get; set; }
 
@@ -21,10 +23,12 @@ namespace DTO
         public string? Descrizione { get; set; }
 
         [StringLength(500, ErrorMessage = "L'URL immagine non può superare 500 caratteri")]
+        [Url(ErrorMessage = "L'URL immagine non è valido")]
         public string? ImmagineUrl { get; set; }
 
         public bool Disponibile { get; set; }
 
+        [Required(ErrorMessage = "La priorità è obbligatoria")]
         [Range(0, 10, ErrorMessage = "La priorità deve essere tra 0 e 10")]
         public int Priorita { get; set; }
 

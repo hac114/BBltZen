@@ -162,16 +162,19 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newDolce);
+            var result = await _repository.AddAsync(newDolce); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            Assert.True(newDolce.ArticoloId > 0);
-            var result = await _repository.GetByIdAsync(newDolce.ArticoloId);
-            Assert.NotNull(result);
-            Assert.Equal("Torta al Cioccolato", result.Nome);
-            Assert.Equal(4.00m, result.Prezzo);
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
+            // ✅ Ora usa result.ArticoloId che è stato generato dal repository
+            Assert.True(result.ArticoloId > 0);
+            var savedDolce = await _repository.GetByIdAsync(result.ArticoloId);
+            Assert.NotNull(savedDolce);
+            Assert.Equal("Torta al Cioccolato", savedDolce.Nome);
+            Assert.Equal(4.00m, savedDolce.Prezzo);
+            Assert.True(savedDolce.Disponibile);
+            Assert.Equal(4, savedDolce.Priorita); // ✅ Verifica priorità
+            Assert.NotNull(savedDolce.DataCreazione);
+            Assert.NotNull(savedDolce.DataAggiornamento);
         }
 
         [Fact]
@@ -199,6 +202,7 @@ namespace RepositoryTest
             Assert.Equal(5.00m, result.Prezzo);
             Assert.False(result.Disponibile);
             Assert.Equal(5, result.Priorita);
+            Assert.NotNull(result.DataAggiornamento); // ✅ Verifica data aggiornamento
         }
 
         [Fact]
@@ -230,6 +234,95 @@ namespace RepositoryTest
 
             // Assert
             Assert.False(result);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithMinimumPriorita_ShouldWorkCorrectly()
+        {
+            // Arrange
+            var newDolce = new DolceDTO
+            {
+                Nome = "Biscotti",
+                Prezzo = 2.50m,
+                Disponibile = true,
+                Priorita = 0 // ✅ Priorità minima consentita
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newDolce);
+
+            // Assert
+            var savedDolce = await _repository.GetByIdAsync(result.ArticoloId);
+            Assert.NotNull(savedDolce);
+            Assert.Equal(0, savedDolce.Priorita); // ✅ Verifica priorità zero
+            Assert.Equal("Biscotti", savedDolce.Nome);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithMaximumPriorita_ShouldWorkCorrectly()
+        {
+            // Arrange
+            var newDolce = new DolceDTO
+            {
+                Nome = "Torta Speciale",
+                Prezzo = 6.00m,
+                Disponibile = true,
+                Priorita = 10 // ✅ Priorità massima consentita
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newDolce);
+
+            // Assert
+            var savedDolce = await _repository.GetByIdAsync(result.ArticoloId);
+            Assert.NotNull(savedDolce);
+            Assert.Equal(10, savedDolce.Priorita); // ✅ Verifica priorità massima
+        }
+
+        [Fact]
+        public async Task GetDisponibiliAsync_ShouldOrderByPrioritaThenByName()
+        {
+            // Act
+            var result = await _repository.GetDisponibiliAsync();
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Equal(2, resultList.Count);
+
+            // ✅ Verifica ordinamento: prima per priorità, poi per nome
+            Assert.Equal(1, resultList[0].Priorita); // Tiramisù - Priorità 1
+            Assert.Equal(2, resultList[1].Priorita); // Cheesecake - Priorità 2
+            Assert.Equal("Tiramisù", resultList[0].Nome);
+            Assert.Equal("Cheesecake", resultList[1].Nome);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldUpdateDataAggiornamento()
+        {
+            // Arrange
+            var existing = await _repository.GetByIdAsync(1);
+            Assert.NotNull(existing);
+            var originalUpdateTime = existing.DataAggiornamento;
+
+            var updateDto = new DolceDTO
+            {
+                ArticoloId = 1,
+                Nome = existing.Nome,
+                Prezzo = existing.Prezzo + 1.00m, // Modifica solo il prezzo
+                Descrizione = existing.Descrizione,
+                ImmagineUrl = existing.ImmagineUrl,
+                Disponibile = existing.Disponibile,
+                Priorita = existing.Priorita
+            };
+
+            // Act
+            await _repository.UpdateAsync(updateDto);
+
+            // Assert
+            var result = await _repository.GetByIdAsync(1);
+            Assert.NotNull(result);
+            Assert.True(result.DataAggiornamento > originalUpdateTime); // ✅ Verifica che DataAggiornamento sia aggiornata
+            Assert.Equal(existing.Prezzo + 1.00m, result.Prezzo);
         }
     }
 }

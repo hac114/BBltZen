@@ -102,8 +102,11 @@ namespace Repository.Service
                 .ToListAsync();
         }
 
-        public async Task AddAsync(DolceDTO dolceDto)
+        public async Task<DolceDTO> AddAsync(DolceDTO dolceDto) // ✅ CORREGGI: ritorna DTO
         {
+            if (dolceDto == null)
+                throw new ArgumentNullException(nameof(dolceDto));
+
             // Prima crea l'Articolo
             var articolo = new Articolo
             {
@@ -118,15 +121,15 @@ namespace Repository.Service
             // Poi crea il Dolce
             var dolce = new Dolce
             {
-                ArticoloId = articolo.ArticoloId, // Usa l'ID generato
+                ArticoloId = articolo.ArticoloId, // ✅ USA ArticoloId generato automaticamente
                 Nome = dolceDto.Nome,
                 Prezzo = dolceDto.Prezzo,
                 Descrizione = dolceDto.Descrizione,
                 ImmagineUrl = dolceDto.ImmagineUrl,
                 Disponibile = dolceDto.Disponibile,
-                Priorita = dolceDto.Priorita,
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
+                Priorita = dolceDto.Priorita, // ✅ NOT NULL - valore dal DTO
+                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
+                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
             };
 
             _context.Dolce.Add(dolce);
@@ -136,10 +139,15 @@ namespace Repository.Service
             dolceDto.ArticoloId = dolce.ArticoloId;
             dolceDto.DataCreazione = dolce.DataCreazione;
             dolceDto.DataAggiornamento = dolce.DataAggiornamento;
+
+            return dolceDto; // ✅ AGGIUNGI return
         }
 
         public async Task UpdateAsync(DolceDTO dolceDto)
         {
+            if (dolceDto == null) // ✅ AGGIUNGI validazione
+                throw new ArgumentNullException(nameof(dolceDto));
+
             var dolce = await _context.Dolce
                 .FirstOrDefaultAsync(d => d.ArticoloId == dolceDto.ArticoloId);
 
@@ -151,8 +159,8 @@ namespace Repository.Service
             dolce.Descrizione = dolceDto.Descrizione;
             dolce.ImmagineUrl = dolceDto.ImmagineUrl;
             dolce.Disponibile = dolceDto.Disponibile;
-            dolce.Priorita = dolceDto.Priorita;
-            dolce.DataAggiornamento = DateTime.Now;
+            dolce.Priorita = dolceDto.Priorita; // ✅ NOT NULL - valore dal DTO
+            dolce.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
 
             await _context.SaveChangesAsync();
 

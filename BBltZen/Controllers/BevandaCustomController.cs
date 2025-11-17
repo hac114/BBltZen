@@ -109,7 +109,7 @@ namespace BBltZen.Controllers
 
         [HttpPost]
         [AllowAnonymous]
-        public async Task<ActionResult<BevandaCustomDTO>> Create([FromBody] BevandaCustomDTO bevandaCustomDto) // ✅ AGGIUNTO [FromBody]
+        public async Task<ActionResult<BevandaCustomDTO>> Create([FromBody] BevandaCustomDTO bevandaCustomDto)
         {
             try
             {
@@ -131,33 +131,37 @@ namespace BBltZen.Controllers
                 if (await _repository.ExistsByPersCustomIdAsync(bevandaCustomDto.PersCustomId))
                     return SafeBadRequest<BevandaCustomDTO>($"Esiste già una bevanda custom per la personalizzazione {bevandaCustomDto.PersCustomId}");
 
-                await _repository.AddAsync(bevandaCustomDto);
+                // ✅ CORREZIONE: AddAsync ora ritorna il DTO con gli ID generati
+                var createdBevanda = await _repository.AddAsync(bevandaCustomDto);
 
-                LogAuditTrail("CREATE_BEVANDA_CUSTOM", "BevandaCustom", bevandaCustomDto.BevandaCustomId.ToString());
-                LogSecurityEvent("BevandaCustomCreated", new
-                {
-                    BevandaCustomId = bevandaCustomDto.BevandaCustomId,
-                    ArticoloId = bevandaCustomDto.ArticoloId,
-                    PersCustomId = bevandaCustomDto.PersCustomId,
-                    Prezzo = bevandaCustomDto.Prezzo,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("CREATE", "BevandaCustom", createdBevanda.BevandaCustomId.ToString());
+                LogSecurityEvent("BevandaCustomCreated", $"Created BevandaCustom ID: {createdBevanda.BevandaCustomId}");
 
                 return CreatedAtAction(nameof(GetById),
-                    new { bevandaCustomId = bevandaCustomDto.BevandaCustomId },
-                    bevandaCustomDto);
+                    new { bevandaCustomId = createdBevanda.BevandaCustomId },
+                    createdBevanda);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione della bevanda custom");
+                return SafeInternalError<BevandaCustomDTO>("Errore durante il salvataggio dei dati");
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante la creazione della bevanda custom");
+                return SafeBadRequest<BevandaCustomDTO>(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione della bevanda custom");
-                return SafeInternalError("Errore durante la creazione della bevanda custom");
+                return SafeInternalError<BevandaCustomDTO>(ex.Message);
             }
         }
 
         [HttpPut("{bevandaCustomId}")]
         [AllowAnonymous]
-        public async Task<ActionResult> Update(int bevandaCustomId, [FromBody] BevandaCustomDTO bevandaCustomDto) // ✅ AGGIUNTO [FromBody]
+        public async Task<ActionResult> Update(int bevandaCustomId, [FromBody] BevandaCustomDTO bevandaCustomDto)
         {
             try
             {
@@ -183,22 +187,36 @@ namespace BBltZen.Controllers
                 if (!persCustomEsiste)
                     return SafeBadRequest("Personalizzazione custom non trovata");
 
+                // ✅ CORREZIONE: Validazione duplicati (escludendo l'ID corrente)
+                var existingWithSamePersCustom = await _context.BevandaCustom
+                    .FirstOrDefaultAsync(bc => bc.PersCustomId == bevandaCustomDto.PersCustomId &&
+                                             bc.BevandaCustomId != bevandaCustomId);
+
+                if (existingWithSamePersCustom != null)
+                    return SafeBadRequest("Esiste già una bevanda custom per questa personalizzazione");
+
                 await _repository.UpdateAsync(bevandaCustomDto);
 
-                LogAuditTrail("UPDATE_BEVANDA_CUSTOM", "BevandaCustom", bevandaCustomDto.BevandaCustomId.ToString());
-                LogSecurityEvent("BevandaCustomUpdated", new
-                {
-                    BevandaCustomId = bevandaCustomDto.BevandaCustomId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("UPDATE", "BevandaCustom", bevandaCustomDto.BevandaCustomId.ToString());
+                LogSecurityEvent("BevandaCustomUpdated", $"Updated BevandaCustom ID: {bevandaCustomDto.BevandaCustomId}");
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento della bevanda custom {BevandaCustomId}", bevandaCustomId);
+                return SafeInternalError("Errore durante l'aggiornamento dei dati");
+            }
+            catch (ArgumentException argEx)
+            {
+                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento della bevanda custom {BevandaCustomId}", bevandaCustomId);
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento della bevanda custom {BevandaCustomId}", bevandaCustomId);
-                return SafeInternalError("Errore durante l'aggiornamento della bevanda custom");
+                return SafeInternalError(ex.Message);
             }
         }
 
@@ -223,20 +241,21 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(bevandaCustomId);
 
-                LogAuditTrail("DELETE_BEVANDA_CUSTOM", "BevandaCustom", bevandaCustomId.ToString());
-                LogSecurityEvent("BevandaCustomDeleted", new
-                {
-                    BevandaCustomId = bevandaCustomId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow // ✅ AGGIUNTO
-                });
+                // ✅ SEMPLIFICATO: Audit trail
+                LogAuditTrail("DELETE", "BevandaCustom", bevandaCustomId.ToString());
+                LogSecurityEvent("BevandaCustomDeleted", $"Deleted BevandaCustom ID: {bevandaCustomId}");
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione della bevanda custom {BevandaCustomId}", bevandaCustomId);
+                return SafeInternalError("Errore durante l'eliminazione dei dati");
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione della bevanda custom {BevandaCustomId}", bevandaCustomId);
-                return SafeInternalError("Errore durante l'eliminazione della bevanda custom");
+                return SafeInternalError(ex.Message);
             }
         }
     }

@@ -125,6 +125,9 @@ public partial class BubbleTeaContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        //HO AGGIUNTO QUESTA RIGA PER GESTIRE CONFIGURAZIONE UTENTI
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(BubbleTeaContext).Assembly);
+
         modelBuilder.Entity<Articolo>(entity =>
         {
             entity.HasKey(e => e.ArticoloId).HasName("PK__ARTICOLO__2902CE994A30025C");

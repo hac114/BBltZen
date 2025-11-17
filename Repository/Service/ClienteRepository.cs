@@ -63,8 +63,16 @@ namespace Repository.Service
             };
         }
 
-        public async Task AddAsync(ClienteDTO clienteDto)
+        public async Task<ClienteDTO> AddAsync(ClienteDTO clienteDto) // ✅ CAMBIATO: ritorna ClienteDTO
         {
+            // ✅ Validazione input
+            if (clienteDto == null)
+                throw new ArgumentNullException(nameof(clienteDto));
+
+            // ✅ Controllo se il tavolo è già occupato
+            if (await ExistsByTavoloIdAsync(clienteDto.TavoloId))
+                throw new ArgumentException($"Il tavolo {clienteDto.TavoloId} è già associato a un altro cliente");
+
             var cliente = new Cliente
             {
                 TavoloId = clienteDto.TavoloId,
@@ -75,9 +83,12 @@ namespace Repository.Service
             _context.Cliente.Add(cliente);
             await _context.SaveChangesAsync();
 
+            // ✅ Aggiorna DTO con ID generato dal database
             clienteDto.ClienteId = cliente.ClienteId;
             clienteDto.DataCreazione = cliente.DataCreazione;
             clienteDto.DataAggiornamento = cliente.DataAggiornamento;
+
+            return clienteDto; // ✅ IMPORTANTE: ritorna il DTO aggiornato
         }
 
         public async Task UpdateAsync(ClienteDTO clienteDto)

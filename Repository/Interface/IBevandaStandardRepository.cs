@@ -12,7 +12,7 @@ namespace Repository.Interface
         Task<BevandaStandardDTO?> GetByArticoloIdAsync(int articoloId);
         Task<IEnumerable<BevandaStandardDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId);
         Task<IEnumerable<BevandaStandardDTO>> GetByPersonalizzazioneAsync(int personalizzazioneId);
-        Task AddAsync(BevandaStandardDTO bevandaStandardDto);
+        Task<BevandaStandardDTO> AddAsync(BevandaStandardDTO bevandaStandardDto);
         Task UpdateAsync(BevandaStandardDTO bevandaStandardDto);
         Task DeleteAsync(int articoloId);
         Task<bool> ExistsAsync(int articoloId);

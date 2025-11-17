@@ -9,7 +9,7 @@ namespace Repository.Interface
         Task<IEnumerable<ClienteDTO>> GetAllAsync();
         Task<ClienteDTO?> GetByIdAsync(int id);
         Task<ClienteDTO?> GetByTavoloIdAsync(int tavoloId);
-        Task AddAsync(ClienteDTO clienteDto);
+        Task<ClienteDTO> AddAsync(ClienteDTO clienteDto);
         Task UpdateAsync(ClienteDTO clienteDto);
         Task DeleteAsync(int id);
         Task<bool> ExistsAsync(int id);
