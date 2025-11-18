@@ -18,19 +18,25 @@ namespace Repository.Service
             _context = context;
         }
 
+        private ConfigSoglieTempiDTO MapToDTO(ConfigSoglieTempi configSoglieTempi)
+        {
+            return new ConfigSoglieTempiDTO
+            {
+                SogliaId = configSoglieTempi.SogliaId,
+                StatoOrdineId = configSoglieTempi.StatoOrdineId,
+                SogliaAttenzione = configSoglieTempi.SogliaAttenzione,
+                SogliaCritico = configSoglieTempi.SogliaCritico,
+                DataAggiornamento = configSoglieTempi.DataAggiornamento,
+                UtenteAggiornamento = configSoglieTempi.UtenteAggiornamento
+            };
+        }
+
         public async Task<IEnumerable<ConfigSoglieTempiDTO>> GetAllAsync()
         {
             return await _context.ConfigSoglieTempi
                 .AsNoTracking()
-                .Select(c => new ConfigSoglieTempiDTO
-                {
-                    SogliaId = c.SogliaId,
-                    StatoOrdineId = c.StatoOrdineId,
-                    SogliaAttenzione = c.SogliaAttenzione,
-                    SogliaCritico = c.SogliaCritico,
-                    DataAggiornamento = c.DataAggiornamento,
-                    UtenteAggiornamento = c.UtenteAggiornamento
-                })
+                .OrderBy(c => c.StatoOrdineId)
+                .Select(c => MapToDTO(c))
                 .ToListAsync();
         }
 
@@ -40,17 +46,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.SogliaId == sogliaId);
 
-            if (configSoglieTempi == null) return null;
-
-            return new ConfigSoglieTempiDTO
-            {
-                SogliaId = configSoglieTempi.SogliaId,
-                StatoOrdineId = configSoglieTempi.StatoOrdineId,
-                SogliaAttenzione = configSoglieTempi.SogliaAttenzione,
-                SogliaCritico = configSoglieTempi.SogliaCritico,
-                DataAggiornamento = configSoglieTempi.DataAggiornamento,
-                UtenteAggiornamento = configSoglieTempi.UtenteAggiornamento
-            };
+            return configSoglieTempi == null ? null : MapToDTO(configSoglieTempi);
         }
 
         public async Task<ConfigSoglieTempiDTO?> GetByStatoOrdineIdAsync(int statoOrdineId)
@@ -59,21 +55,19 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.StatoOrdineId == statoOrdineId);
 
-            if (configSoglieTempi == null) return null;
-
-            return new ConfigSoglieTempiDTO
-            {
-                SogliaId = configSoglieTempi.SogliaId,
-                StatoOrdineId = configSoglieTempi.StatoOrdineId,
-                SogliaAttenzione = configSoglieTempi.SogliaAttenzione,
-                SogliaCritico = configSoglieTempi.SogliaCritico,
-                DataAggiornamento = configSoglieTempi.DataAggiornamento,
-                UtenteAggiornamento = configSoglieTempi.UtenteAggiornamento
-            };
+            return configSoglieTempi == null ? null : MapToDTO(configSoglieTempi);
         }
 
-        public async Task AddAsync(ConfigSoglieTempiDTO configSoglieTempiDto)
+        public async Task<ConfigSoglieTempiDTO> AddAsync(ConfigSoglieTempiDTO configSoglieTempiDto)
         {
+            if (configSoglieTempiDto == null)
+                throw new ArgumentNullException(nameof(configSoglieTempiDto));
+
+            // ✅ VALIDAZIONE BUSINESS LOGIC CON NUOVO METODO
+            var validation = await ValidateConfigSoglieAsync(configSoglieTempiDto);
+            if (!validation.IsValid)
+                throw new ArgumentException(validation.ErrorMessage);
+
             var configSoglieTempi = new ConfigSoglieTempi
             {
                 StatoOrdineId = configSoglieTempiDto.StatoOrdineId,
@@ -86,8 +80,11 @@ namespace Repository.Service
             _context.ConfigSoglieTempi.Add(configSoglieTempi);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON ID GENERATO
             configSoglieTempiDto.SogliaId = configSoglieTempi.SogliaId;
             configSoglieTempiDto.DataAggiornamento = configSoglieTempi.DataAggiornamento;
+
+            return configSoglieTempiDto; // ✅ IMPORTANTE: ritorna DTO
         }
 
         public async Task UpdateAsync(ConfigSoglieTempiDTO configSoglieTempiDto)
@@ -96,8 +93,14 @@ namespace Repository.Service
                 .FirstOrDefaultAsync(c => c.SogliaId == configSoglieTempiDto.SogliaId);
 
             if (configSoglieTempi == null)
-                throw new ArgumentException($"Configurazione soglie tempi con ID {configSoglieTempiDto.SogliaId} non trovata");
+                return; // ✅ SILENT FAIL - Non lanciare eccezione
 
+            // ✅ VALIDAZIONE BUSINESS LOGIC CON NUOVO METODO
+            var validation = await ValidateConfigSoglieAsync(configSoglieTempiDto);
+            if (!validation.IsValid)
+                throw new ArgumentException(validation.ErrorMessage);
+
+            // ✅ AGGIORNA SOLO SE ESISTE
             configSoglieTempi.StatoOrdineId = configSoglieTempiDto.StatoOrdineId;
             configSoglieTempi.SogliaAttenzione = configSoglieTempiDto.SogliaAttenzione;
             configSoglieTempi.SogliaCritico = configSoglieTempiDto.SogliaCritico;
@@ -137,6 +140,55 @@ namespace Repository.Service
             }
 
             return await query.AnyAsync();
+        }
+
+        public async Task<Dictionary<int, ConfigSoglieTempiDTO>> GetSoglieByStatiOrdineAsync(IEnumerable<int> statiOrdineIds)
+        {
+            var soglie = await _context.ConfigSoglieTempi
+                .AsNoTracking()
+                .Where(c => statiOrdineIds.Contains(c.StatoOrdineId))
+                .Select(c => MapToDTO(c))
+                .ToListAsync();
+
+            return soglie.ToDictionary(s => s.StatoOrdineId, s => s);
+        }
+
+        public Task<bool> ValidateSoglieAsync(int sogliaAttenzione, int sogliaCritico)
+        {
+            bool isValid = sogliaCritico > sogliaAttenzione && sogliaAttenzione >= 0 && sogliaCritico >= 0;
+            return Task.FromResult(isValid);
+        }
+
+        public async Task<(bool IsValid, string? ErrorMessage)> ValidateConfigSoglieAsync(ConfigSoglieTempiDTO configDto)
+        {
+            if (configDto == null)
+                return (false, "Configurazione non valida");
+
+            // ✅ VALIDAZIONE SOGLIE NUMERICHE
+            if (configDto.SogliaAttenzione < 0 || configDto.SogliaCritico < 0)
+                return (false, "Le soglie non possono essere negative");
+
+            // ✅ VALIDAZIONE BUSINESS LOGIC
+            if (configDto.SogliaCritico <= configDto.SogliaAttenzione)
+                return (false, "La soglia critica deve essere maggiore della soglia di attenzione");
+
+            // ✅ VALIDAZIONE RANGE RAGIONEVOLE
+            if (configDto.SogliaAttenzione > 1000 || configDto.SogliaCritico > 1000)
+                return (false, "Le soglie non possono superare 1000 minuti");
+
+            // ✅ VERIFICA UNICITÀ STATO ORDINE
+            if (configDto.SogliaId == 0) // Nuova configurazione
+            {
+                if (await ExistsByStatoOrdineIdAsync(configDto.StatoOrdineId))
+                    return (false, $"Esiste già una configurazione per lo stato ordine {configDto.StatoOrdineId}");
+            }
+            else // Configurazione esistente
+            {
+                if (await ExistsByStatoOrdineIdAsync(configDto.StatoOrdineId, configDto.SogliaId))
+                    return (false, $"Esiste già un'altra configurazione per lo stato ordine {configDto.StatoOrdineId}");
+            }
+
+            return (true, null);
         }
     }
 }

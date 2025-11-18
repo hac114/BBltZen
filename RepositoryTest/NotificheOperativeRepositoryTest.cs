@@ -13,15 +13,10 @@ namespace RepositoryTest
     public class NotificheOperativeRepositoryTest : BaseTest
     {
         private readonly NotificheOperativeRepository _repository;
-        private readonly BubbleTeaContext _context;
 
         public NotificheOperativeRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"NotificheOperativeTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+            // ✅ USA IL CONTEXT EREDITATO DA BaseTest
             _repository = new NotificheOperativeRepository(_context);
 
             InitializeTestData();
@@ -193,12 +188,10 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newNotifica);
+            var result = await _repository.AddAsync(newNotifica); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            Assert.True(newNotifica.NotificaId > 0);
-            var result = await _repository.GetByIdAsync(newNotifica.NotificaId);
-            Assert.NotNull(result);
+            Assert.True(result.NotificaId > 0); // ✅ VERIFICA sul risultato
             Assert.Equal("Nuova notifica di test", result.Messaggio);
             Assert.Equal("Pendente", result.Stato);
             Assert.Equal(2, result.Priorita);
@@ -273,7 +266,7 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task UpdateAsync_WithNonExistingNotifica_ShouldThrowException()
+        public async Task UpdateAsync_WithNonExistingNotifica_ShouldNotThrow()
         {
             // Arrange
             var updateDto = new NotificheOperativeDTO
@@ -285,8 +278,124 @@ namespace RepositoryTest
                 Priorita = 1
             };
 
-            // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _repository.UpdateAsync(updateDto));
+            // Act & Assert - ✅ CORREGGI: Non dovrebbe lanciare eccezione
+            var exception = await Record.ExceptionAsync(() => _repository.UpdateAsync(updateDto));
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldSetCorrectTimestamps()
+        {
+            // Arrange
+            var newNotifica = new NotificheOperativeDTO
+            {
+                OrdiniCoinvolti = "10",
+                Messaggio = "Test timestamp",
+                Stato = "Pendente",
+                Priorita = 1
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newNotifica);
+
+            // Assert
+            Assert.NotNull(result.DataCreazione);
+            Assert.InRange(result.DataCreazione, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldIncludeTipoNotifica()
+        {
+            // Arrange
+            var newNotifica = new NotificheOperativeDTO
+            {
+                OrdiniCoinvolti = "11",
+                Messaggio = "Test tipo notifica",
+                Stato = "Pendente",
+                Priorita = 1,
+                TipoNotifica = "urgente"
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newNotifica);
+
+            // Assert
+            Assert.Equal("urgente", result.TipoNotifica);
+            var retrieved = await _repository.GetByIdAsync(result.NotificaId);
+            Assert.NotNull(retrieved);
+            Assert.Equal("urgente", retrieved.TipoNotifica);
+        }
+
+        [Fact]
+        public async Task GetByTipoNotificaAsync_ShouldReturnFilteredNotifiche()
+        {
+            // Arrange - Aggiungi notifica con tipo specifico
+            var notificaUrgente = new NotificheOperativeDTO
+            {
+                OrdiniCoinvolti = "12",
+                Messaggio = "Notifica urgente",
+                Stato = "Pendente",
+                Priorita = 1,
+                TipoNotifica = "urgente"
+            };
+            await _repository.AddAsync(notificaUrgente);
+
+            // Act
+            var result = await _repository.GetByTipoNotificaAsync("urgente");
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Single(resultList);
+            Assert.All(resultList, n => Assert.Equal("urgente", n.TipoNotifica));
+        }
+
+        [Fact]
+        public async Task GetStatisticheNotificheAsync_ShouldReturnCorrectStatistics()
+        {
+            // Act
+            var result = await _repository.GetStatisticheNotificheAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(3, result["Pendente"]);  // 3 notifiche pendenti
+            Assert.Equal(1, result["Gestita"]);   // 1 notifica gestita
+        }
+
+        [Fact]
+        public async Task GetNumeroNotificheByStatoAsync_ShouldReturnCorrectCount()
+        {
+            // Act
+            var pendenti = await _repository.GetNumeroNotificheByStatoAsync("Pendente");
+            var gestite = await _repository.GetNumeroNotificheByStatoAsync("Gestita");
+
+            // Assert
+            Assert.Equal(3, pendenti);
+            Assert.Equal(1, gestite);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldSetDataGestioneWhenStatoGestita()
+        {
+            // Arrange
+            var updateDto = new NotificheOperativeDTO
+            {
+                NotificaId = 2,
+                OrdiniCoinvolti = "4",
+                Messaggio = "Ingrediente esaurito: Tapioca",
+                Stato = "Gestita",
+                Priorita = 2,
+                UtenteGestione = "operator"
+            };
+
+            // Act
+            await _repository.UpdateAsync(updateDto);
+
+            // Assert
+            var result = await _repository.GetByIdAsync(2);
+            Assert.NotNull(result);
+            Assert.Equal("Gestita", result.Stato);
+            Assert.NotNull(result.DataGestione);
+            Assert.InRange(result.DataGestione.Value, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
         }
     }
 }

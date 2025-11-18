@@ -76,12 +76,19 @@ namespace BBltZen.Controllers
                 if (ordineId <= 0)
                     return SafeBadRequest<IEnumerable<StatoStoricoOrdineDTO>>("ID ordine non valido");
 
-                var statiStorici = await _repository.GetByOrdineIdAsync(ordineId);
+                var result = await _repository.GetByOrdineIdAsync(ordineId);
 
-                LogAuditTrail("GET_STATI_STORICI_ORDINE", "StatoStoricoOrdine", ordineId.ToString());
-                return Ok(statiStorici);
+                LogAuditTrail("GET_BY_ORDINE", "StatoStoricoOrdine", ordineId.ToString());
+                LogSecurityEvent("StatoStoricoOrdineGetByOrdine", new
+                {
+                    ordineId,
+                    UserId = GetCurrentUserId(),
+                    Count = result.Count()
+                });
+
+                return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli stati storici per ordine {OrdineId}", ordineId);
                 return SafeInternalError<IEnumerable<StatoStoricoOrdineDTO>>("Errore nel recupero degli stati storici ordine");
@@ -142,15 +149,22 @@ namespace BBltZen.Controllers
                 if (ordineId <= 0)
                     return SafeBadRequest<StatoStoricoOrdineDTO>("ID ordine non valido");
 
-                var statoAttuale = await _repository.GetStatoAttualeOrdineAsync(ordineId);
+                var result = await _repository.GetStatoAttualeOrdineAsync(ordineId);
 
-                if (statoAttuale == null)
+                if (result == null)
                     return SafeNotFound<StatoStoricoOrdineDTO>("Stato attuale ordine");
 
-                LogAuditTrail("GET_STATO_ATTUALE_ORDINE", "StatoStoricoOrdine", ordineId.ToString());
-                return Ok(statoAttuale);
+                LogAuditTrail("GET_STATO_ATTUALE", "StatoStoricoOrdine", ordineId.ToString());
+                LogSecurityEvent("StatoStoricoOrdineGetCurrent", new
+                {
+                    ordineId,
+                    UserId = GetCurrentUserId(),
+                    StatoOrdineId = result.StatoOrdineId
+                });
+
+                return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dello stato attuale per ordine {OrdineId}", ordineId);
                 return SafeInternalError<StatoStoricoOrdineDTO>("Errore nel recupero dello stato attuale");
@@ -167,23 +181,29 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(statoStoricoOrdineDto))
                     return SafeBadRequest<StatoStoricoOrdineDTO>("Dati stato storico ordine non validi");
 
-                await _repository.AddAsync(statoStoricoOrdineDto);
+                // ✅ CORREZIONE: Usa il risultato del repository
+                var result = await _repository.AddAsync(statoStoricoOrdineDto);
 
-                LogAuditTrail("CREATE_STATO_STORICO_ORDINE", "StatoStoricoOrdine", statoStoricoOrdineDto.StatoStoricoOrdineId.ToString());
+                // ✅ AUDIT OTTIMIZZATO
+                LogAuditTrail("CREATE", "StatoStoricoOrdine", result.StatoStoricoOrdineId.ToString());
                 LogSecurityEvent("StatoStoricoOrdineCreated", new
                 {
-                    StatoStoricoOrdineId = statoStoricoOrdineDto.StatoStoricoOrdineId,
-                    OrdineId = statoStoricoOrdineDto.OrdineId,
-                    StatoOrdineId = statoStoricoOrdineDto.StatoOrdineId,
-                    Inizio = statoStoricoOrdineDto.Inizio,
-                    User = User.Identity?.Name ?? "Anonymous"
+                    result.StatoStoricoOrdineId,
+                    result.OrdineId,
+                    result.StatoOrdineId,
+                    UserId = GetCurrentUserId(),
+                    UserName = User.Identity?.Name
                 });
 
                 return CreatedAtAction(nameof(GetById),
-                    new { statoStoricoOrdineId = statoStoricoOrdineDto.StatoStoricoOrdineId },
-                    statoStoricoOrdineDto);
+                    new { statoStoricoOrdineId = result.StatoStoricoOrdineId },
+                    result);
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest<StatoStoricoOrdineDTO>(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dello stato storico ordine");
                 return SafeInternalError<StatoStoricoOrdineDTO>("Errore nella creazione dello stato storico");
@@ -197,32 +217,34 @@ namespace BBltZen.Controllers
         {
             try
             {
-                if (statoStoricoOrdineId <= 0)
+                if (statoStoricoOrdineId <= 0 || statoStoricoOrdineId != statoStoricoOrdineDto.StatoStoricoOrdineId)
                     return SafeBadRequest("ID stato storico ordine non valido");
-
-                if (statoStoricoOrdineId != statoStoricoOrdineDto.StatoStoricoOrdineId)
-                    return SafeBadRequest("Identificativi non corrispondenti");
 
                 if (!IsModelValid(statoStoricoOrdineDto))
                     return SafeBadRequest("Dati stato storico ordine non validi");
 
-                var existing = await _repository.GetByIdAsync(statoStoricoOrdineId);
-                if (existing == null)
+                if (!await _repository.ExistsAsync(statoStoricoOrdineId))
                     return SafeNotFound("Stato storico ordine");
 
                 await _repository.UpdateAsync(statoStoricoOrdineDto);
 
-                LogAuditTrail("UPDATE_STATO_STORICO_ORDINE", "StatoStoricoOrdine", statoStoricoOrdineDto.StatoStoricoOrdineId.ToString());
+                // ✅ AUDIT OTTIMIZZATO
+                LogAuditTrail("UPDATE", "StatoStoricoOrdine", statoStoricoOrdineId.ToString());
                 LogSecurityEvent("StatoStoricoOrdineUpdated", new
                 {
-                    StatoStoricoOrdineId = statoStoricoOrdineDto.StatoStoricoOrdineId,
-                    OrdineId = statoStoricoOrdineDto.OrdineId,
-                    User = User.Identity?.Name ?? "Anonymous"
+                    statoStoricoOrdineId,
+                    statoStoricoOrdineDto.OrdineId,
+                    UserId = GetCurrentUserId(),
+                    UserName = User.Identity?.Name
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dello stato storico ordine {StatoStoricoOrdineId}", statoStoricoOrdineId);
                 return SafeInternalError("Errore nell'aggiornamento dello stato storico");
@@ -239,22 +261,25 @@ namespace BBltZen.Controllers
                 if (statoStoricoOrdineId <= 0)
                     return SafeBadRequest("ID stato storico ordine non valido");
 
-                var statoStorico = await _repository.GetByIdAsync(statoStoricoOrdineId);
-                if (statoStorico == null)
+                var existing = await _repository.GetByIdAsync(statoStoricoOrdineId);
+                if (existing == null)
                     return SafeNotFound("Stato storico ordine");
 
                 await _repository.DeleteAsync(statoStoricoOrdineId);
 
-                LogAuditTrail("DELETE_STATO_STORICO_ORDINE", "StatoStoricoOrdine", statoStoricoOrdineId.ToString());
+                // ✅ AUDIT OTTIMIZZATO
+                LogAuditTrail("DELETE", "StatoStoricoOrdine", statoStoricoOrdineId.ToString());
                 LogSecurityEvent("StatoStoricoOrdineDeleted", new
                 {
-                    StatoStoricoOrdineId = statoStoricoOrdineId,
-                    User = User.Identity?.Name ?? "Anonymous"
+                    statoStoricoOrdineId,
+                    existing.OrdineId,
+                    UserId = GetCurrentUserId(),
+                    UserName = User.Identity?.Name
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione dello stato storico ordine {StatoStoricoOrdineId}", statoStoricoOrdineId);
                 return SafeInternalError("Errore nell'eliminazione dello stato storico");
@@ -290,6 +315,84 @@ namespace BBltZen.Controllers
             {
                 _logger.LogError(ex, "Errore durante la chiusura dello stato attuale per ordine {OrdineId}", ordineId);
                 return SafeInternalError("Errore nella chiusura dello stato attuale");
+            }
+        }
+
+        [HttpGet("periodo")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO
+        public async Task<ActionResult<IEnumerable<StatoStoricoOrdineDTO>>> GetStoricoByPeriodo([FromQuery] DateTime dataInizio, [FromQuery] DateTime dataFine)
+        {
+            try
+            {
+                if (dataInizio > dataFine)
+                    return SafeBadRequest<IEnumerable<StatoStoricoOrdineDTO>>("Data inizio non può essere successiva alla data fine");
+
+                var result = await _repository.GetStoricoByPeriodoAsync(dataInizio, dataFine);
+
+                LogAuditTrail("GET_STORICO_PERIODO", "StatoStoricoOrdine", $"{dataInizio:yyyy-MM-dd}_{dataFine:yyyy-MM-dd}");
+                LogSecurityEvent("StatoStoricoOrdineGetByPeriodo", new
+                {
+                    dataInizio,
+                    dataFine,
+                    UserId = GetCurrentUserId(),
+                    Count = result.Count()
+                });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero dello storico per periodo {DataInizio} - {DataFine}", dataInizio, dataFine);
+                return SafeInternalError<IEnumerable<StatoStoricoOrdineDTO>>("Errore nel recupero dello storico per periodo");
+            }
+        }
+
+        [HttpGet("ordine/{ordineId}/has-stato/{statoOrdineId}")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO
+        public async Task<ActionResult<bool>> OrdineHasStato(int ordineId, int statoOrdineId)
+        {
+            try
+            {
+                if (ordineId <= 0 || statoOrdineId <= 0)
+                    return SafeBadRequest<bool>("ID ordine o stato ordine non validi");
+
+                var result = await _repository.OrdineHasStatoAsync(ordineId, statoOrdineId);
+
+                LogAuditTrail("CHECK_ORDINE_HAS_STATO", "StatoStoricoOrdine", $"{ordineId}_{statoOrdineId}");
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la verifica stato per ordine {OrdineId} e stato {StatoOrdineId}", ordineId, statoOrdineId);
+                return SafeInternalError<bool>("Errore nella verifica stato ordine");
+            }
+        }
+
+        [HttpGet("ordine/{ordineId}/numero-stati")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO
+        public async Task<ActionResult<int>> GetNumeroStatiByOrdine(int ordineId)
+        {
+            try
+            {
+                if (ordineId <= 0)
+                    return SafeBadRequest<int>("ID ordine non valido");
+
+                var result = await _repository.GetNumeroStatiByOrdineAsync(ordineId);
+
+                LogAuditTrail("GET_NUMERO_STATI_ORDINE", "StatoStoricoOrdine", ordineId.ToString());
+                LogSecurityEvent("StatoStoricoOrdineGetCount", new
+                {
+                    ordineId,
+                    UserId = GetCurrentUserId(),
+                    Count = result
+                });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero numero stati per ordine {OrdineId}", ordineId);
+                return SafeInternalError<int>("Errore nel recupero numero stati ordine");
             }
         }
     }

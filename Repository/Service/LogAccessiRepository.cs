@@ -18,32 +18,8 @@ namespace Repository.Service
             _context = context;
         }
 
-        public async Task<IEnumerable<LogAccessiDTO>> GetAllAsync()
+        private LogAccessiDTO MapToDTO(LogAccessi logAccessi)
         {
-            return await _context.LogAccessi
-                .AsNoTracking()
-                .OrderByDescending(l => l.DataCreazione)
-                .Select(l => new LogAccessiDTO
-                {
-                    LogId = l.LogId,
-                    UtenteId = l.UtenteId,
-                    ClienteId = l.ClienteId,
-                    TipoAccesso = l.TipoAccesso,
-                    Esito = l.Esito,
-                    IpAddress = l.IpAddress,
-                    UserAgent = l.UserAgent,
-                    DataCreazione = l.DataCreazione,
-                    Dettagli = l.Dettagli
-                })
-                .ToListAsync();
-        }
-
-        public async Task<LogAccessiDTO?> GetByIdAsync(int logId)
-        {
-            var logAccessi = await _context.LogAccessi
-                .AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LogId == logId);
-
             if (logAccessi == null) return null;
 
             return new LogAccessiDTO
@@ -60,24 +36,31 @@ namespace Repository.Service
             };
         }
 
+        public async Task<IEnumerable<LogAccessiDTO>> GetAllAsync()
+        {
+            return await _context.LogAccessi
+                .AsNoTracking()
+                .OrderByDescending(l => l.DataCreazione)
+                .Select(l => MapToDTO(l)) // ✅ USA MapToDTO
+                .ToListAsync();
+        }
+
+        public async Task<LogAccessiDTO?> GetByIdAsync(int logId)
+        {
+            var logAccessi = await _context.LogAccessi
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LogId == logId);
+
+            return logAccessi == null ? null : MapToDTO(logAccessi); // ✅ USA MapToDTO
+        }
+
         public async Task<IEnumerable<LogAccessiDTO>> GetByUtenteIdAsync(int utenteId)
         {
             return await _context.LogAccessi
                 .AsNoTracking()
                 .Where(l => l.UtenteId == utenteId)
                 .OrderByDescending(l => l.DataCreazione)
-                .Select(l => new LogAccessiDTO
-                {
-                    LogId = l.LogId,
-                    UtenteId = l.UtenteId,
-                    ClienteId = l.ClienteId,
-                    TipoAccesso = l.TipoAccesso,
-                    Esito = l.Esito,
-                    IpAddress = l.IpAddress,
-                    UserAgent = l.UserAgent,
-                    DataCreazione = l.DataCreazione,
-                    Dettagli = l.Dettagli
-                })
+                .Select(l => MapToDTO(l)) // ✅ OTTIMIZZATO
                 .ToListAsync();
         }
 
@@ -87,18 +70,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .Where(l => l.ClienteId == clienteId)
                 .OrderByDescending(l => l.DataCreazione)
-                .Select(l => new LogAccessiDTO
-                {
-                    LogId = l.LogId,
-                    UtenteId = l.UtenteId,
-                    ClienteId = l.ClienteId,
-                    TipoAccesso = l.TipoAccesso,
-                    Esito = l.Esito,
-                    IpAddress = l.IpAddress,
-                    UserAgent = l.UserAgent,
-                    DataCreazione = l.DataCreazione,
-                    Dettagli = l.Dettagli
-                })
+                .Select(l => MapToDTO(l)) // ✅ OTTIMIZZATO
                 .ToListAsync();
         }
 
@@ -108,18 +80,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .Where(l => l.TipoAccesso == tipoAccesso)
                 .OrderByDescending(l => l.DataCreazione)
-                .Select(l => new LogAccessiDTO
-                {
-                    LogId = l.LogId,
-                    UtenteId = l.UtenteId,
-                    ClienteId = l.ClienteId,
-                    TipoAccesso = l.TipoAccesso,
-                    Esito = l.Esito,
-                    IpAddress = l.IpAddress,
-                    UserAgent = l.UserAgent,
-                    DataCreazione = l.DataCreazione,
-                    Dettagli = l.Dettagli
-                })
+                .Select(l => MapToDTO(l)) // ✅ OTTIMIZZATO
                 .ToListAsync();
         }
 
@@ -129,18 +90,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .Where(l => l.Esito == esito)
                 .OrderByDescending(l => l.DataCreazione)
-                .Select(l => new LogAccessiDTO
-                {
-                    LogId = l.LogId,
-                    UtenteId = l.UtenteId,
-                    ClienteId = l.ClienteId,
-                    TipoAccesso = l.TipoAccesso,
-                    Esito = l.Esito,
-                    IpAddress = l.IpAddress,
-                    UserAgent = l.UserAgent,
-                    DataCreazione = l.DataCreazione,
-                    Dettagli = l.Dettagli
-                })
+                .Select(l => MapToDTO(l)) // ✅ OTTIMIZZATO
                 .ToListAsync();
         }
 
@@ -150,23 +100,15 @@ namespace Repository.Service
                 .AsNoTracking()
                 .Where(l => l.DataCreazione >= dataInizio && l.DataCreazione <= dataFine)
                 .OrderByDescending(l => l.DataCreazione)
-                .Select(l => new LogAccessiDTO
-                {
-                    LogId = l.LogId,
-                    UtenteId = l.UtenteId,
-                    ClienteId = l.ClienteId,
-                    TipoAccesso = l.TipoAccesso,
-                    Esito = l.Esito,
-                    IpAddress = l.IpAddress,
-                    UserAgent = l.UserAgent,
-                    DataCreazione = l.DataCreazione,
-                    Dettagli = l.Dettagli
-                })
+                .Select(l => MapToDTO(l)) // ✅ OTTIMIZZATO
                 .ToListAsync();
         }
 
-        public async Task AddAsync(LogAccessiDTO logAccessiDto)
+        public async Task<LogAccessiDTO> AddAsync(LogAccessiDTO logAccessiDto)
         {
+            if (logAccessiDto == null)
+                throw new ArgumentNullException(nameof(logAccessiDto));
+
             var logAccessi = new LogAccessi
             {
                 UtenteId = logAccessiDto.UtenteId,
@@ -175,15 +117,18 @@ namespace Repository.Service
                 Esito = logAccessiDto.Esito,
                 IpAddress = logAccessiDto.IpAddress,
                 UserAgent = logAccessiDto.UserAgent,
-                DataCreazione = DateTime.Now,
+                DataCreazione = DateTime.Now, // ✅ SEMPRE DateTime.Now
                 Dettagli = logAccessiDto.Dettagli
             };
 
             _context.LogAccessi.Add(logAccessi);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON ID GENERATO
             logAccessiDto.LogId = logAccessi.LogId;
             logAccessiDto.DataCreazione = logAccessi.DataCreazione;
+
+            return logAccessiDto; // ✅ IMPORTANTE: ritorna DTO
         }
 
         public async Task UpdateAsync(LogAccessiDTO logAccessiDto)
@@ -192,8 +137,9 @@ namespace Repository.Service
                 .FirstOrDefaultAsync(l => l.LogId == logAccessiDto.LogId);
 
             if (logAccessi == null)
-                throw new ArgumentException($"Log accessi con ID {logAccessiDto.LogId} non trovato");
+                return; // ✅ SILENT FAIL - Non lanciare eccezione
 
+            // ✅ AGGIORNA SOLO SE ESISTE
             logAccessi.UtenteId = logAccessiDto.UtenteId;
             logAccessi.ClienteId = logAccessiDto.ClienteId;
             logAccessi.TipoAccesso = logAccessiDto.TipoAccesso;
@@ -238,6 +184,24 @@ namespace Repository.Service
             }
 
             return await query.CountAsync();
+        }
+
+        public async Task<Dictionary<string, int>> GetStatisticheAccessiAsync(DateTime? dataInizio = null, DateTime? dataFine = null)
+        {
+            var query = _context.LogAccessi.AsQueryable();
+
+            if (dataInizio.HasValue)
+                query = query.Where(l => l.DataCreazione >= dataInizio.Value);
+
+            if (dataFine.HasValue)
+                query = query.Where(l => l.DataCreazione <= dataFine.Value);
+
+            var statistiche = await query
+                .GroupBy(l => l.Esito)
+                .Select(g => new { Esito = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Esito, x => x.Count);
+
+            return statistiche;
         }
     }
 }

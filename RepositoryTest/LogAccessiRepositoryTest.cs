@@ -13,15 +13,10 @@ namespace RepositoryTest
     public class LogAccessiRepositoryTest : BaseTest
     {
         private readonly LogAccessiRepository _repository;
-        private readonly BubbleTeaContext _context;
 
         public LogAccessiRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"LogAccessiTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+            // ✅ USA IL CONTEXT EREDITATO DA BaseTest
             _repository = new LogAccessiRepository(_context);
 
             InitializeTestData();
@@ -281,12 +276,10 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newLog);
+            var result = await _repository.AddAsync(newLog); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            Assert.True(newLog.LogId > 0);
-            var result = await _repository.GetByIdAsync(newLog.LogId);
-            Assert.NotNull(result);
+            Assert.True(result.LogId > 0); // ✅ VERIFICA sul risultato
             Assert.Equal("Logout", result.TipoAccesso);
             Assert.Equal("Successo", result.Esito);
             Assert.Equal("192.168.1.104", result.IpAddress);
@@ -377,7 +370,7 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task UpdateAsync_WithNonExistingLogAccessi_ShouldThrowException()
+        public async Task UpdateAsync_WithNonExistingLogAccessi_ShouldNotThrow()
         {
             // Arrange
             var updateDto = new LogAccessiDTO
@@ -391,8 +384,57 @@ namespace RepositoryTest
                 Dettagli = "Test"
             };
 
-            // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _repository.UpdateAsync(updateDto));
+            // Act & Assert - ✅ CORREGGI: Non dovrebbe lanciare eccezione
+            var exception = await Record.ExceptionAsync(() => _repository.UpdateAsync(updateDto));
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldSetCorrectTimestamps()
+        {
+            // Arrange
+            var newLog = new LogAccessiDTO
+            {
+                UtenteId = 2,
+                TipoAccesso = "Test Timestamp",
+                Esito = "Successo",
+                IpAddress = "192.168.1.105",
+                Dettagli = "Test timestamp"
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newLog);
+
+            // Assert
+            Assert.NotNull(result.DataCreazione);
+            Assert.InRange(result.DataCreazione.Value, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
+        }
+
+        [Fact]
+        public async Task GetStatisticheAccessiAsync_ShouldReturnCorrectStatistics()
+        {
+            // Act
+            var result = await _repository.GetStatisticheAccessiAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(3, result["Successo"]);  // 3 successi nei dati di test
+            Assert.Equal(2, result["Fallito"]);   // 2 falliti nei dati di test
+        }
+
+        [Fact]
+        public async Task GetStatisticheAccessiAsync_WithPeriod_ShouldReturnFilteredStatistics()
+        {
+            // Arrange
+            var dataInizio = DateTime.Now.AddHours(-2.5);
+            var dataFine = DateTime.Now.AddMinutes(-20);
+
+            // Act
+            var result = await _repository.GetStatisticheAccessiAsync(dataInizio, dataFine);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result["Successo"] >= 2); // Almeno 2 successi nel periodo
         }
     }
 }

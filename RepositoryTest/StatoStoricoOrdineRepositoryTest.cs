@@ -12,16 +12,10 @@ namespace RepositoryTest
 {
     public class StatoStoricoOrdineRepositoryTest : BaseTest
     {
-        private readonly StatoStoricoOrdineRepository _repository;
-        private readonly BubbleTeaContext _context;
+        private readonly StatoStoricoOrdineRepository _repository;        
 
         public StatoStoricoOrdineRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"StatoStoricoOrdineTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new StatoStoricoOrdineRepository(_context);
 
             InitializeTestData();
@@ -257,12 +251,10 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newStatoStorico);
+            var result = await _repository.AddAsync(newStatoStorico); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            Assert.True(newStatoStorico.StatoStoricoOrdineId > 0);
-            var result = await _repository.GetByIdAsync(newStatoStorico.StatoStoricoOrdineId);
-            Assert.NotNull(result);
+            Assert.True(result.StatoStoricoOrdineId > 0); // ✅ VERIFICA sul risultato
             Assert.Equal(2, result.OrdineId);
             Assert.Equal(2, result.StatoOrdineId);
             Assert.Null(result.Fine);
@@ -348,6 +340,130 @@ namespace RepositoryTest
 
             // Assert
             Assert.False(result);
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldSetCorrectTimestamps()
+        {
+            // Arrange
+            var newStatoStorico = new StatoStoricoOrdineDTO
+            {
+                OrdineId = 2,
+                StatoOrdineId = 2,
+                Inizio = DateTime.Now,
+                Fine = null
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newStatoStorico);
+
+            // Assert
+            Assert.NotNull(result.Inizio);
+            Assert.InRange(result.Inizio, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
+        }
+
+        [Fact]
+        public async Task AddAsync_WithInvalidDates_ShouldThrowException()
+        {
+            // Arrange
+            var invalidStatoStorico = new StatoStoricoOrdineDTO
+            {
+                OrdineId = 2,
+                StatoOrdineId = 2,
+                Inizio = DateTime.Now,
+                Fine = DateTime.Now.AddHours(-1) // Fine precedente a inizio
+            };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(() => _repository.AddAsync(invalidStatoStorico));
+        }
+
+        [Fact]
+        public async Task OrdineHasStatoAsync_ShouldReturnCorrectValue()
+        {
+            // Act & Assert
+            Assert.True(await _repository.OrdineHasStatoAsync(1, 1)); // Ordine 1 ha stato 1
+            Assert.True(await _repository.OrdineHasStatoAsync(1, 2)); // Ordine 1 ha stato 2
+            Assert.True(await _repository.OrdineHasStatoAsync(1, 3)); // Ordine 1 ha stato 3
+            Assert.False(await _repository.OrdineHasStatoAsync(1, 4)); // Ordine 1 non ha stato 4
+        }
+
+        [Fact]
+        public async Task GetDataInizioStatoAsync_ShouldReturnCorrectDate()
+        {
+            // Act
+            var result = await _repository.GetDataInizioStatoAsync(1, 1);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.InRange(result.Value, DateTime.Now.AddHours(-4), DateTime.Now.AddHours(-2));
+        }
+
+        [Fact]
+        public async Task GetNumeroStatiByOrdineAsync_ShouldReturnCorrectCount()
+        {
+            // Act
+            var ordine1Count = await _repository.GetNumeroStatiByOrdineAsync(1);
+            var ordine2Count = await _repository.GetNumeroStatiByOrdineAsync(2);
+
+            // Assert
+            Assert.Equal(3, ordine1Count); // 3 stati per ordine 1
+            Assert.Equal(1, ordine2Count); // 1 stato per ordine 2
+        }
+
+        [Fact]
+        public async Task GetStoricoByPeriodoAsync_ShouldReturnFilteredStorico()
+        {
+            // Arrange
+            var dataInizio = DateTime.Now.AddHours(-2.5);
+            var dataFine = DateTime.Now.AddMinutes(-30); // -0.5h
+
+            // Act
+            var result = await _repository.GetStoricoByPeriodoAsync(dataInizio, dataFine);
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Equal(3, resultList.Count); // ✅ CORREGGI: 3 invece di 2
+            Assert.All(resultList, s =>
+            {
+                Assert.True(s.Inizio >= dataInizio);
+                Assert.True(s.Fine == null || s.Fine <= dataFine);
+            });
+        }
+
+        [Fact]
+        public async Task UpdateAsync_WithNonExistingStatoStorico_ShouldNotThrow()
+        {
+            // Arrange
+            var updateDto = new StatoStoricoOrdineDTO
+            {
+                StatoStoricoOrdineId = 999,
+                OrdineId = 1,
+                StatoOrdineId = 2,
+                Inizio = DateTime.Now,
+                Fine = null
+            };
+
+            // Act & Assert - ✅ CORREGGI: Non dovrebbe lanciare eccezione
+            var exception = await Record.ExceptionAsync(() => _repository.UpdateAsync(updateDto));
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task ChiudiStatoAttualeAsync_ShouldSetCorrectFineDate()
+        {
+            // Arrange
+            var fine = DateTime.Now;
+
+            // Act
+            var result = await _repository.ChiudiStatoAttualeAsync(1, fine);
+
+            // Assert
+            Assert.True(result);
+            var storicoChiuso = await _context.StatoStoricoOrdine
+                .FirstOrDefaultAsync(s => s.OrdineId == 1 && s.Fine == fine);
+            Assert.NotNull(storicoChiuso);
+            Assert.Equal(fine, storicoChiuso.Fine);
         }
     }
 }

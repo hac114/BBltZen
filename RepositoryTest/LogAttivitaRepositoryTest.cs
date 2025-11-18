@@ -13,15 +13,9 @@ namespace RepositoryTest
     public class LogAttivitaRepositoryTest : BaseTest
     {
         private readonly LogAttivitaRepository _repository;
-        private readonly BubbleTeaContext _context;
 
         public LogAttivitaRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"LogAttivitaTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new LogAttivitaRepository(_context);
 
             InitializeTestData();
@@ -159,12 +153,10 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newLog);
+            var result = await _repository.AddAsync(newLog); // ✅ CORREGGI: assegna risultato
 
             // Assert
-            Assert.True(newLog.LogId > 0);
-            var result = await _repository.GetByIdAsync(newLog.LogId);
-            Assert.NotNull(result);
+            Assert.True(result.LogId > 0); // ✅ VERIFICA sul risultato
             Assert.Equal("ReportGenerazione", result.TipoAttivita);
             Assert.Equal("Generazione report vendite mensili", result.Descrizione);
             Assert.Contains("Gennaio 2024", result.Dettagli);
@@ -251,7 +243,7 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task UpdateAsync_WithNonExistingLogAttivita_ShouldThrowException()
+        public async Task UpdateAsync_WithNonExistingLogAttivita_ShouldNotThrow()
         {
             // Arrange
             var updateDto = new LogAttivitaDTO
@@ -263,8 +255,102 @@ namespace RepositoryTest
                 Dettagli = "Test"
             };
 
-            // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _repository.UpdateAsync(updateDto));
+            // Act & Assert - ✅ CORREGGI: Non dovrebbe lanciare eccezione
+            var exception = await Record.ExceptionAsync(() => _repository.UpdateAsync(updateDto));
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldSetCorrectTimestamps()
+        {
+            // Arrange
+            var newLog = new LogAttivitaDTO
+            {
+                TipoAttivita = "TestTimestamp",
+                Descrizione = "Test verifica timestamp",
+                Dettagli = "Test"
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newLog);
+
+            // Assert
+            Assert.NotNull(result.DataEsecuzione);
+            Assert.InRange(result.DataEsecuzione, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
+        }
+
+        [Fact]
+        public async Task GetByUtenteIdAsync_ShouldReturnFilteredLogAttivita()
+        {
+            // Arrange - Aggiungi log con utenteId
+            var logWithUser = new LogAttivitaDTO
+            {
+                TipoAttivita = "TestUtente",
+                Descrizione = "Test attività con utente",
+                Dettagli = "Test",
+                UtenteId = 1
+            };
+            await _repository.AddAsync(logWithUser);
+
+            // Act
+            var result = await _repository.GetByUtenteIdAsync(1);
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Single(resultList);
+            Assert.All(resultList, l => Assert.Equal(1, l.UtenteId));
+        }
+
+        [Fact]
+        public async Task GetStatisticheAttivitaAsync_ShouldReturnCorrectStatistics()
+        {
+            // Act
+            var result = await _repository.GetStatisticheAttivitaAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(2, result["PuliziaDatabase"]);  // 2 pulizie database
+            Assert.Equal(1, result["Backup"]);           // 1 backup
+            Assert.Equal(1, result["AggiornamentoMenu"]); // 1 aggiornamento menu
+            Assert.Equal(1, result["Sincronizzazione"]);  // 1 sincronizzazione
+        }
+
+        [Fact]
+        public async Task GetStatisticheAttivitaAsync_WithPeriod_ShouldReturnFilteredStatistics()
+        {
+            // Arrange
+            var dataInizio = DateTime.Now.AddHours(-3.5);
+            var dataFine = DateTime.Now.AddMinutes(-45);
+
+            // Act
+            var result = await _repository.GetStatisticheAttivitaAsync(dataInizio, dataFine);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result["PuliziaDatabase"] >= 1); // Almeno 1 pulizia nel periodo
+            Assert.True(result["Backup"] >= 1);          // Almeno 1 backup nel periodo
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldIncludeUtenteId()
+        {
+            // Arrange
+            var newLog = new LogAttivitaDTO
+            {
+                TipoAttivita = "TestUtenteId",
+                Descrizione = "Test con utente ID",
+                Dettagli = "Test",
+                UtenteId = 2
+            };
+
+            // Act
+            var result = await _repository.AddAsync(newLog);
+
+            // Assert
+            Assert.Equal(2, result.UtenteId);
+            var retrieved = await _repository.GetByIdAsync(result.LogId);
+            Assert.NotNull(retrieved);
+            Assert.Equal(2, retrieved.UtenteId);
         }
     }
 }

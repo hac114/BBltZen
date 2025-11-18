@@ -39,19 +39,19 @@ namespace BBltZen.Controllers
             {
                 var result = await _repository.GetAllAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ALL_LOG_ATTIVITA", "LogAttivita", "All");
+                LogAuditTrail("GET_ALL", "LogAttivita", "All");
+                LogSecurityEvent("LogAttivitaGetAll", new
+                {
+                    UserId = GetCurrentUserId(),
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutti i log attività");
-                return SafeInternalError<IEnumerable<LogAttivitaDTO>>(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero dei log attività: {ex.Message}"
-                        : "Errore interno nel recupero dei log attività"
-                );
+                return SafeInternalError<IEnumerable<LogAttivitaDTO>>("Errore durante il recupero dei log attività");
             }
         }
 
@@ -100,27 +100,24 @@ namespace BBltZen.Controllers
             try
             {
                 if (string.IsNullOrWhiteSpace(tipoAttivita))
-                    return SafeBadRequest<IEnumerable<LogAttivitaDTO>>(
-                        _environment.IsDevelopment()
-                            ? "Tipo attività non valido: non può essere vuoto"
-                            : "Tipo attività non valido"
-                    );
+                    return SafeBadRequest<IEnumerable<LogAttivitaDTO>>("Tipo attività non valido");
 
                 var result = await _repository.GetByTipoAttivitaAsync(tipoAttivita);
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_LOG_ATTIVITA_BY_TIPO", "LogAttivita", tipoAttivita);
+                LogAuditTrail("GET_BY_TIPO", "LogAttivita", tipoAttivita);
+                LogSecurityEvent("LogAttivitaGetByTipo", new
+                {
+                    tipoAttivita,
+                    UserId = GetCurrentUserId(),
+                    Count = result.Count()
+                });
 
                 return Ok(result);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero log attività per tipo {TipoAttivita}", tipoAttivita);
-                return SafeInternalError<IEnumerable<LogAttivitaDTO>>(
-                    _environment.IsDevelopment()
-                        ? $"Errore nel recupero log attività per tipo {tipoAttivita}: {ex.Message}"
-                        : "Errore interno nel recupero log attività per tipo"
-                );
+                return SafeInternalError<IEnumerable<LogAttivitaDTO>>("Errore durante il recupero dei log attività per tipo");
             }
         }
 
@@ -193,65 +190,42 @@ namespace BBltZen.Controllers
         {
             try
             {
-                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
                 if (!IsModelValid(logAttivitaDto))
-                    return SafeBadRequest<LogAttivitaDTO>(
-                        _environment.IsDevelopment()
-                            ? "Dati log attività non validi: modello di binding fallito"
-                            : "Dati log attività non validi"
-                    );
+                    return SafeBadRequest<LogAttivitaDTO>("Dati log attività non validi");
 
-                // ✅ Controlli avanzati con BubbleTeaContext
-                var tipoAttivitaEsistente = await _context.LogAttivita
-                    .AnyAsync(l => l.TipoAttivita == logAttivitaDto.TipoAttivita);
+                // ✅ VERIFICA UTENTE (se specificato)
+                if (logAttivitaDto.UtenteId.HasValue && !await _context.Utenti.AnyAsync(u => u.UtenteId == logAttivitaDto.UtenteId.Value))
+                    return SafeBadRequest<LogAttivitaDTO>("Utente non trovato");
 
-                if (!tipoAttivitaEsistente)
-                {
-                    _logger.LogWarning("Tentativo di creazione log con tipo attività non esistente: {TipoAttivita}", logAttivitaDto.TipoAttivita);
-                }
+                // ✅ CORREZIONE: Usa il risultato del repository
+                var result = await _repository.AddAsync(logAttivitaDto);
 
-                await _repository.AddAsync(logAttivitaDto);
-
-                // ✅ Log per audit e sicurezza
-                LogAuditTrail("CREATE_LOG_ATTIVITA", "LogAttivita", logAttivitaDto.LogId.ToString());
+                // ✅ AUDIT OTTIMIZZATO
+                LogAuditTrail("CREATE", "LogAttivita", result.LogId.ToString());
                 LogSecurityEvent("LogAttivitaCreated", new
                 {
-                    LogId = logAttivitaDto.LogId,
-                    TipoAttivita = logAttivitaDto.TipoAttivita,
-                    Descrizione = logAttivitaDto.Descrizione,
-                    User = User.Identity?.Name ?? "System",
-                    Timestamp = DateTime.UtcNow,
-                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+                    result.LogId,
+                    result.TipoAttivita,
+                    result.UtenteId,
+                    UserId = GetCurrentUserId(),
+                    UserName = User.Identity?.Name
                 });
 
-                return CreatedAtAction(nameof(GetById), new { logId = logAttivitaDto.LogId }, logAttivitaDto);
+                return CreatedAtAction(nameof(GetById), new { logId = result.LogId }, result);
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database nella creazione log attività");
-                return SafeInternalError<LogAttivitaDTO>(
-                    _environment.IsDevelopment()
-                        ? $"Errore database nella creazione log attività: {dbEx.InnerException?.Message ?? dbEx.Message}"
-                        : "Errore di sistema nella creazione log attività"
-                );
+                _logger.LogError(dbEx, "Errore database durante la creazione del log attività");
+                return SafeInternalError<LogAttivitaDTO>("Errore durante il salvataggio del log attività");
             }
             catch (ArgumentException argEx)
             {
-                _logger.LogWarning(argEx, "Argomento non valido nella creazione log attività");
-                return SafeBadRequest<LogAttivitaDTO>(
-                    _environment.IsDevelopment()
-                        ? $"Dati non validi: {argEx.Message}"
-                        : "Dati non validi"
-                );
+                return SafeBadRequest<LogAttivitaDTO>(argEx.Message);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella creazione log attività");
-                return SafeInternalError<LogAttivitaDTO>(
-                    _environment.IsDevelopment()
-                        ? $"Errore nella creazione log attività: {ex.Message}"
-                        : "Errore interno nella creazione log attività"
-                );
+                return SafeInternalError<LogAttivitaDTO>("Errore durante la creazione del log attività");
             }
         }
 
@@ -261,78 +235,46 @@ namespace BBltZen.Controllers
         {
             try
             {
-                if (logId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID log attività non valido: deve essere maggiore di 0"
-                            : "ID log attività non valido"
-                    );
+                if (logId <= 0 || logAttivitaDto.LogId != logId)
+                    return SafeBadRequest("ID log attività non valido");
 
-                // ✅ La validazione dei campi è gestita automaticamente dai Data Annotations del DTO
                 if (!IsModelValid(logAttivitaDto))
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "Dati log attività non validi: modello di binding fallito"
-                            : "Dati log attività non validi"
-                    );
+                    return SafeBadRequest("Dati log attività non validi");
 
-                if (logAttivitaDto.LogId != logId)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? $"ID log attività non corrispondente: URL={logId}, Body={logAttivitaDto.LogId}"
-                            : "Identificativi non corrispondenti"
-                    );
+                if (!await _repository.ExistsAsync(logId))
+                    return SafeNotFound("Log attività");
 
-                // Verifica esistenza
-                var exists = await _repository.ExistsAsync(logId);
-                if (!exists)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Log attività con ID {logId} non trovato per l'aggiornamento"
-                            : "Log attività non trovato"
-                    );
+                // ✅ VERIFICA UTENTE (se specificato)
+                if (logAttivitaDto.UtenteId.HasValue && !await _context.Utenti.AnyAsync(u => u.UtenteId == logAttivitaDto.UtenteId.Value))
+                    return SafeBadRequest("Utente non trovato");
 
                 await _repository.UpdateAsync(logAttivitaDto);
 
-                // ✅ Log per audit e sicurezza
-                LogAuditTrail("UPDATE_LOG_ATTIVITA", "LogAttivita", logId.ToString());
+                // ✅ AUDIT OTTIMIZZATO
+                LogAuditTrail("UPDATE", "LogAttivita", logId.ToString());
                 LogSecurityEvent("LogAttivitaUpdated", new
                 {
-                    LogId = logId,
-                    User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = DateTime.UtcNow,
-                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                    Changes = $"Tipo: {logAttivitaDto.TipoAttivita}, Descrizione: {logAttivitaDto.Descrizione}"
+                    logId,
+                    logAttivitaDto.TipoAttivita,
+                    UserId = GetCurrentUserId(),
+                    UserName = User.Identity?.Name
                 });
 
                 return NoContent();
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database nell'aggiornamento log attività {LogId}", logId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore database nell'aggiornamento log attività {logId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
-                        : "Errore di sistema nell'aggiornamento log attività"
-                );
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento del log attività {LogId}", logId);
+                return SafeInternalError("Errore durante l'aggiornamento del log attività");
             }
             catch (ArgumentException argEx)
             {
-                _logger.LogWarning(argEx, "Argomento non valido nell'aggiornamento log attività {LogId}", logId);
-                return SafeBadRequest(
-                    _environment.IsDevelopment()
-                        ? $"Dati non validi: {argEx.Message}"
-                        : "Dati non validi"
-                );
+                return SafeBadRequest(argEx.Message);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'aggiornamento log attività {LogId}", logId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nell'aggiornamento log attività {logId}: {ex.Message}"
-                        : "Errore interno nell'aggiornamento log attività"
-                );
+                return SafeInternalError("Errore durante l'aggiornamento del log attività");
             }
         }
 
@@ -343,52 +285,89 @@ namespace BBltZen.Controllers
             try
             {
                 if (logId <= 0)
-                    return SafeBadRequest(
-                        _environment.IsDevelopment()
-                            ? "ID log attività non valido: deve essere maggiore di 0"
-                            : "ID log attività non valido"
-                    );
+                    return SafeBadRequest("ID log attività non valido");
 
-                // Verifica esistenza
-                var exists = await _repository.ExistsAsync(logId);
-                if (!exists)
-                    return SafeNotFound(
-                        _environment.IsDevelopment()
-                            ? $"Log attività con ID {logId} non trovato per l'eliminazione"
-                            : "Log attività non trovato"
-                    );
+                var existing = await _repository.GetByIdAsync(logId);
+                if (existing == null)
+                    return SafeNotFound("Log attività");
 
                 await _repository.DeleteAsync(logId);
 
-                // ✅ Log per audit e sicurezza
-                LogAuditTrail("DELETE_LOG_ATTIVITA", "LogAttivita", logId.ToString());
+                // ✅ AUDIT OTTIMIZZATO
+                LogAuditTrail("DELETE", "LogAttivita", logId.ToString());
                 LogSecurityEvent("LogAttivitaDeleted", new
                 {
-                    LogId = logId,
-                    User = User.Identity?.Name ?? "Unknown",
-                    Timestamp = DateTime.UtcNow,
-                    IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+                    logId,
+                    existing.TipoAttivita,
+                    UserId = GetCurrentUserId(),
+                    UserName = User.Identity?.Name
                 });
 
                 return NoContent();
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database nell'eliminazione log attività {LogId}", logId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore database nell'eliminazione log attività {logId}: {dbEx.InnerException?.Message ?? dbEx.Message}"
-                        : "Errore di sistema nell'eliminazione log attività"
-                );
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione del log attività {LogId}", logId);
+                return SafeInternalError("Errore durante l'eliminazione del log attività");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'eliminazione log attività {LogId}", logId);
-                return SafeInternalError(
-                    _environment.IsDevelopment()
-                        ? $"Errore nell'eliminazione log attività {logId}: {ex.Message}"
-                        : "Errore interno nell'eliminazione log attività"
-                );
+                return SafeInternalError("Errore durante l'eliminazione del log attività");
+            }
+        }
+
+        [HttpGet("utente/{utenteId}")]
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
+        public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetByUtenteId(int utenteId)
+        {
+            try
+            {
+                if (utenteId <= 0)
+                    return SafeBadRequest<IEnumerable<LogAttivitaDTO>>("ID utente non valido");
+
+                if (!await _context.Utenti.AnyAsync(u => u.UtenteId == utenteId))
+                    return SafeNotFound<IEnumerable<LogAttivitaDTO>>("Utente");
+
+                var result = await _repository.GetByUtenteIdAsync(utenteId);
+
+                LogAuditTrail("GET_BY_UTENTE", "LogAttivita", utenteId.ToString());
+                LogSecurityEvent("LogAttivitaGetByUtente", new
+                {
+                    utenteId,
+                    UserId = GetCurrentUserId(),
+                    Count = result.Count()
+                });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero log attività per utente {UtenteId}", utenteId);
+                return SafeInternalError<IEnumerable<LogAttivitaDTO>>("Errore durante il recupero dei log attività per utente");
+            }
+        }
+
+        [HttpGet("statistiche/tipi-attivita")]
+        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
+        public async Task<ActionResult<Dictionary<string, int>>> GetStatisticheAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
+        {
+            try
+            {
+                if (dataInizio.HasValue && dataFine.HasValue && dataInizio > dataFine)
+                    return SafeBadRequest<Dictionary<string, int>>("Data inizio non può essere successiva alla data fine");
+
+                var result = await _repository.GetStatisticheAttivitaAsync(dataInizio, dataFine);
+
+                LogAuditTrail("GET_STATISTICHE_ATTIVITA", "LogAttivita",
+                    $"Inizio: {dataInizio?.ToString("yyyy-MM-dd") ?? "null"}, Fine: {dataFine?.ToString("yyyy-MM-dd") ?? "null"}");
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero statistiche attività");
+                return SafeInternalError<Dictionary<string, int>>("Errore durante il recupero delle statistiche");
             }
         }
     }

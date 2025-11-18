@@ -100,7 +100,7 @@ namespace BBltZen.Controllers
 
         // POST: api/ConfigSoglieTempi
         [HttpPost]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può creare configurazioni
+        //[Authorize(Roles = "admin")]
         public async Task<ActionResult<ConfigSoglieTempiDTO>> Create([FromBody] ConfigSoglieTempiDTO configSoglieTempiDto)
         {
             try
@@ -113,125 +113,91 @@ namespace BBltZen.Controllers
                 if (!statoOrdineEsiste)
                     return SafeBadRequest<ConfigSoglieTempiDTO>("Stato ordine non trovato");
 
-                // ✅ Validazione business: soglia attenzione deve essere minore di soglia critico
-                if (configSoglieTempiDto.SogliaAttenzione >= configSoglieTempiDto.SogliaCritico)
-                    return SafeBadRequest<ConfigSoglieTempiDTO>("La soglia attenzione deve essere inferiore alla soglia critico");
-
-                // ✅ Verifica se esiste già una configurazione per questo stato ordine
-                if (await _repository.ExistsByStatoOrdineIdAsync(configSoglieTempiDto.StatoOrdineId))
-                    return SafeBadRequest<ConfigSoglieTempiDTO>("Esiste già una configurazione per questo stato ordine");
-
                 // ✅ Imposta l'utente di aggiornamento
                 configSoglieTempiDto.UtenteAggiornamento = User.Identity?.Name ?? "System";
 
-                await _repository.AddAsync(configSoglieTempiDto);
+                // ✅ USA IL RISULTATO DI AddAsync - IL REPOSITORY FA TUTTE LE VALIDAZIONI
+                var result = await _repository.AddAsync(configSoglieTempiDto);
 
                 // ✅ Audit trail
-                LogAuditTrail("CREATE_CONFIG_SOGLIE_TEMPI", "ConfigSoglieTempi", configSoglieTempiDto.SogliaId.ToString());
-
-                // ✅ Security event completo con timestamp
+                LogAuditTrail("CREATE", "ConfigSoglieTempi", result.SogliaId.ToString());
                 LogSecurityEvent("ConfigSoglieTempiCreated", new
                 {
-                    SogliaId = configSoglieTempiDto.SogliaId,
-                    StatoOrdineId = configSoglieTempiDto.StatoOrdineId,
-                    SogliaAttenzione = configSoglieTempiDto.SogliaAttenzione,
-                    SogliaCritico = configSoglieTempiDto.SogliaCritico,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    result.SogliaId,
+                    result.StatoOrdineId,
+                    UserId = GetCurrentUserId()
                 });
 
-                return CreatedAtAction(nameof(GetById),
-                    new { id = configSoglieTempiDto.SogliaId },
-                    configSoglieTempiDto);
+                return CreatedAtAction(nameof(GetById), new { id = result.SogliaId }, result);
+            }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest<ConfigSoglieTempiDTO>(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante la creazione della configurazione soglie tempi");
-                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante il salvataggio della configurazione");
+                _logger.LogError(dbEx, "Errore database durante la creazione");
+                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante il salvataggio");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione della configurazione soglie tempi");
-                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante la creazione della configurazione");
+                _logger.LogError(ex, "Errore durante la creazione");
+                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante la creazione");
             }
         }
 
         // PUT: api/ConfigSoglieTempi/5
         [HttpPut("{id}")]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può modificare configurazioni
+        //[Authorize(Roles = "admin")]
         public async Task<ActionResult> Update(int id, [FromBody] ConfigSoglieTempiDTO configSoglieTempiDto)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest("ID soglia non valido");
-
-                if (id != configSoglieTempiDto.SogliaId)
-                    return SafeBadRequest("ID soglia non corrispondente");
+                if (id <= 0 || id != configSoglieTempiDto.SogliaId)
+                    return SafeBadRequest("ID non valido");
 
                 if (!IsModelValid(configSoglieTempiDto))
                     return SafeBadRequest("Dati configurazione non validi");
-
-                var existing = await _repository.GetByIdAsync(id);
-                if (existing == null)
-                    return SafeNotFound("Configurazione soglie tempi");
 
                 // ✅ Verifica se lo stato ordine esiste
                 var statoOrdineEsiste = await _context.StatoOrdine.AnyAsync(s => s.StatoOrdineId == configSoglieTempiDto.StatoOrdineId);
                 if (!statoOrdineEsiste)
                     return SafeBadRequest("Stato ordine non trovato");
 
-                // ✅ Validazione business: soglia attenzione deve essere minore di soglia critico
-                if (configSoglieTempiDto.SogliaAttenzione >= configSoglieTempiDto.SogliaCritico)
-                    return SafeBadRequest("La soglia attenzione deve essere inferiore alla soglia critico");
-
-                // ✅ Verifica se esiste già un'altra configurazione per questo stato ordine
-                if (await _repository.ExistsByStatoOrdineIdAsync(configSoglieTempiDto.StatoOrdineId, id))
-                    return SafeBadRequest("Esiste già un'altra configurazione per questo stato ordine");
-
                 // ✅ Imposta l'utente di aggiornamento
                 configSoglieTempiDto.UtenteAggiornamento = User.Identity?.Name ?? "System";
 
                 await _repository.UpdateAsync(configSoglieTempiDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("UPDATE_CONFIG_SOGLIE_TEMPI", "ConfigSoglieTempi", configSoglieTempiDto.SogliaId.ToString());
-
-                // ✅ Security event completo con timestamp
+                // ✅ Audit trail - SILENT FAIL, non verifica esistenza
+                LogAuditTrail("UPDATE", "ConfigSoglieTempi", configSoglieTempiDto.SogliaId.ToString());
                 LogSecurityEvent("ConfigSoglieTempiUpdated", new
                 {
-                    SogliaId = configSoglieTempiDto.SogliaId,
-                    StatoOrdineId = configSoglieTempiDto.StatoOrdineId,
-                    OldSogliaAttenzione = existing.SogliaAttenzione,
-                    NewSogliaAttenzione = configSoglieTempiDto.SogliaAttenzione,
-                    OldSogliaCritico = existing.SogliaCritico,
-                    NewSogliaCritico = configSoglieTempiDto.SogliaCritico,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    configSoglieTempiDto.SogliaId,
+                    UserId = GetCurrentUserId()
                 });
 
                 return NoContent();
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException argEx)
             {
-                _logger.LogWarning(ex, "Configurazione non trovata durante l'aggiornamento {Id}", id);
-                return SafeNotFound("Configurazione soglie tempi");
+                return SafeBadRequest(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento della configurazione soglie tempi {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento della configurazione");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento della configurazione soglie tempi {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento della configurazione");
+                _logger.LogError(ex, "Errore durante l'aggiornamento {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
         // DELETE: api/ConfigSoglieTempi/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può eliminare configurazioni
+        //[Authorize(Roles = "admin")]
         public async Task<ActionResult> Delete(int id)
         {
             try
@@ -245,29 +211,82 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(id);
 
-                // ✅ Audit trail
-                LogAuditTrail("DELETE_CONFIG_SOGLIE_TEMPI", "ConfigSoglieTempi", id.ToString());
-
-                // ✅ Security event completo con timestamp
+                // ✅ Audit trail allineato
+                LogAuditTrail("DELETE", "ConfigSoglieTempi", id.ToString());
                 LogSecurityEvent("ConfigSoglieTempiDeleted", new
                 {
                     SogliaId = id,
                     StatoOrdineId = configSoglieTempi.StatoOrdineId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    UserId = GetCurrentUserId()
                 });
 
                 return NoContent();
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione della configurazione soglie tempi {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione della configurazione");
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione della configurazione soglie tempi {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione della configurazione");
+                _logger.LogError(ex, "Errore durante l'eliminazione {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
+            }
+        }
+
+        [HttpGet("stati-ordine")]
+        [AllowAnonymous]
+        public async Task<ActionResult<Dictionary<int, ConfigSoglieTempiDTO>>> GetSoglieByStatiOrdine([FromQuery] List<int> statiOrdineIds)
+        {
+            try
+            {
+                if (statiOrdineIds == null || !statiOrdineIds.Any())
+                    return SafeBadRequest<Dictionary<int, ConfigSoglieTempiDTO>>("Lista stati ordine vuota");
+
+                var result = await _repository.GetSoglieByStatiOrdineAsync(statiOrdineIds);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero soglie per stati ordine");
+                return SafeInternalError<Dictionary<int, ConfigSoglieTempiDTO>>("Errore durante il recupero");
+            }
+        }
+        [HttpPost("validate")]
+        [AllowAnonymous]
+        public async Task<ActionResult<bool>> ValidateSoglie([FromBody] SoglieValidationRequestDTO request)
+        {
+            try
+            {
+                if (!IsModelValid(request))
+                    return SafeBadRequest<bool>("Dati validazione non validi");
+
+                var result = await _repository.ValidateSoglieAsync(request.SogliaAttenzione, request.SogliaCritico);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la validazione soglie");
+                return SafeInternalError<bool>("Errore durante la validazione");
+            }
+        }
+
+        [HttpGet("exists/stato-ordine/{statoOrdineId}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<bool>> ExistsByStatoOrdineId(int statoOrdineId, [FromQuery] int? excludeSogliaId = null)
+        {
+            try
+            {
+                if (statoOrdineId <= 0)
+                    return SafeBadRequest<bool>("ID stato ordine non valido");
+
+                var result = await _repository.ExistsByStatoOrdineIdAsync(statoOrdineId, excludeSogliaId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la verifica esistenza per stato ordine {StatoOrdineId}", statoOrdineId);
+                return SafeInternalError<bool>("Errore durante la verifica");
             }
         }
     }

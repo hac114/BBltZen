@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace DTO
 {
@@ -34,6 +29,8 @@ namespace DTO
 
         [Range(1, 10, ErrorMessage = "La priorità deve essere tra 1 e 10")]
         public int Priorita { get; set; } = 1;
+
+        [StringLength(50, ErrorMessage = "Il tipo notifica non può superare 50 caratteri")]
         public string? TipoNotifica { get; set; } = "sistema";
     }
 }
