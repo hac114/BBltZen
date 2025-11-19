@@ -13,12 +13,12 @@ namespace RepositoryTest
     public class StatoPagamentoRepositoryTest : BaseTest
     {
         private readonly StatoPagamentoRepository _repository;
-        private readonly BubbleTeaContext _context;
+        private readonly new BubbleTeaContext _context;
 
         public StatoPagamentoRepositoryTest()
         {
             var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"StatoPagamentoTest_{Guid.NewGuid()}")
+                .UseInMemoryDatabase(databaseName: $"DolceTest_{Guid.NewGuid()}")
                 .Options;
 
             _context = new BubbleTeaContext(options);

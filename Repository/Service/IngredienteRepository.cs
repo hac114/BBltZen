@@ -18,31 +18,9 @@ namespace Repository.Service
             _context = context;
         }
 
-        // ✅ GET ALL: Solo per admin - mostra TUTTI gli ingredienti
-        public async Task<IEnumerable<IngredienteDTO>> GetAllAsync()
+        // ✅ METODO PRIVATO PER MAPPING (PATTERN STANDARD)
+        private IngredienteDTO MapToDTO(Ingrediente ingrediente)
         {
-            return await _context.Ingrediente
-                .Select(i => new IngredienteDTO
-                {
-                    IngredienteId = i.IngredienteId,
-                    Nome = i.Ingrediente1,
-                    CategoriaId = i.CategoriaId,
-                    PrezzoAggiunto = i.PrezzoAggiunto,
-                    Disponibile = i.Disponibile,  // ✅ Mostra anche quelli non disponibili
-                    DataInserimento = i.DataInserimento,
-                    DataAggiornamento = i.DataAggiornamento
-                })
-                .ToListAsync();
-        }
-
-        // ✅ GET BY ID: Cerca per ID indipendentemente dalla disponibilità
-        public async Task<IngredienteDTO?> GetByIdAsync(int id)
-        {
-            var ingrediente = await _context.Ingrediente
-                .FirstOrDefaultAsync(i => i.IngredienteId == id);  // ✅ Rimossa condizione Disponibile
-
-            if (ingrediente == null) return null;
-
             return new IngredienteDTO
             {
                 IngredienteId = ingrediente.IngredienteId,
@@ -55,14 +33,42 @@ namespace Repository.Service
             };
         }
 
-        public async Task AddAsync(IngredienteDTO ingredienteDto)
+        // ✅ GET ALL: Solo per admin - mostra TUTTI gli ingredienti
+        public async Task<IEnumerable<IngredienteDTO>> GetAllAsync()
         {
+            return await _context.Ingrediente
+                .AsNoTracking()
+                .OrderBy(i => i.Ingrediente1)
+                .Select(i => MapToDTO(i))
+                .ToListAsync();
+        }
+
+        // ✅ GET BY ID: Cerca per ID indipendentemente dalla disponibilità
+        public async Task<IngredienteDTO?> GetByIdAsync(int id)
+        {
+            var ingrediente = await _context.Ingrediente
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.IngredienteId == id);
+
+            return ingrediente == null ? null : MapToDTO(ingrediente);
+        }
+
+        // ✅ CORRETTO: AddAsync ritorna DTO con ID aggiornato
+        public async Task<IngredienteDTO> AddAsync(IngredienteDTO ingredienteDto)
+        {
+            if (ingredienteDto == null)
+                throw new ArgumentNullException(nameof(ingredienteDto));
+
+            // ✅ VERIFICA UNICITÀ NOME
+            if (await _context.Ingrediente.AnyAsync(i => i.Ingrediente1 == ingredienteDto.Nome))
+                throw new ArgumentException($"Esiste già un ingrediente con nome '{ingredienteDto.Nome}'");
+
             var ingrediente = new Ingrediente
             {
                 Ingrediente1 = ingredienteDto.Nome,
                 CategoriaId = ingredienteDto.CategoriaId,
                 PrezzoAggiunto = ingredienteDto.PrezzoAggiunto,
-                Disponibile = ingredienteDto.Disponibile,  // ✅ USA il valore dal DTO
+                Disponibile = ingredienteDto.Disponibile,
                 DataInserimento = DateTime.Now,
                 DataAggiornamento = DateTime.Now
             };
@@ -70,43 +76,55 @@ namespace Repository.Service
             _context.Ingrediente.Add(ingrediente);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON ID GENERATO E RITORNALO
             ingredienteDto.IngredienteId = ingrediente.IngredienteId;
-            ingredienteDto.Disponibile = ingrediente.Disponibile;
             ingredienteDto.DataInserimento = ingrediente.DataInserimento;
             ingredienteDto.DataAggiornamento = ingrediente.DataAggiornamento;
+
+            return ingredienteDto;
         }
 
         public async Task UpdateAsync(IngredienteDTO ingredienteDto)
         {
-            var ingrediente = await _context.Ingrediente.FindAsync(ingredienteDto.IngredienteId);
+            var ingrediente = await _context.Ingrediente
+                .FirstOrDefaultAsync(i => i.IngredienteId == ingredienteDto.IngredienteId);
+
             if (ingrediente == null)
-                throw new ArgumentException("Ingrediente not found");
+                return; // ✅ SILENT FAIL
+
+            // ✅ VERIFICA UNICITÀ NOME (escludendo corrente)
+            if (await _context.Ingrediente.AnyAsync(i =>
+                i.Ingrediente1 == ingredienteDto.Nome &&
+                i.IngredienteId != ingredienteDto.IngredienteId))
+            {
+                throw new ArgumentException($"Esiste già un altro ingrediente con nome '{ingredienteDto.Nome}'");
+            }
 
             ingrediente.Ingrediente1 = ingredienteDto.Nome;
             ingrediente.CategoriaId = ingredienteDto.CategoriaId;
             ingrediente.PrezzoAggiunto = ingredienteDto.PrezzoAggiunto;
-            ingrediente.Disponibile = ingredienteDto.Disponibile;  // ✅ Aggiorna anche disponibilità
+            ingrediente.Disponibile = ingredienteDto.Disponibile;
             ingrediente.DataAggiornamento = DateTime.Now;
 
             await _context.SaveChangesAsync();
-
-            ingredienteDto.DataAggiornamento = ingrediente.DataAggiornamento;
         }
 
-        // ✅ NUOVO: HARD DELETE - Eliminazione definitiva
+        // ✅ HARD DELETE con controllo vincoli referenziali
         public async Task DeleteAsync(int id)
         {
-            var ingrediente = await _context.Ingrediente.FindAsync(id);
+            var ingrediente = await _context.Ingrediente
+                .FirstOrDefaultAsync(i => i.IngredienteId == id);
+
             if (ingrediente != null)
             {
-                // ✅ Controlla se ci sono dipendenze prima di eliminare
-                var hasPersonalizzazioni = await _context.PersonalizzazioneIngrediente
+                // ✅ CONTROLLO VINCOLI REFERENZIALI
+                bool hasPersonalizzazioni = await _context.PersonalizzazioneIngrediente
                     .AnyAsync(pi => pi.IngredienteId == id);
 
                 if (hasPersonalizzazioni)
                 {
                     throw new InvalidOperationException(
-                        "Impossibile eliminare l'ingrediente perché è collegato a personalizzazioni."
+                        "Impossibile eliminare l'ingrediente perché è utilizzato in personalizzazioni esistenti."
                     );
                 }
 
@@ -115,25 +133,29 @@ namespace Repository.Service
             }
         }
 
-        // ✅ NUOVO: Toggle disponibilità
+        // ✅ TOGGLE DISPONIBILITÀ
         public async Task ToggleDisponibilitaAsync(int id)
         {
-            var ingrediente = await _context.Ingrediente.FindAsync(id);
+            var ingrediente = await _context.Ingrediente
+                .FirstOrDefaultAsync(i => i.IngredienteId == id);
+
             if (ingrediente != null)
             {
-                ingrediente.Disponibile = !ingrediente.Disponibile;  // ✅ Inverte la disponibilità
+                ingrediente.Disponibile = !ingrediente.Disponibile;
                 ingrediente.DataAggiornamento = DateTime.Now;
                 await _context.SaveChangesAsync();
             }
         }
 
-        // ✅ NUOVO: Imposta disponibilità specifica
+        // ✅ IMPOSTA DISPONIBILITÀ SPECIFICA
         public async Task SetDisponibilitaAsync(int id, bool disponibile)
         {
-            var ingrediente = await _context.Ingrediente.FindAsync(id);
+            var ingrediente = await _context.Ingrediente
+                .FirstOrDefaultAsync(i => i.IngredienteId == id);
+
             if (ingrediente != null)
             {
-                ingrediente.Disponibile = disponibile;  // ✅ Imposta disponibilità specifica
+                ingrediente.Disponibile = disponibile;
                 ingrediente.DataAggiornamento = DateTime.Now;
                 await _context.SaveChangesAsync();
             }
@@ -141,23 +163,18 @@ namespace Repository.Service
 
         public async Task<bool> ExistsAsync(int id)
         {
-            return await _context.Ingrediente.AnyAsync(i => i.IngredienteId == id);  // ✅ Rimossa condizione Disponibile
+            return await _context.Ingrediente
+                .AnyAsync(i => i.IngredienteId == id);
         }
 
+        // ✅ GET BY CATEGORIA
         public async Task<IEnumerable<IngredienteDTO>> GetByCategoriaAsync(int categoriaId)
         {
             return await _context.Ingrediente
+                .AsNoTracking()
                 .Where(i => i.CategoriaId == categoriaId)
-                .Select(i => new IngredienteDTO
-                {
-                    IngredienteId = i.IngredienteId,
-                    Nome = i.Ingrediente1,
-                    CategoriaId = i.CategoriaId,
-                    PrezzoAggiunto = i.PrezzoAggiunto,
-                    Disponibile = i.Disponibile,
-                    DataInserimento = i.DataInserimento,
-                    DataAggiornamento = i.DataAggiornamento
-                })
+                .OrderBy(i => i.Ingrediente1)
+                .Select(i => MapToDTO(i))
                 .ToListAsync();
         }
 
@@ -165,18 +182,25 @@ namespace Repository.Service
         public async Task<IEnumerable<IngredienteDTO>> GetDisponibiliAsync()
         {
             return await _context.Ingrediente
-                .Where(i => i.Disponibile)  // ✅ Solo disponibili
-                .Select(i => new IngredienteDTO
-                {
-                    IngredienteId = i.IngredienteId,
-                    Nome = i.Ingrediente1,
-                    CategoriaId = i.CategoriaId,
-                    PrezzoAggiunto = i.PrezzoAggiunto,
-                    Disponibile = i.Disponibile,
-                    DataInserimento = i.DataInserimento,
-                    DataAggiornamento = i.DataAggiornamento
-                })
+                .AsNoTracking()
+                .Where(i => i.Disponibile)
+                .OrderBy(i => i.Ingrediente1)
+                .Select(i => MapToDTO(i))
                 .ToListAsync();
+        }
+
+        // ✅ METODO AGGIUNTIVO: Verifica esistenza per nome
+        public async Task<bool> ExistsByNomeAsync(string nome, int? excludeId = null)
+        {
+            var query = _context.Ingrediente
+                .Where(i => i.Ingrediente1 == nome);
+
+            if (excludeId.HasValue)
+            {
+                query = query.Where(i => i.IngredienteId != excludeId.Value);
+            }
+
+            return await query.AnyAsync();
         }
     }
 }

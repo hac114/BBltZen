@@ -29,9 +29,10 @@ namespace Database.Configurations
             builder.Property(c => c.DataAggiornamento)
                 .HasDefaultValueSql("GETDATE()");
 
-            // ✅ CHECK CONSTRAINTS
-            builder.HasCheckConstraint("CK_ConfigSoglieTempi_Soglie",
-                "[SogliaAttenzione] >= 0 AND [SogliaCritico] >= 0 AND [SogliaCritico] > [SogliaAttenzione]");
+            // ✅ CHECK CONSTRAINTS - SINTASSI CORRETTA (NON OBSOLETA)
+            builder.ToTable(tb => tb.HasCheckConstraint(
+                "CK_ConfigSoglieTempi_Soglie",
+                "[SogliaAttenzione] >= 0 AND [SogliaCritico] >= 0 AND [SogliaCritico] > [SogliaAttenzione]"));
 
             // ✅ INDICI PER PERFORMANCE
             builder.HasIndex(c => c.StatoOrdineId)

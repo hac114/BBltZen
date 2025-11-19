@@ -13,15 +13,9 @@ namespace RepositoryTest
     public class BevandaStandardRepositoryTest : BaseTest
     {
         private readonly BevandaStandardRepository _repository;
-        private readonly BubbleTeaContext _context;
-
+        
         public BevandaStandardRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"BevandaStandardTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new BevandaStandardRepository(_context);
 
             InitializeTestData();

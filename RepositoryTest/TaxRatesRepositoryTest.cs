@@ -13,15 +13,9 @@ namespace RepositoryTest
     public class TaxRatesRepositoryTest : BaseTest
     {
         private readonly TaxRatesRepository _repository;
-        private readonly BubbleTeaContext _context;
-
+        
         public TaxRatesRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"TaxRatesTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new TaxRatesRepository(_context);
 
             InitializeTestData();

@@ -40,7 +40,7 @@ namespace BBltZen.Controllers
                 var ingredienti = await _ingredienteRepository.GetAllAsync();
                 return Ok(ingredienti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti gli ingredienti");
                 return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti");
@@ -77,7 +77,7 @@ namespace BBltZen.Controllers
 
                 return Ok(ingrediente);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dell'ingrediente {Id}", id);
                 return SafeInternalError<IngredienteDTO>("Errore durante il recupero dell'ingrediente");
@@ -110,7 +110,7 @@ namespace BBltZen.Controllers
 
                 return Ok(ingredienti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli ingredienti per categoria {CategoriaId}", categoriaId);
                 return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti");
@@ -128,7 +128,7 @@ namespace BBltZen.Controllers
                 var ingredienti = await _ingredienteRepository.GetDisponibiliAsync();
                 return Ok(ingredienti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli ingredienti disponibili");
                 return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti disponibili");
@@ -138,7 +138,7 @@ namespace BBltZen.Controllers
         // POST: api/Ingrediente
         // ✅ SOLO ADMIN: Crea nuovo ingrediente
         [HttpPost]
-        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult<IngredienteDTO>> Create([FromBody] IngredienteDTO ingredienteDto)
         {
             try
@@ -151,63 +151,52 @@ namespace BBltZen.Controllers
                 if (!categoriaEsiste)
                     return SafeBadRequest<IngredienteDTO>("Categoria ingrediente non trovata");
 
-                // ✅ Verifica se esiste già un ingrediente con lo stesso nome
-                var nomeEsistente = await _context.Ingrediente
-                    .AnyAsync(i => i.Ingrediente1.ToLower() == ingredienteDto.Nome.ToLower());
+                // ✅ USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
+                var result = await _ingredienteRepository.AddAsync(ingredienteDto);
 
-                if (nomeEsistente)
-                    return SafeBadRequest<IngredienteDTO>("Esiste già un ingrediente con questo nome");
-
-                await _ingredienteRepository.AddAsync(ingredienteDto);
-
-                // ✅ Audit trail
-                LogAuditTrail("CREATE_INGREDIENTE", "Ingrediente", ingredienteDto.IngredienteId.ToString());
-
-                // ✅ Security event completo con timestamp
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("CREATE", "Ingrediente", result.IngredienteId.ToString());
                 LogSecurityEvent("IngredienteCreated", new
                 {
-                    IngredienteId = ingredienteDto.IngredienteId,
-                    Nome = ingredienteDto.Nome,
-                    CategoriaId = ingredienteDto.CategoriaId,
-                    PrezzoAggiunto = ingredienteDto.PrezzoAggiunto,
-                    IsAvailable = ingredienteDto.Disponibile,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    result.IngredienteId,
+                    result.Nome,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
-                return CreatedAtAction(nameof(GetById), new { id = ingredienteDto.IngredienteId }, ingredienteDto);
+                return CreatedAtAction(nameof(GetById), new { id = result.IngredienteId }, result);
+            }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest<IngredienteDTO>(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante la creazione dell'ingrediente");
-                return SafeInternalError<IngredienteDTO>("Errore durante il salvataggio dell'ingrediente");
+                _logger.LogError(dbEx, "Errore database durante la creazione ingrediente");
+                return SafeInternalError<IngredienteDTO>("Errore durante il salvataggio");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione dell'ingrediente");
-                return SafeInternalError<IngredienteDTO>("Errore durante la creazione dell'ingrediente");
+                _logger.LogError(ex, "Errore durante la creazione ingrediente");
+                return SafeInternalError<IngredienteDTO>("Errore durante la creazione");
             }
         }
 
         // PUT: api/Ingrediente/5
         // ✅ SOLO ADMIN: Aggiorna ingrediente (può modificare anche disponibilità)
         [HttpPut("{id}")]
-        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult> Update(int id, [FromBody] IngredienteDTO ingredienteDto)
         {
             try
             {
-                if (id <= 0)
+                if (id <= 0 || id != ingredienteDto.IngredienteId)
                     return SafeBadRequest("ID ingrediente non valido");
-
-                if (id != ingredienteDto.IngredienteId)
-                    return SafeBadRequest("ID ingrediente non corrispondente");
 
                 if (!IsModelValid(ingredienteDto))
                     return SafeBadRequest("Dati ingrediente non validi");
 
-                var existingIngrediente = await _ingredienteRepository.GetByIdAsync(id);
-                if (existingIngrediente == null)
+                // ✅ VERIFICA ESISTENZA
+                if (!await _ingredienteRepository.ExistsAsync(id))
                     return SafeNotFound("Ingrediente");
 
                 // ✅ Verifica se la categoria esiste
@@ -215,52 +204,38 @@ namespace BBltZen.Controllers
                 if (!categoriaEsiste)
                     return SafeBadRequest("Categoria ingrediente non trovata");
 
-                // ✅ Verifica se esiste già un altro ingrediente con lo stesso nome
-                var nomeDuplicato = await _context.Ingrediente
-                    .AnyAsync(i => i.Ingrediente1.ToLower() == ingredienteDto.Nome.ToLower() && i.IngredienteId != id);
-
-                if (nomeDuplicato)
-                    return SafeBadRequest("Esiste già un altro ingrediente con questo nome");
-
                 await _ingredienteRepository.UpdateAsync(ingredienteDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("UPDATE_INGREDIENTE", "Ingrediente", ingredienteDto.IngredienteId.ToString());
-
-                // ✅ Security event completo con timestamp
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("UPDATE", "Ingrediente", id.ToString());
                 LogSecurityEvent("IngredienteUpdated", new
                 {
-                    IngredienteId = ingredienteDto.IngredienteId,
-                    OldNome = existingIngrediente.Nome,
-                    NewNome = ingredienteDto.Nome,
-                    OldCategoriaId = existingIngrediente.CategoriaId,
-                    NewCategoriaId = ingredienteDto.CategoriaId,
-                    OldPrezzoAggiunto = existingIngrediente.PrezzoAggiunto,
-                    NewPrezzoAggiunto = ingredienteDto.PrezzoAggiunto,
-                    OldDisponibile = existingIngrediente.Disponibile,
-                    NewDisponibile = ingredienteDto.Disponibile,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    IngredienteId = id,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest(argEx.Message);
+            }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dell'ingrediente");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento dell'ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dell'ingrediente");
+                _logger.LogError(ex, "Errore durante l'aggiornamento ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
         // DELETE: api/Ingrediente/5
         // ✅ SOLO ADMIN: Eliminazione definitiva (HARD DELETE)
         [HttpDelete("{id}")]
-        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
+        // [Authorize(Roles = "admin")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult> Delete(int id)
         {
             try
@@ -268,42 +243,36 @@ namespace BBltZen.Controllers
                 if (id <= 0)
                     return SafeBadRequest("ID ingrediente non valido");
 
-                var existingIngrediente = await _ingredienteRepository.GetByIdAsync(id);
-                if (existingIngrediente == null)
+                var ingrediente = await _ingredienteRepository.GetByIdAsync(id);
+                if (ingrediente == null)
                     return SafeNotFound("Ingrediente");
 
                 await _ingredienteRepository.DeleteAsync(id);
 
-                // ✅ Audit trail
-                LogAuditTrail("HARD_DELETE_INGREDIENTE", "Ingrediente", id.ToString());
-
-                // ✅ Security event completo con timestamp
-                LogSecurityEvent("IngredienteHardDeleted", new
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("DELETE", "Ingrediente", id.ToString());
+                LogSecurityEvent("IngredienteDeleted", new
                 {
                     IngredienteId = id,
-                    Nome = existingIngrediente.Nome,
-                    CategoriaId = existingIngrediente.CategoriaId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.InvalidOperationException ex)
+            catch (InvalidOperationException ex)
             {
-                // ✅ Gestione specifica per dipendenze
-                _logger.LogWarning(ex, "Tentativo di eliminazione ingrediente {Id} con dipendenze", id);
+                _logger.LogWarning(ex, "Tentativo eliminazione ingrediente {Id} con dipendenze", id);
                 return SafeBadRequest(ex.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione definitiva dell'ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione dell'ingrediente");
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione definitiva dell'ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione dell'ingrediente");
+                _logger.LogError(ex, "Errore durante l'eliminazione ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
         }
 
@@ -360,7 +329,7 @@ namespace BBltZen.Controllers
                 _logger.LogError(dbEx, "Errore database durante il toggle disponibilità ingrediente {Id}", id);
                 return SafeInternalError("Errore durante la modifica della disponibilità");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il toggle disponibilità ingrediente {Id}", id);
                 return SafeInternalError("Errore durante la modifica della disponibilità");
@@ -408,7 +377,7 @@ namespace BBltZen.Controllers
                 _logger.LogError(dbEx, "Errore database durante l'impostazione disponibilità ingrediente {Id}", id);
                 return SafeInternalError("Errore durante l'impostazione della disponibilità");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'impostazione disponibilità ingrediente {Id}", id);
                 return SafeInternalError("Errore durante l'impostazione della disponibilità");
@@ -429,10 +398,32 @@ namespace BBltZen.Controllers
                 var exists = await _ingredienteRepository.ExistsAsync(id);
                 return Ok(exists);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la verifica esistenza ingrediente {Id}", id);
                 return SafeInternalError<bool>("Errore durante la verifica esistenza ingrediente");
+            }
+        }
+
+        [HttpGet("exists/nome/{nome}")]
+        public async Task<ActionResult<bool>> CheckNomeExists(string nome, [FromQuery] int? excludeId = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(nome))
+                    return SafeBadRequest<bool>("Nome ingrediente non valido");
+
+                // ✅ USA IL METODO DEL REPOSITORY SE ESISTE, ALTRIMENTI IMPLEMENTA
+                var exists = await _context.Ingrediente
+                    .AnyAsync(i => i.Ingrediente1.ToLower() == nome.ToLower() &&
+                                  (!excludeId.HasValue || i.IngredienteId != excludeId.Value));
+
+                return Ok(exists);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante verifica esistenza nome ingrediente {Nome}", nome);
+                return SafeInternalError<bool>("Errore durante la verifica");
             }
         }
     }

@@ -12,10 +12,10 @@ namespace RepositoryTest
 {
     public class LogAttivitaRepositoryTest : BaseTest
     {
-        private readonly LogAttivitaRepository _repository;
+        private readonly LogAttivitaRepository _repository;        
 
         public LogAttivitaRepositoryTest()
-        {            
+        {
             _repository = new LogAttivitaRepository(_context);
 
             InitializeTestData();
@@ -153,14 +153,14 @@ namespace RepositoryTest
             };
 
             // Act
-            var result = await _repository.AddAsync(newLog); // ✅ CORREGGI: assegna risultato
+            var result = await _repository.AddAsync(newLog);
 
             // Assert
-            Assert.True(result.LogId > 0); // ✅ VERIFICA sul risultato
+            Assert.True(result.LogId > 0);
             Assert.Equal("ReportGenerazione", result.TipoAttivita);
             Assert.Equal("Generazione report vendite mensili", result.Descrizione);
             Assert.Contains("Gennaio 2024", result.Dettagli);
-            Assert.NotNull(result.DataEsecuzione);
+            Assert.NotEqual(DateTime.MinValue, result.DataEsecuzione); // ✅ CORRETTO: sostituito Assert.NotNull
         }
 
         [Fact]
@@ -255,7 +255,7 @@ namespace RepositoryTest
                 Dettagli = "Test"
             };
 
-            // Act & Assert - ✅ CORREGGI: Non dovrebbe lanciare eccezione
+            // Act & Assert
             var exception = await Record.ExceptionAsync(() => _repository.UpdateAsync(updateDto));
             Assert.Null(exception);
         }
@@ -275,7 +275,7 @@ namespace RepositoryTest
             var result = await _repository.AddAsync(newLog);
 
             // Assert
-            Assert.NotNull(result.DataEsecuzione);
+            Assert.NotEqual(DateTime.MinValue, result.DataEsecuzione); // ✅ CORRETTO: sostituito Assert.NotNull
             Assert.InRange(result.DataEsecuzione, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
         }
 

@@ -13,15 +13,9 @@ namespace RepositoryTest
     public class StatisticheCacheRepositoryTest : BaseTest
     {
         private readonly StatisticheCacheRepository _repository;
-        private readonly BubbleTeaContext _context;
-
+        
         public StatisticheCacheRepositoryTest()
         {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"StatisticheCacheTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
             _repository = new StatisticheCacheRepository(_context);
 
             InitializeTestData();

@@ -13,15 +13,9 @@ namespace RepositoryTest
     public class DimensioneQuantitaIngredientiRepositoryTest : BaseTest
     {
         private readonly DimensioneQuantitaIngredientiRepository _repository;
-        private readonly BubbleTeaContext _context;
-
+        
         public DimensioneQuantitaIngredientiRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"DimensioneQuantitaTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new DimensioneQuantitaIngredientiRepository(_context);
 
             InitializeTestData();

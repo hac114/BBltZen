@@ -13,12 +13,12 @@ namespace RepositoryTest
     public class ArticoloRepositoryTest : BaseTest
     {
         private readonly ArticoloRepository _repository;
-        private new readonly BubbleTeaContext _context; // ✅ Aggiunto 'new'
+        private readonly new BubbleTeaContext _context;
 
         public ArticoloRepositoryTest()
         {
             var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"ArticoloTest_{Guid.NewGuid()}")
+                .UseInMemoryDatabase(databaseName: $"DolceTest_{Guid.NewGuid()}")
                 .Options;
 
             _context = new BubbleTeaContext(options);
@@ -130,7 +130,7 @@ namespace RepositoryTest
 
             // ✅ CREA ARTICOLI CON SPECIALIZZAZIONI COMPLETE
             var articoli = new List<Articolo>
-            {                
+            {
                 new Articolo
                 {
                     ArticoloId = 1,
@@ -149,7 +149,7 @@ namespace RepositoryTest
                         DataCreazione = DateTime.Now,
                         DataAggiornamento = DateTime.Now
                     }
-                },                
+                },
                 new Articolo
                 {
                     ArticoloId = 2,
@@ -168,7 +168,7 @@ namespace RepositoryTest
                         DataCreazione = DateTime.Now,
                         DataAggiornamento = DateTime.Now
                     }
-                },                
+                },
                 new Articolo
                 {
                     ArticoloId = 3,

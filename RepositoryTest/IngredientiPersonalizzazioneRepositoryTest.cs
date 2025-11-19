@@ -13,15 +13,9 @@ namespace RepositoryTest
     public class IngredientiPersonalizzazioneRepositoryTest : BaseTest
     {
         private readonly IngredientiPersonalizzazioneRepository _repository;
-        private readonly BubbleTeaContext _context;
-
+        
         public IngredientiPersonalizzazioneRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"IngredientiPersTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new IngredientiPersonalizzazioneRepository(_context);
 
             InitializeTestData();

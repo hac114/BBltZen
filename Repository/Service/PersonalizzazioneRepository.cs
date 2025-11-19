@@ -18,26 +18,9 @@ namespace Repository.Service
             _context = context;
         }
 
-        public async Task<IEnumerable<PersonalizzazioneDTO>> GetAllAsync()
+        // ✅ METODO PRIVATO PER MAPPING (PATTERN STANDARD)
+        private PersonalizzazioneDTO MapToDTO(Personalizzazione personalizzazione)
         {
-            return await _context.Personalizzazione
-                .Select(p => new PersonalizzazioneDTO
-                {
-                    PersonalizzazioneId = p.PersonalizzazioneId,
-                    Nome = p.Nome,
-                    Descrizione = p.Descrizione,
-                    DtCreazione = p.DtCreazione
-                })
-                .ToListAsync();
-        }
-
-        public async Task<PersonalizzazioneDTO?> GetByIdAsync(int id)
-        {
-            var personalizzazione = await _context.Personalizzazione
-                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == id);
-
-            if (personalizzazione == null) return null;
-
             return new PersonalizzazioneDTO
             {
                 PersonalizzazioneId = personalizzazione.PersonalizzazioneId,
@@ -47,8 +30,52 @@ namespace Repository.Service
             };
         }
 
-        public async Task AddAsync(PersonalizzazioneDTO personalizzazioneDto)
+        public async Task<IEnumerable<PersonalizzazioneDTO>> GetAllAsync()
         {
+            return await _context.Personalizzazione
+                .AsNoTracking()
+                .OrderBy(p => p.Nome)
+                .Select(p => MapToDTO(p))
+                .ToListAsync();
+        }
+
+        public async Task<PersonalizzazioneDTO?> GetByIdAsync(int id)
+        {
+            var personalizzazione = await _context.Personalizzazione
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == id);
+
+            return personalizzazione == null ? null : MapToDTO(personalizzazione);
+        }
+
+        public async Task<bool> ExistsAsync(int id)
+        {
+            return await _context.Personalizzazione
+                .AnyAsync(p => p.PersonalizzazioneId == id);
+        }
+
+        public async Task<bool> ExistsByNameAsync(string nome, int? excludeId = null)
+        {
+            var query = _context.Personalizzazione
+                .Where(p => p.Nome == nome);
+
+            if (excludeId.HasValue)
+            {
+                query = query.Where(p => p.PersonalizzazioneId != excludeId.Value);
+            }
+
+            return await query.AnyAsync();
+        }
+
+        public async Task<PersonalizzazioneDTO> AddAsync(PersonalizzazioneDTO personalizzazioneDto)
+        {
+            if (personalizzazioneDto == null)
+                throw new ArgumentNullException(nameof(personalizzazioneDto));
+
+            // ✅ VERIFICA UNICITÀ NOME
+            if (await ExistsByNameAsync(personalizzazioneDto.Nome))
+                throw new ArgumentException($"Esiste già una personalizzazione con nome '{personalizzazioneDto.Nome}'");
+
             var personalizzazione = new Personalizzazione
             {
                 Nome = personalizzazioneDto.Nome,
@@ -59,15 +86,24 @@ namespace Repository.Service
             _context.Personalizzazione.Add(personalizzazione);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON ID GENERATO E RITORNALO
             personalizzazioneDto.PersonalizzazioneId = personalizzazione.PersonalizzazioneId;
             personalizzazioneDto.DtCreazione = personalizzazione.DtCreazione;
+
+            return personalizzazioneDto;
         }
 
         public async Task UpdateAsync(PersonalizzazioneDTO personalizzazioneDto)
         {
-            var personalizzazione = await _context.Personalizzazione.FindAsync(personalizzazioneDto.PersonalizzazioneId);
+            var personalizzazione = await _context.Personalizzazione
+                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == personalizzazioneDto.PersonalizzazioneId);
+
             if (personalizzazione == null)
-                throw new ArgumentException("Personalizzazione not found");
+                return; // ✅ SILENT FAIL
+
+            // ✅ VERIFICA UNICITÀ NOME (escludendo corrente)
+            if (await ExistsByNameAsync(personalizzazioneDto.Nome, personalizzazioneDto.PersonalizzazioneId))
+                throw new ArgumentException($"Esiste già un'altra personalizzazione con nome '{personalizzazioneDto.Nome}'");
 
             personalizzazione.Nome = personalizzazioneDto.Nome;
             personalizzazione.Descrizione = personalizzazioneDto.Descrizione;
@@ -77,14 +113,16 @@ namespace Repository.Service
 
         public async Task DeleteAsync(int id)
         {
-            var personalizzazione = await _context.Personalizzazione.FindAsync(id);
+            var personalizzazione = await _context.Personalizzazione
+                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == id);
+
             if (personalizzazione != null)
             {
-                // ✅ Controlla TUTTE le possibili dipendenze
-                var hasBevandeStandard = await _context.BevandaStandard
+                // ✅ CONTROLLO VINCOLI REFERENZIALI
+                bool hasBevandeStandard = await _context.BevandaStandard
                     .AnyAsync(bs => bs.PersonalizzazioneId == id);
 
-                var hasIngredienti = await _context.PersonalizzazioneIngrediente
+                bool hasIngredienti = await _context.PersonalizzazioneIngrediente
                     .AnyAsync(pi => pi.PersonalizzazioneId == id);
 
                 if (hasBevandeStandard || hasIngredienti)
@@ -97,18 +135,6 @@ namespace Repository.Service
                 _context.Personalizzazione.Remove(personalizzazione);
                 await _context.SaveChangesAsync();
             }
-        }
-
-        public async Task<bool> ExistsAsync(int id)
-        {
-            return await _context.Personalizzazione
-                .AnyAsync(p => p.PersonalizzazioneId == id);
-        }
-
-        public async Task<bool> ExistsByNameAsync(string nome)
-        {
-            return await _context.Personalizzazione
-                .AnyAsync(p => p.Nome == nome);
-        }
+        }        
     }
 }

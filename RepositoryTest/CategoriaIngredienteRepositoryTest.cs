@@ -19,29 +19,26 @@ namespace RepositoryTest
         {
             // ✅ SEMPLICE: BaseTest già fornisce _context (AppDbContext) inizializzato
             _categoriaIngredienteRepository = new CategoriaIngredienteRepository(_context);
-        }
-
-        // ✅ RIMOSSO Dispose() - BaseTest già lo gestisce automaticamente
+        }        
 
         [Fact]
         public async Task AddAsync_Should_Add_CategoriaIngrediente()
         {
-            // Arrange - Pulisci le categorie esistenti
-            await CleanTableAsync<Database.CategoriaIngrediente>();
+            // Arrange
+            await CleanTableAsync<CategoriaIngrediente>();
 
             var categoriaDto = new CategoriaIngredienteDTO
             {
                 Categoria = "Tè e Infusi"
             };
 
-            // Act
-            await _categoriaIngredienteRepository.AddAsync(categoriaDto);
+            // Act - ✅ USA IL RISULTATO
+            var result = await _categoriaIngredienteRepository.AddAsync(categoriaDto);
 
             // Assert
-            var result = await _categoriaIngredienteRepository.GetByIdAsync(categoriaDto.CategoriaId);
             Assert.NotNull(result);
             Assert.Equal("Tè e Infusi", result.Categoria);
-            Assert.True(result.CategoriaId > 0);
+            Assert.True(result.CategoriaId > 0); // ✅ VERIFICA ID GENERATO
         }
 
         [Fact]
@@ -79,7 +76,7 @@ namespace RepositoryTest
         public async Task GetAllAsync_Should_Return_All_CategorieIngrediente()
         {
             // Arrange - Pulisci le categorie esistenti
-            await CleanTableAsync<Database.CategoriaIngrediente>();
+            await CleanTableAsync<CategoriaIngrediente>();
 
             var categorieList = new List<CategoriaIngredienteDTO>
             {
@@ -98,7 +95,7 @@ namespace RepositoryTest
             var result = await _categoriaIngredienteRepository.GetAllAsync();
 
             // Assert
-            Assert.Equal(4, result.Count);
+            Assert.Equal(4, result.Count());
             Assert.Contains(result, c => c.Categoria == "Tè e Infusi");
             Assert.Contains(result, c => c.Categoria == "Sciroppi");
             Assert.Contains(result, c => c.Categoria == "Topping");
@@ -174,11 +171,10 @@ namespace RepositoryTest
             // Act & Assert - Non dovrebbe lanciare eccezioni
             await _categoriaIngredienteRepository.DeleteAsync(999);
         }
-
         [Fact]
         public async Task AddAsync_Should_Assign_Generated_Id()
         {
-            // Arrange - Pulisci le categorie esistenti
+            // Arrange
             await CleanTableAsync<Database.CategoriaIngrediente>();
 
             var categoriaDto = new CategoriaIngredienteDTO
@@ -186,11 +182,11 @@ namespace RepositoryTest
                 Categoria = "Frutta"
             };
 
-            // Act
-            await _categoriaIngredienteRepository.AddAsync(categoriaDto);
+            // Act - ✅ USA IL RISULTATO
+            var result = await _categoriaIngredienteRepository.AddAsync(categoriaDto);
 
             // Assert
-            Assert.True(categoriaDto.CategoriaId > 0);
+            Assert.True(result.CategoriaId > 0);
         }
 
         [Fact]
@@ -209,20 +205,20 @@ namespace RepositoryTest
         [Fact]
         public async Task Multiple_Add_Should_Generate_Different_Ids()
         {
-            // Arrange - Pulisci le categorie esistenti
+            // Arrange
             await CleanTableAsync<Database.CategoriaIngrediente>();
 
             var categoria1 = new CategoriaIngredienteDTO { Categoria = "Categoria 1" };
             var categoria2 = new CategoriaIngredienteDTO { Categoria = "Categoria 2" };
 
-            // Act
-            await _categoriaIngredienteRepository.AddAsync(categoria1);
-            await _categoriaIngredienteRepository.AddAsync(categoria2);
+            // Act - ✅ USA I RISULTATI
+            var result1 = await _categoriaIngredienteRepository.AddAsync(categoria1);
+            var result2 = await _categoriaIngredienteRepository.AddAsync(categoria2);
 
             // Assert
-            Assert.NotEqual(categoria1.CategoriaId, categoria2.CategoriaId);
-            Assert.True(categoria1.CategoriaId > 0);
-            Assert.True(categoria2.CategoriaId > 0);
+            Assert.NotEqual(result1.CategoriaId, result2.CategoriaId);
+            Assert.True(result1.CategoriaId > 0);
+            Assert.True(result2.CategoriaId > 0);
         }
 
         [Fact]
@@ -253,6 +249,100 @@ namespace RepositoryTest
             Assert.NotNull(categoria2Unchanged);
             Assert.Equal("Modificata 1", updatedCategoria1.Categoria);
             Assert.Equal("Original 2", categoria2Unchanged.Categoria);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithDuplicateName_ShouldThrowArgumentException()
+        {
+            // Arrange
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
+            var categoria1 = new CategoriaIngredienteDTO { Categoria = "Duplicato" };
+            await _categoriaIngredienteRepository.AddAsync(categoria1);
+
+            var categoria2 = new CategoriaIngredienteDTO { Categoria = "Duplicato" };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _categoriaIngredienteRepository.AddAsync(categoria2));
+            Assert.Contains("Esiste già una categoria", exception.Message);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_WithDuplicateName_ShouldThrowArgumentException()
+        {
+            // Arrange
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
+            var categoria1 = new CategoriaIngredienteDTO { Categoria = "Categoria 1" };
+            var categoria2 = new CategoriaIngredienteDTO { Categoria = "Categoria 2" };
+
+            await _categoriaIngredienteRepository.AddAsync(categoria1);
+            await _categoriaIngredienteRepository.AddAsync(categoria2);
+
+            // Prova a rinominare categoria2 con lo stesso nome di categoria1
+            var updateDto = new CategoriaIngredienteDTO
+            {
+                CategoriaId = categoria2.CategoriaId,
+                Categoria = "Categoria 1" // Nome duplicato
+            };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _categoriaIngredienteRepository.UpdateAsync(updateDto));
+            Assert.Contains("Esiste già un'altra categoria", exception.Message);
+        }
+
+        [Fact]
+        public async Task ExistsAsync_ShouldReturnCorrectResults()
+        {
+            // Arrange
+            await CleanTableAsync<Database.CategoriaIngrediente>();
+
+            var categoria = new CategoriaIngredienteDTO { Categoria = "Test" };
+            var result = await _categoriaIngredienteRepository.AddAsync(categoria);
+
+            // Act & Assert
+            var exists = await _categoriaIngredienteRepository.ExistsAsync(result.CategoriaId);
+            var notExists = await _categoriaIngredienteRepository.ExistsAsync(999);
+
+            Assert.True(exists);
+            Assert.False(notExists);
+        }
+
+        [Fact]
+        public async Task ExistsByNomeAsync_ShouldReturnCorrectResults()
+        {
+            // Arrange
+            await CleanTableAsync<CategoriaIngrediente>();
+
+            var categoria = new CategoriaIngredienteDTO { Categoria = "Test" };
+            var result = await _categoriaIngredienteRepository.AddAsync(categoria);
+
+            // Act & Assert
+            var exists = await _categoriaIngredienteRepository.ExistsByNomeAsync("Test");
+            var existsWithExclude = await _categoriaIngredienteRepository.ExistsByNomeAsync("Test", result.CategoriaId); // ✅ CORRETTO: result.CategoriaId invece di categoria.CategoriaId
+            var notExists = await _categoriaIngredienteRepository.ExistsByNomeAsync("NonEsiste");
+
+            Assert.True(exists);
+            Assert.False(existsWithExclude); // Esclude se stesso
+            Assert.False(notExists);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_WithNonExistingId_ShouldSilentFail()
+        {
+            // Arrange
+            var updateDto = new CategoriaIngredienteDTO
+            {
+                CategoriaId = 999,
+                Categoria = "Non Esiste"
+            };
+
+            // Act & Assert - ✅ NO EXCEPTION (silent fail pattern)
+            var exception = await Record.ExceptionAsync(() =>
+                _categoriaIngredienteRepository.UpdateAsync(updateDto));
+            Assert.Null(exception);
         }
     }
 }

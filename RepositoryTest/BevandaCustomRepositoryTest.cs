@@ -12,16 +12,10 @@ namespace RepositoryTest
 {
     public class BevandaCustomRepositoryTest : BaseTest
     {
-        private readonly BevandaCustomRepository _repository;
-        private readonly BubbleTeaContext _context;
+        private readonly BevandaCustomRepository _repository;        
 
         public BevandaCustomRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"BevandaCustomTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new BevandaCustomRepository(_context);
 
             InitializeTestData();

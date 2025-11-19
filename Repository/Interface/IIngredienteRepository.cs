@@ -6,15 +6,21 @@ namespace Repository.Interface
 {
     public interface IIngredienteRepository
     {
-        Task AddAsync(IngredienteDTO ingredienteDto);
-        Task DeleteAsync(int id); // ✅ CAMBIATO: Ora è HARD DELETE
-        Task ToggleDisponibilitaAsync(int id); // ✅ NUOVO: Toggle disponibilità
-        Task SetDisponibilitaAsync(int id, bool disponibile); // ✅ NUOVO: Imposta disponibilità
-        Task<bool> ExistsAsync(int id);
-        Task<IEnumerable<IngredienteDTO>> GetAllAsync(); // ✅ Tutti (admin)
-        Task<IEnumerable<IngredienteDTO>> GetByCategoriaAsync(int categoriaId);
-        Task<IngredienteDTO?> GetByIdAsync(int id); // ✅ Qualsiasi ingrediente
-        Task<IEnumerable<IngredienteDTO>> GetDisponibiliAsync(); // ✅ Solo disponibili
+        // ✅ CORRETTO: AddAsync deve ritornare DTO
+        Task<IngredienteDTO> AddAsync(IngredienteDTO ingredienteDto);
+
         Task UpdateAsync(IngredienteDTO ingredienteDto);
+        Task DeleteAsync(int id);
+        Task<bool> ExistsAsync(int id);
+
+        // ✅ CORRETTO: GetAll con IEnumerable
+        Task<IEnumerable<IngredienteDTO>> GetAllAsync();
+        Task<IngredienteDTO?> GetByIdAsync(int id);
+
+        // ✅ METODI BUSINESS SPECIFICI
+        Task<IEnumerable<IngredienteDTO>> GetByCategoriaAsync(int categoriaId);
+        Task<IEnumerable<IngredienteDTO>> GetDisponibiliAsync();
+        Task ToggleDisponibilitaAsync(int id);
+        Task SetDisponibilitaAsync(int id, bool disponibile);
     }
 }

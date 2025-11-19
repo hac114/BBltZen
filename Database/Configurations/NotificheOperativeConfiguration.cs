@@ -40,12 +40,15 @@ namespace Database.Configurations
             builder.Property(n => n.Priorita)
                 .HasDefaultValue(1);
 
-            // ✅ CHECK CONSTRAINTS VIA FLUENT API
-            builder.HasCheckConstraint("CK_NotificheOperative_Stato",
-                "[Stato] IN ('Pendente', 'In Lavorazione', 'Gestita', 'Annullata')");
+            // ✅ CHECK CONSTRAINTS - SINTASSI CORRETTA (NON OBSOLETA)
+            builder.ToTable(tb =>
+            {
+                tb.HasCheckConstraint("CK_NotificheOperative_Stato",
+                    "[Stato] IN ('Pendente', 'In Lavorazione', 'Gestita', 'Annullata')");
 
-            builder.HasCheckConstraint("CK_NotificheOperative_Priorita",
-                "[Priorita] BETWEEN 1 AND 10");
+                tb.HasCheckConstraint("CK_NotificheOperative_Priorita",
+                    "[Priorita] BETWEEN 1 AND 10");
+            });
 
             // ✅ INDICI PER PERFORMANCE
             builder.HasIndex(n => n.Stato);

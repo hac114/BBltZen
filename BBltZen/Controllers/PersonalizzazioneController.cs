@@ -38,7 +38,7 @@ namespace BBltZen.Controllers
                 var personalizzazioni = await _personalizzazioneRepository.GetAllAsync();
                 return Ok(personalizzazioni);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutte le personalizzazioni");
                 return SafeInternalError("Errore durante il recupero delle personalizzazioni");
@@ -61,16 +61,37 @@ namespace BBltZen.Controllers
 
                 return Ok(personalizzazione);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero della personalizzazione con ID {Id}", id);
                 return SafeInternalError("Errore durante il recupero della personalizzazione");
             }
         }
 
+        [HttpGet("exists/nome/{nome}")]
+        public async Task<ActionResult<bool>> CheckNomeExists(string nome, [FromQuery] int? excludeId = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(nome))
+                    return SafeBadRequest<bool>("Nome personalizzazione non valido");
+
+                // ✅ USA IL METODO DEL REPOSITORY CON ESCLUSIONE ID
+                var exists = await _personalizzazioneRepository.ExistsByNameAsync(nome, excludeId);
+
+                return Ok(exists);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante verifica esistenza nome personalizzazione {Nome}", nome);
+                return SafeInternalError<bool>("Errore durante la verifica");
+            }
+        }
+
         // POST: api/Personalizzazione
         //[Authorize(Roles = "admin")]
         [HttpPost]
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult<PersonalizzazioneDTO>> Create([FromBody] PersonalizzazioneDTO personalizzazioneDto)
         {
             try
@@ -78,86 +99,79 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(personalizzazioneDto))
                     return SafeBadRequest<PersonalizzazioneDTO>("Dati personalizzazione non validi");
 
-                // Verifica se esiste già una personalizzazione con lo stesso nome
-                var exists = await _personalizzazioneRepository.ExistsByNameAsync(personalizzazioneDto.Nome);
-                if (exists)
-                {
-                    return SafeBadRequest<PersonalizzazioneDTO>($"Esiste già una personalizzazione con il nome '{personalizzazioneDto.Nome}'");
-                }
+                // ✅ USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
+                var result = await _personalizzazioneRepository.AddAsync(personalizzazioneDto);
 
-                await _personalizzazioneRepository.AddAsync(personalizzazioneDto);
-
-                // ✅ Audit trail
-                LogAuditTrail("CREATE_PERSONALIZZAZIONE", "Personalizzazione", personalizzazioneDto.PersonalizzazioneId.ToString());
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("CREATE", "Personalizzazione", result.PersonalizzazioneId.ToString());
                 LogSecurityEvent("PersonalizzazioneCreated", new
                 {
-                    PersonalizzazioneId = personalizzazioneDto.PersonalizzazioneId,
-                    Nome = personalizzazioneDto.Nome,
-                    Timestamp = DateTime.UtcNow
+                    result.PersonalizzazioneId,
+                    result.Nome,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
-                return CreatedAtAction(nameof(GetById), new { id = personalizzazioneDto.PersonalizzazioneId }, personalizzazioneDto);
+                return CreatedAtAction(nameof(GetById), new { id = result.PersonalizzazioneId }, result);
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
             {
-                _logger.LogError(ex, "Errore durante la creazione della personalizzazione: {Nome}", personalizzazioneDto.Nome);
-                return SafeInternalError("Errore durante la creazione della personalizzazione");
+                return SafeBadRequest<PersonalizzazioneDTO>(argEx.Message);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione personalizzazione");
+                return SafeInternalError<PersonalizzazioneDTO>("Errore durante il salvataggio");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la creazione personalizzazione");
+                return SafeInternalError<PersonalizzazioneDTO>("Errore durante la creazione");
             }
         }
 
         // PUT: api/Personalizzazione/{id}
         //[Authorize(Roles = "admin")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] PersonalizzazioneDTO personalizzazioneDto)
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
+        public async Task<ActionResult> Update(int id, [FromBody] PersonalizzazioneDTO personalizzazioneDto)
         {
             try
             {
-                if (id <= 0)
+                if (id <= 0 || id != personalizzazioneDto.PersonalizzazioneId)
                     return SafeBadRequest("ID personalizzazione non valido");
-
-                if (id != personalizzazioneDto.PersonalizzazioneId)
-                    return SafeBadRequest("ID personalizzazione non corrispondente");
 
                 if (!IsModelValid(personalizzazioneDto))
                     return SafeBadRequest("Dati personalizzazione non validi");
 
-                // Verifica se la personalizzazione esiste
-                var existingPersonalizzazione = await _personalizzazioneRepository.GetByIdAsync(id);
-                if (existingPersonalizzazione == null)
-                {
+                // ✅ VERIFICA ESISTENZA
+                if (!await _personalizzazioneRepository.ExistsAsync(id))
                     return SafeNotFound("Personalizzazione");
-                }
-
-                // Verifica se esiste già un'altra personalizzazione con lo stesso nome
-                var existingByName = await _personalizzazioneRepository.ExistsByNameAsync(personalizzazioneDto.Nome);
-                if (existingByName && existingPersonalizzazione.Nome != personalizzazioneDto.Nome)
-                {
-                    return SafeBadRequest($"Esiste già una personalizzazione con il nome '{personalizzazioneDto.Nome}'");
-                }
 
                 await _personalizzazioneRepository.UpdateAsync(personalizzazioneDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("UPDATE_PERSONALIZZAZIONE", "Personalizzazione", personalizzazioneDto.PersonalizzazioneId.ToString());
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("UPDATE", "Personalizzazione", id.ToString());
                 LogSecurityEvent("PersonalizzazioneUpdated", new
                 {
-                    PersonalizzazioneId = personalizzazioneDto.PersonalizzazioneId,
-                    Nome = personalizzazioneDto.Nome,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    PersonalizzazioneId = id,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException argEx)
             {
-                _logger.LogWarning(ex, "Personalizzazione non trovata durante l'aggiornamento");
-                return SafeNotFound("Personalizzazione");
+                return SafeBadRequest(argEx.Message);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento della personalizzazione con ID {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento della personalizzazione");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento personalizzazione {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'aggiornamento personalizzazione {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
@@ -173,7 +187,7 @@ namespace BBltZen.Controllers
                 var exists = await _personalizzazioneRepository.ExistsAsync(id);
                 return Ok(exists);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la verifica esistenza personalizzazione con ID {Id}", id);
                 return SafeInternalError("Errore durante la verifica esistenza personalizzazione");
@@ -200,49 +214,45 @@ namespace BBltZen.Controllers
         }
 
         // DELETE: api/Personalizzazione/{id}
-        //[Authorize(Roles = "admin")]
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        // [Authorize(Roles = "admin")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
+        public async Task<ActionResult> Delete(int id)
         {
             try
             {
                 if (id <= 0)
                     return SafeBadRequest("ID personalizzazione non valido");
 
-                var existingPersonalizzazione = await _personalizzazioneRepository.GetByIdAsync(id);
-                if (existingPersonalizzazione == null)
+                var personalizzazione = await _personalizzazioneRepository.GetByIdAsync(id);
+                if (personalizzazione == null)
                     return SafeNotFound("Personalizzazione");
-
-                // ✅ CONTROLLO DIPENDENZE
-                var hasDipendenti = await _context.PersonalizzazioneIngrediente
-                    .AnyAsync(pi => pi.PersonalizzazioneId == id);
-
-                if (hasDipendenti)
-                    return SafeBadRequest("Impossibile eliminare: la personalizzazione ha ingredienti associati");
 
                 await _personalizzazioneRepository.DeleteAsync(id);
 
-                // ✅ Audit trail
-                LogAuditTrail("DELETE_PERSONALIZZAZIONE", "Personalizzazione", id.ToString());
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("DELETE", "Personalizzazione", id.ToString());
                 LogSecurityEvent("PersonalizzazioneDeleted", new
                 {
                     PersonalizzazioneId = id,
-                    Nome = existingPersonalizzazione.Nome,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.InvalidOperationException ex)
+            catch (InvalidOperationException ex)
             {
-                _logger.LogWarning(ex, "Tentativo di eliminazione personalizzazione {Id} con dipendenze", id);
+                _logger.LogWarning(ex, "Tentativo eliminazione personalizzazione {Id} con dipendenze", id);
                 return SafeBadRequest(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione della personalizzazione con ID {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione della personalizzazione");
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione personalizzazione {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'eliminazione personalizzazione {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
         }
     }

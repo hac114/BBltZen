@@ -12,16 +12,10 @@ namespace RepositoryTest
 {
     public class OrdineRepositoryTest : BaseTest
     {
-        private readonly OrdineRepository _repository;
-        private readonly BubbleTeaContext _context;
+        private readonly OrdineRepository _repository;        
 
         public OrdineRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"OrdineTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new OrdineRepository(_context);
 
             InitializeTestData();

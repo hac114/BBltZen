@@ -13,15 +13,9 @@ namespace RepositoryTest
     public class StatoOrdineRepositoryTest : BaseTest
     {
         private readonly StatoOrdineRepository _repository;
-        private readonly BubbleTeaContext _context;
-
+        
         public StatoOrdineRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"StatoOrdineTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new StatoOrdineRepository(_context);
 
             InitializeTestData();

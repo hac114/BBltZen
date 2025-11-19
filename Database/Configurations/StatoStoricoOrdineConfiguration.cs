@@ -41,9 +41,10 @@ namespace Database.Configurations
                 .HasForeignKey(s => s.StatoOrdineId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ✅ CHECK CONSTRAINTS
-            builder.HasCheckConstraint("CK_StatoStoricoOrdine_Date",
-                "[Fine] IS NULL OR [Fine] >= [Inizio]");
+            // ✅ CHECK CONSTRAINTS - SINTASSI CORRETTA (NON OBSOLETA)
+            builder.ToTable(tb => tb.HasCheckConstraint(
+                "CK_StatoStoricoOrdine_Date",
+                "[Fine] IS NULL OR [Fine] >= [Inizio]"));
         }
     }
 }

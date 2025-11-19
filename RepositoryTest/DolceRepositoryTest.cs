@@ -12,16 +12,10 @@ namespace RepositoryTest
 {
     public class DolceRepositoryTest : BaseTest
     {
-        private readonly DolceRepository _repository;
-        private readonly BubbleTeaContext _context;
+        private readonly DolceRepository _repository;        
 
         public DolceRepositoryTest()
-        {
-            var options = new DbContextOptionsBuilder<BubbleTeaContext>()
-                .UseInMemoryDatabase(databaseName: $"DolceTest_{Guid.NewGuid()}")
-                .Options;
-
-            _context = new BubbleTeaContext(options);
+        {            
             _repository = new DolceRepository(_context);
 
             InitializeTestData();
