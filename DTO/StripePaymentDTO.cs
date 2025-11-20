@@ -13,66 +13,66 @@ namespace DTO
 
         [Required]
         [StringLength(3)]
-        public string Currency { get; set; } = "eur";
+        public required string Currency { get; set; } = "eur"; // ✅ REQUIRED
 
         [StringLength(500)]
-        public string Description { get; set; }
+        public string? Description { get; set; } // ✅ NULLABLE
 
         [EmailAddress]
         [StringLength(255)]
-        public string CustomerEmail { get; set; }
+        public string? CustomerEmail { get; set; } // ✅ NULLABLE
     }
 
     public class StripePaymentResponseDTO
     {
         [Required]
         [StringLength(500)]
-        public string ClientSecret { get; set; }
+        public required string ClientSecret { get; set; } // ✅ REQUIRED
 
         [Required]
         [StringLength(100)]
-        public string PaymentIntentId { get; set; }
+        public required string PaymentIntentId { get; set; } // ✅ REQUIRED
 
         [Required]
         [StringLength(50)]
-        public string Status { get; set; }
+        public required string Status { get; set; } // ✅ REQUIRED
 
         [Range(0, 9999999)]
         public long Amount { get; set; }
 
         [Required]
         [StringLength(3)]
-        public string Currency { get; set; }
+        public required string Currency { get; set; } // ✅ REQUIRED
     }
 
     public class StripeWebhookDTO
     {
         [Required]
         [StringLength(100)]
-        public string Type { get; set; }
+        public required string Type { get; set; } // ✅ REQUIRED
 
         [Required]
-        public StripeWebhookDataDTO Data { get; set; }
+        public required StripeWebhookDataDTO Data { get; set; } // ✅ REQUIRED
     }
 
     public class StripeWebhookDataDTO
     {
         [Required]
-        public StripeWebhookObjectDTO Object { get; set; }
+        public required StripeWebhookObjectDTO Object { get; set; } // ✅ REQUIRED
     }
 
     public class StripeWebhookObjectDTO
     {
         [Required]
         [StringLength(100)]
-        public string Id { get; set; }
+        public required string Id { get; set; } // ✅ REQUIRED
 
         [Required]
         [StringLength(50)]
-        public string Status { get; set; }
+        public required string Status { get; set; } // ✅ REQUIRED
 
         [StringLength(100)]
-        public string Customer { get; set; }
+        public string? Customer { get; set; } // ✅ NULLABLE
 
         [Range(0, 9999999)]
         public long Amount { get; set; }
@@ -82,13 +82,13 @@ namespace DTO
     public class ConfirmPaymentRequestDTO
     {
         [Required]
-        public string PaymentIntentId { get; set; }
+        public required string PaymentIntentId { get; set; } // ✅ REQUIRED
     }
 
     public class RefundPaymentRequestDTO
     {
         [Required]
-        public string PaymentIntentId { get; set; }
+        public required string PaymentIntentId { get; set; } // ✅ REQUIRED
 
         public string Reason { get; set; } = "requested_by_customer";
     }
@@ -104,10 +104,10 @@ namespace DTO
 
         public string Currency { get; set; } = "eur";
 
-        public string Description { get; set; }
+        public string? Description { get; set; } // ✅ NULLABLE
 
         [EmailAddress]
-        public string CustomerEmail { get; set; }
+        public string? CustomerEmail { get; set; } // ✅ NULLABLE
 
         public bool AutoConfirm { get; set; } = true;
     }
@@ -115,9 +115,9 @@ namespace DTO
     // ✅ DTO PER LO STATO PAGAMENTO (se necessario)
     public class PaymentStatusResponseDTO
     {
-        public string PaymentIntentId { get; set; }
-        public string Status { get; set; }
-        public string Message { get; set; }
-        public DateTime? LastUpdated { get; set; }
+        public required string PaymentIntentId { get; set; } // ✅ REQUIRED
+        public required string Status { get; set; } // ✅ REQUIRED
+        public string? Message { get; set; } // ✅ NULLABLE
+        public DateTime? LastUpdated { get; set; } // ✅ NULLABLE
     }
 }

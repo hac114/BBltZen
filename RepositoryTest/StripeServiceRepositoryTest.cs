@@ -9,28 +9,28 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class StripeServiceRepositoryTest : BaseTest, IDisposable
+    public class StripeServiceRepositoryTest : BaseTest
     {
-        private readonly StripeServiceRepository _stripeService;
+        private readonly IStripeServiceRepository _stripeService;  // ✅ USA INTERFACCIA
         private readonly Mock<ILogger<StripeServiceRepository>> _loggerMock;
-        private readonly Mock<IOptions<StripeSettings>> _stripeSettingsMock;
+        private readonly Mock<IOptions<StripeSettingsDTO>> _stripeSettingsMock;  // ✅ USA DTO
 
         public StripeServiceRepositoryTest()
         {
             // Mock per ILogger
             _loggerMock = new Mock<ILogger<StripeServiceRepository>>();
 
-            // Mock per StripeSettings (usa placeholder per testing)
-            _stripeSettingsMock = new Mock<IOptions<StripeSettings>>();
+            // Mock per StripeSettingsDTO (usa placeholder per testing)
+            _stripeSettingsMock = new Mock<IOptions<StripeSettingsDTO>>();
             _stripeSettingsMock.Setup(x => x.Value)
-                .Returns(new StripeSettings
+                .Returns(new StripeSettingsDTO
                 {
-                    SecretKey = "REPLACE_WITH_STRIPE_SECRET_KEY", // ✅ Usa placeholder
+                    SecretKey = "REPLACE_WITH_STRIPE_SECRET_KEY", // ✅ USA DTO
                     PublishableKey = "REPLACE_WITH_STRIPE_PUBLISHABLE_KEY",
                     WebhookSecret = "REPLACE_WITH_STRIPE_WEBHOOK_SECRET"
                 });
 
-            // Inizializza il servizio
+            // ✅ INIZIALIZZA CON INTERFACCIA
             _stripeService = new StripeServiceRepository(
                 _context,
                 _stripeSettingsMock.Object,
@@ -44,28 +44,16 @@ namespace RepositoryTest
         private void InitializeTestData()
         {
             // Pulisci e ricrea dati di test
-            _context.Ordine.RemoveRange(_context.Ordine); // ✅ Corretto: Ordini (plurale)
-            _context.StatoPagamento.RemoveRange(_context.StatoPagamento);
+            _context.Ordine.RemoveRange(_context.Ordine);
             _context.SaveChanges();
 
-            // Crea stati pagamento di test (già fatto in BaseTest, ma ridondante per sicurezza)
-            if (!_context.StatoPagamento.Any())
-            {
-                _context.StatoPagamento.AddRange(
-                    new StatoPagamento { StatoPagamentoId = 1, StatoPagamento1 = "In_Attesa" },
-                    new StatoPagamento { StatoPagamentoId = 2, StatoPagamento1 = "Pagato" },
-                    new StatoPagamento { StatoPagamentoId = 3, StatoPagamento1 = "Fallito" },
-                    new StatoPagamento { StatoPagamentoId = 4, StatoPagamento1 = "Rimborsato" }
-                );
-            }
-
             // Crea ordine di test
-            if (!_context.Ordine.Any()) // ✅ Corretto: Ordini (plurale)
+            if (!_context.Ordine.Any())
             {
-                _context.Ordine.Add(new Ordine // ✅ Corretto: Ordini (plurale)
+                _context.Ordine.Add(new Ordine
                 {
                     OrdineId = 1,
-                    DataCreazione = DateTime.Now,
+                    DataCreazione = DateTime.UtcNow, // ✅ UTC PER COERENZA
                     StatoPagamentoId = 1, // In Attesa
                     Totale = 15.50m
                 });
@@ -113,14 +101,14 @@ namespace RepositoryTest
                 CustomerEmail = "test@example.com"
             };
 
-            // Act - Ora dovrebbe funzionare con la chiave mock
+            // Act
             var result = await _stripeService.CreatePaymentIntentAsync(request);
 
-            // Assert - Verifica che restituisca una risposta mock
+            // Assert
             Assert.NotNull(result);
             Assert.NotNull(result.ClientSecret);
             Assert.NotNull(result.PaymentIntentId);
-            Assert.StartsWith("pi_mock_", result.PaymentIntentId); // ✅ Dovrebbe usare la modalità mock
+            Assert.StartsWith("pi_mock_", result.PaymentIntentId); // ✅ USA MODALITÀ MOCK
             Assert.Equal("requires_payment_method", result.Status);
             Assert.Equal(request.Amount, result.Amount);
             Assert.Equal(request.Currency, result.Currency);
@@ -156,17 +144,18 @@ namespace RepositoryTest
             var result = await _stripeService.ConfirmPaymentAsync(invalidPaymentIntentId);
 
             // Assert
-            Assert.False(result);
+            Assert.False(result); // ✅ SILENT FAIL VERIFICATO
         }
 
         [Fact]
-        public async Task GetStatoPagamentoId_WithValidStato_ReturnsCorrectId()
+        public void GetStatoPagamentoId_WithValidStato_ReturnsCorrectId()
         {
+            // ✅ CORREZIONE: METODO ORA È SINCRONO
             // Act - Test di TUTTI gli stati
-            var inAttesaId = await GetStatoPagamentoIdInternal("in_attesa");
-            var pagatoId = await GetStatoPagamentoIdInternal("pagato");
-            var fallitoId = await GetStatoPagamentoIdInternal("fallito");
-            var rimborsatoId = await GetStatoPagamentoIdInternal("rimborsato");
+            var inAttesaId = GetStatoPagamentoIdInternal("in_attesa");
+            var pagatoId = GetStatoPagamentoIdInternal("pagato");
+            var fallitoId = GetStatoPagamentoIdInternal("fallito");
+            var rimborsatoId = GetStatoPagamentoIdInternal("rimborsato");
 
             // Assert
             Assert.Equal(1, inAttesaId);
@@ -176,20 +165,20 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetStatoPagamentoId_WithInvalidStato_ReturnsDefaultId()
+        public void GetStatoPagamentoId_WithInvalidStato_ReturnsDefaultId()
         {
             // Act
-            var result = await GetStatoPagamentoIdInternal("stato_invalido");
+            var result = GetStatoPagamentoIdInternal("stato_invalido");
 
             // Assert
             Assert.Equal(1, result); // Default a "In_Attesa"
         }
 
         [Fact]
-        public async Task GetStatoPagamentoId_WithNullStato_ReturnsDefaultId()
+        public void GetStatoPagamentoId_WithNullStato_ReturnsDefaultId()
         {
             // Act
-            var result = await GetStatoPagamentoIdInternal(null);
+            var result = GetStatoPagamentoIdInternal(null!); // ✅ USA NULL-FORGIVING OPERATOR
 
             // Assert
             Assert.Equal(1, result); // Default a "In_Attesa"
@@ -202,7 +191,7 @@ namespace RepositoryTest
             var json = "{}";
             var signature = "mock_signature";
 
-            // Act - Con chiavi mock dovrebbe restituire true
+            // Act
             var result = await _stripeService.HandleWebhookAsync(json, signature);
 
             // Assert
@@ -215,7 +204,7 @@ namespace RepositoryTest
             // Arrange
             var mockPaymentIntentId = "pi_mock_123456";
 
-            // Act - Con chiavi mock dovrebbe simulare il rimborso
+            // Act
             var result = await _stripeService.RefundPaymentAsync(mockPaymentIntentId);
 
             // Assert
@@ -234,12 +223,39 @@ namespace RepositoryTest
             };
 
             // Act & Assert
-            await Assert.ThrowsAsync<ApplicationException>(() =>
+            await Assert.ThrowsAsync<ArgumentException>(() =>  // ✅ CORRETTO: ArgumentException
                 _stripeService.CreatePaymentIntentAsync(request));
         }
 
-        // Helper migliorato per testare metodi privati
-        private async Task<int> GetStatoPagamentoIdInternal(string parameter)
+        [Fact]
+        public async Task HandleWebhookAsync_WithEmptyParameters_ReturnsFalse()
+        {
+            // Arrange
+            var emptyJson = "";
+            var emptySignature = "";
+
+            // Act
+            var result = await _stripeService.HandleWebhookAsync(emptyJson, emptySignature);
+
+            // Assert
+            Assert.False(result); // ✅ SILENT FAIL VERIFICATO
+        }
+
+        [Fact]
+        public async Task RefundPaymentAsync_WithEmptyPaymentIntentId_ReturnsFalse()
+        {
+            // Arrange
+            var emptyPaymentIntentId = "";
+
+            // Act
+            var result = await _stripeService.RefundPaymentAsync(emptyPaymentIntentId);
+
+            // Assert
+            Assert.False(result); // ✅ SILENT FAIL VERIFICATO
+        }
+
+        // ✅ HELPER CORRETTO CON GESTIONE NULL SICURA
+        private int GetStatoPagamentoIdInternal(string? parameter)
         {
             var method = typeof(StripeServiceRepository).GetMethod(
                 "GetStatoPagamentoId",
@@ -250,21 +266,18 @@ namespace RepositoryTest
 
             try
             {
-                var task = (Task<int>)method.Invoke(_stripeService, new object[] { parameter });
-                return await task;
+                var result = method.Invoke(_stripeService, new object?[] { parameter });
+
+                // ✅ GESTIONE ESPLICITA DEL POSSIBILE NULL
+                if (result == null)
+                    throw new InvalidOperationException("Il metodo ha restituito null");
+
+                return (int)result;
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Errore durante l'invocazione del metodo: {ex.Message}", ex);
             }
-        }
-
-        public new void Dispose()
-        {
-            _context.Ordine.RemoveRange(_context.Ordine); // ✅ Corretto: Ordini (plurale)
-            _context.StatoPagamento.RemoveRange(_context.StatoPagamento);
-            _context.SaveChanges();
-            base.Dispose();
         }
     }
 }

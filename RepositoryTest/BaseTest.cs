@@ -1,8 +1,9 @@
 ﻿using Database;
+using DTO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Repository.Interface;
 using Repository.Service;
-using Microsoft.Extensions.Configuration;
 
 namespace RepositoryTest
 {
@@ -90,11 +91,11 @@ namespace RepositoryTest
         }
 
         // ✅ METODO PER OTTENERE CONFIGURAZIONE STRIPE
-        protected StripeSettings GetStripeSettings()
+        protected StripeSettingsDTO GetStripeSettings()  // ✅ CAMBIA IL TIPO DI RITORNO
         {
             var stripeSection = _configuration.GetSection("Stripe");
 
-            return new StripeSettings
+            return new StripeSettingsDTO  // ✅ USA IL DTO
             {
                 SecretKey = stripeSection["SecretKey"] ?? "REPLACE_WITH_STRIPE_SECRET_KEY",
                 PublishableKey = stripeSection["PublishableKey"] ?? "REPLACE_WITH_STRIPE_PUBLISHABLE_KEY",

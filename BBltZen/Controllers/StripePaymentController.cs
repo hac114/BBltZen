@@ -1,5 +1,4 @@
-﻿// BBltZen/Controllers/StripePaymentController.cs
-using DTO;
+﻿using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Repository.Interface;
@@ -27,9 +26,6 @@ namespace BBltZen.Controllers
             _context = context;
         }
 
-        /// <summary>
-        /// Crea un PaymentIntent per un ordine
-        /// </summary>
         [HttpPost("create-payment-intent")]
         [ProducesResponseType(typeof(StripePaymentResponseDTO), 200)]
         [ProducesResponseType(400)]
@@ -41,11 +37,9 @@ namespace BBltZen.Controllers
             {
                 _logger.LogInformation("Creazione PaymentIntent per ordine {OrdineId}", request.OrdineId);
 
-                // ✅ Validazione modello
                 if (!IsModelValid(request))
                     return SafeBadRequest<StripePaymentResponseDTO>("Dati pagamento non validi");
 
-                // ✅ CORREZIONE: Usa OrdineId invece di Id
                 var ordineEsistente = await _context.Ordine
                     .AnyAsync(o => o.OrdineId == request.OrdineId);
 
@@ -54,15 +48,14 @@ namespace BBltZen.Controllers
 
                 var result = await _stripeService.CreatePaymentIntentAsync(request);
 
-                // ✅ Audit trail
                 LogAuditTrail("CREATE_PAYMENT_INTENT", "StripePayment", result.PaymentIntentId);
                 LogSecurityEvent("PaymentIntentCreated", new
                 {
-                    PaymentIntentId = result.PaymentIntentId,
-                    OrdineId = request.OrdineId,
-                    Amount = request.Amount,
-                    Currency = request.Currency,
-                    User = User.Identity?.Name ?? "Anonymous"
+                    result.PaymentIntentId,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    request.OrdineId,                 // ✅ NOME MEMBRO SEMPLIFICATO
+                    request.Amount,                   // ✅ NOME MEMBRO SEMPLIFICATO
+                    request.Currency,                 // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault()
                 });
 
                 _logger.LogInformation("PaymentIntent creato con successo per ordine {OrdineId}", request.OrdineId);
@@ -90,10 +83,7 @@ namespace BBltZen.Controllers
                 return SafeInternalError<StripePaymentResponseDTO>("Errore durante la creazione del pagamento");
             }
         }
-
-        /// <summary>
-        /// Conferma un pagamento completato
-        /// </summary>
+        
         [HttpPost("confirm-payment")]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
@@ -112,26 +102,22 @@ namespace BBltZen.Controllers
 
                 if (result)
                 {
-                    // ✅ Audit trail
                     LogAuditTrail("CONFIRM_PAYMENT", "StripePayment", request.PaymentIntentId);
                     LogSecurityEvent("PaymentConfirmed", new
                     {
-                        PaymentIntentId = request.PaymentIntentId,
-                        User = User.Identity?.Name ?? "Anonymous"
+                        request.PaymentIntentId,      // ✅ NOME MEMBRO SEMPLIFICATO
+                        User = GetCurrentUserIdOrDefault()
                     });
 
                     _logger.LogInformation("Pagamento confermato con successo per {PaymentIntentId}", request.PaymentIntentId);
 
-                    if (_environment.IsDevelopment())
-                        return Ok(new { success = true, message = "Pagamento confermato con successo" });
-                    else
-                        return Ok(new { success = true, message = "Operazione completata" });
+                    return Ok(_environment.IsDevelopment()
+                        ? new { success = true, message = "Pagamento confermato con successo" }
+                        : new { success = true, message = "Operazione completata" });
                 }
-                else
-                {
-                    _logger.LogWarning("Pagamento non confermato per {PaymentIntentId}", request.PaymentIntentId);
-                    return SafeBadRequest("Impossibile confermare il pagamento");
-                }
+
+                _logger.LogWarning("Pagamento non confermato per {PaymentIntentId}", request.PaymentIntentId);
+                return SafeBadRequest("Impossibile confermare il pagamento");
             }
             catch (DbUpdateException ex)
             {
@@ -144,10 +130,7 @@ namespace BBltZen.Controllers
                 return SafeInternalError("Errore durante la conferma del pagamento");
             }
         }
-
-        /// <summary>
-        /// Gestisce i webhook da Stripe
-        /// </summary>
+        
         [HttpPost("webhook")]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
@@ -191,10 +174,7 @@ namespace BBltZen.Controllers
                 );
             }
         }
-
-        /// <summary>
-        /// Effettua un rimborso
-        /// </summary>
+        
         [HttpPost("refund")]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
@@ -213,27 +193,23 @@ namespace BBltZen.Controllers
 
                 if (result)
                 {
-                    // ✅ Audit trail
                     LogAuditTrail("REFUND_PAYMENT", "StripePayment", request.PaymentIntentId);
                     LogSecurityEvent("PaymentRefunded", new
                     {
-                        PaymentIntentId = request.PaymentIntentId,
-                        Reason = request.Reason,
-                        User = User.Identity?.Name ?? "Anonymous"
+                        request.PaymentIntentId,      // ✅ NOME MEMBRO SEMPLIFICATO
+                        request.Reason,               // ✅ NOME MEMBRO SEMPLIFICATO
+                        User = GetCurrentUserIdOrDefault()
                     });
 
                     _logger.LogInformation("Rimborso effettuato con successo per {PaymentIntentId}", request.PaymentIntentId);
 
-                    if (_environment.IsDevelopment())
-                        return Ok(new { success = true, message = "Rimborso effettuato con successo" });
-                    else
-                        return Ok(new { success = true, message = "Operazione completata" });
+                    return Ok(_environment.IsDevelopment()
+                        ? new { success = true, message = "Rimborso effettuato con successo" }
+                        : new { success = true, message = "Operazione completata" });
                 }
-                else
-                {
-                    _logger.LogWarning("Rimborso fallito per {PaymentIntentId}", request.PaymentIntentId);
-                    return SafeBadRequest("Impossibile processare il rimborso");
-                }
+
+                _logger.LogWarning("Rimborso fallito per {PaymentIntentId}", request.PaymentIntentId);
+                return SafeBadRequest("Impossibile processare il rimborso");
             }
             catch (DbUpdateException ex)
             {
@@ -246,10 +222,7 @@ namespace BBltZen.Controllers
                 return SafeInternalError("Errore durante il rimborso");
             }
         }
-
-        /// <summary>
-        /// Verifica lo stato di un pagamento
-        /// </summary>
+        
         [HttpGet("payment-status/{paymentIntentId}")]
         [ProducesResponseType(typeof(PaymentStatusResponseDTO), 200)]
         [ProducesResponseType(400)]
@@ -287,10 +260,7 @@ namespace BBltZen.Controllers
                 return SafeInternalError<PaymentStatusResponseDTO>("Errore durante il recupero dello stato pagamento");
             }
         }
-
-        /// <summary>
-        /// Simula un pagamento per testing (solo in sviluppo)
-        /// </summary>
+        
         [HttpPost("simulate-payment")]
         [ProducesResponseType(200)]
         [ProducesResponseType(400)]
@@ -300,7 +270,6 @@ namespace BBltZen.Controllers
         {
             try
             {
-                // ✅ Solo in ambiente di sviluppo
                 if (!_environment.IsDevelopment())
                 {
                     _logger.LogWarning("Tentativo di accesso a simulate-payment in ambiente non di sviluppo");
@@ -312,14 +281,12 @@ namespace BBltZen.Controllers
 
                 _logger.LogInformation("Simulazione pagamento per ordine {OrdineId}", request.OrdineId);
 
-                // ✅ CORREZIONE: Usa OrdineId invece di Id
                 var ordineEsistente = await _context.Ordine
                     .AnyAsync(o => o.OrdineId == request.OrdineId);
 
                 if (!ordineEsistente)
                     return SafeNotFound("Ordine");
 
-                // Crea una richiesta di pagamento simulata
                 var paymentRequest = new StripePaymentRequestDTO
                 {
                     OrdineId = request.OrdineId,
@@ -331,21 +298,19 @@ namespace BBltZen.Controllers
 
                 var result = await _stripeService.CreatePaymentIntentAsync(paymentRequest);
 
-                // ✅ Simula conferma pagamento
                 if (request.AutoConfirm)
                 {
                     await _stripeService.ConfirmPaymentAsync(result.PaymentIntentId);
                 }
 
-                // ✅ Audit trail per simulazione
                 LogAuditTrail("SIMULATE_PAYMENT", "StripePayment", result.PaymentIntentId);
                 LogSecurityEvent("PaymentSimulated", new
                 {
-                    PaymentIntentId = result.PaymentIntentId,
-                    OrdineId = request.OrdineId,
-                    Amount = request.Amount,
-                    AutoConfirm = request.AutoConfirm,
-                    User = User.Identity?.Name ?? "Anonymous"
+                    result.PaymentIntentId,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    request.OrdineId,                 // ✅ NOME MEMBRO SEMPLIFICATO
+                    request.Amount,                   // ✅ NOME MEMBRO SEMPLIFICATO
+                    request.AutoConfirm,              // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault()
                 });
 
                 return Ok(new
@@ -365,6 +330,41 @@ namespace BBltZen.Controllers
             {
                 _logger.LogError(ex, "Errore durante simulazione pagamento ordine {OrdineId}", request.OrdineId);
                 return SafeInternalError("Errore durante la simulazione del pagamento");
+            }
+        }
+
+        [HttpGet("payment-methods/{customerEmail}")]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
+        //[Authorize(Roles = "cliente,admin")] // ✅ COMMENTATO PER TEST
+        public ActionResult GetPaymentMethods(string customerEmail)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(customerEmail))
+                    return SafeBadRequest("Email cliente non valida");
+
+                _logger.LogInformation("Richiesta metodi pagamento per {CustomerEmail}", customerEmail);
+
+                // ✅ Simulazione per testing
+                var mockPaymentMethods = new
+                {
+                    CustomerEmail = customerEmail,
+                    PaymentMethods = new[]
+                    {
+                new { Type = "card", Last4 = "4242", Brand = "visa" },
+                new { Type = "card", Last4 = "5555", Brand = "mastercard" }
+            }
+                };
+
+                LogAuditTrail("GET_PAYMENT_METHODS", "StripePayment", customerEmail);
+
+                return Ok(mockPaymentMethods);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante recupero metodi pagamento per {CustomerEmail}", customerEmail);
+                return SafeInternalError("Errore durante il recupero dei metodi pagamento");
             }
         }
     }

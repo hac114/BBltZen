@@ -1,9 +1,10 @@
+using BBltZen.Services;
 using Database;
+using DTO;
 using Microsoft.EntityFrameworkCore;
-using Repository;
 //using Keycloak.AuthServices.Authentication; // ✅ COMMENTATO
 using Microsoft.OpenApi.Models;
-using BBltZen.Services;
+using Repository;
 
 namespace BBltZen
 {
@@ -77,6 +78,8 @@ namespace BBltZen
 
             // Registra tutti i repository
             builder.Services.AddServiceDb();
+            builder.Services.Configure<StripeSettingsDTO>(
+                builder.Configuration.GetSection("StripeSettings"));
 
             // ✅ REGISTRA IL DATABASE SEEDER
             builder.Services.AddScoped<DatabaseSeeder>();

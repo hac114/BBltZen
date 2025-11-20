@@ -16,7 +16,7 @@ namespace Repository.Service
 
         public StripeServiceRepository(
             BubbleTeaContext context,
-            IOptions<StripeSettings> stripeSettings,
+            IOptions<StripeSettingsDTO> stripeSettings,
             ILogger<StripeServiceRepository> logger)
         {
             _context = context;
@@ -50,7 +50,7 @@ namespace Repository.Service
                 // ✅ VALIDAZIONE MANUALE PER IMPORTI
                 if (request.Amount <= 0)
                 {
-                    throw new ApplicationException("L'importo del pagamento deve essere maggiore di zero");
+                    throw new ArgumentException("L'importo del pagamento deve essere maggiore di zero");
                 }
 
                 // Verifica che l'ordine esista
@@ -88,9 +88,10 @@ namespace Repository.Service
                 var paymentIntent = await service.CreateAsync(options);
 
                 // Aggiorna lo stato dell'ordine
-                ordine.StatoPagamentoId = await GetStatoPagamentoId("In_Attesa");
+                ordine.StatoPagamentoId = GetStatoPagamentoId("In_Attesa");
                 await _context.SaveChangesAsync();
 
+                // ✅ RITORNA SEMPRE DTO (già corretto)
                 return new StripePaymentResponseDTO
                 {
                     ClientSecret = paymentIntent.ClientSecret,
@@ -105,12 +106,20 @@ namespace Repository.Service
                 _logger.LogError(ex, "Errore Stripe durante la creazione del PaymentIntent per l'ordine {OrdineId}", request.OrdineId);
                 throw new ApplicationException($"Errore pagamento: {ex.Message}");
             }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Validazione fallita per CreatePaymentIntentAsync");
+                throw; // ✅ RILANCIA PER GESTIONE NEL CONTROLLER
+            }
         }
 
         public async Task<bool> ConfirmPaymentAsync(string paymentIntentId)
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(paymentIntentId))
+                    return false; // ✅ SILENT FAIL
+
                 // Se stiamo usando una chiave mock, simula conferma
                 if (_stripeSecretKey == "sk_test_mock_key_for_testing")
                 {
@@ -122,26 +131,32 @@ namespace Repository.Service
 
                 if (paymentIntent.Status == "succeeded")
                 {
-                    // Recupera l'ID ordine dai metadata
-                    if (paymentIntent.Metadata.TryGetValue("ordine_id", out string ordineIdStr) &&
+                    // ✅ CORREZIONE: Gestione esplicita del possibile null
+                    if (paymentIntent.Metadata != null &&
+                        paymentIntent.Metadata.TryGetValue("ordine_id", out string? ordineIdStr) &&
+                        !string.IsNullOrWhiteSpace(ordineIdStr) &&
                         int.TryParse(ordineIdStr, out int ordineId))
                     {
                         var ordine = await _context.Ordine.FindAsync(ordineId);
                         if (ordine != null)
                         {
-                            ordine.StatoPagamentoId = await GetStatoPagamentoId("Pagato");
+                            ordine.StatoPagamentoId = GetStatoPagamentoId("Pagato");
                             await _context.SaveChangesAsync();
                             return true;
                         }
                     }
+                    else
+                    {
+                        _logger.LogWarning("Metadata ordine_id non trovato o non valido per payment intent {PaymentIntentId}", paymentIntentId);
+                    }
                 }
 
-                return false;
+                return false; // ✅ SILENT FAIL SE QUALCOSA VA MALE
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la conferma del pagamento {PaymentIntentId}", paymentIntentId);
-                return false;
+                return false; // ✅ SILENT FAIL
             }
         }
 
@@ -149,6 +164,9 @@ namespace Repository.Service
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(json) || string.IsNullOrWhiteSpace(signature))
+                    return false; // ✅ SILENT FAIL
+
                 // Se stiamo usando una chiave mock, simula webhook
                 if (_stripeSecretKey == "sk_test_mock_key_for_testing")
                 {
@@ -158,13 +176,22 @@ namespace Repository.Service
 
                 var webhookSecret = "whsec_48162c13db6022608ce373145df1b64dcdb755ff6d531d7ace55599c8e1ae2c2";
 
-                var stripeEvent = EventUtility.ConstructEvent(
-                    json, signature, webhookSecret);
+                var stripeEvent = EventUtility.ConstructEvent(json, signature, webhookSecret);
 
                 if (stripeEvent.Type == "payment_intent.succeeded")
                 {
                     var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
-                    return await ConfirmPaymentAsync(paymentIntent.Id);
+
+                    // ✅ CORREZIONE: Controllo esplicito per null
+                    if (paymentIntent?.Id != null)
+                    {
+                        return await ConfirmPaymentAsync(paymentIntent.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("PaymentIntent null o senza ID nel webhook");
+                        return false; // ✅ SILENT FAIL
+                    }
                 }
 
                 return true;
@@ -172,7 +199,12 @@ namespace Repository.Service
             catch (StripeException ex)
             {
                 _logger.LogError(ex, "Errore durante l'elaborazione del webhook Stripe");
-                return false;
+                return false; // ✅ SILENT FAIL
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore generico durante l'elaborazione del webhook");
+                return false; // ✅ SILENT FAIL
             }
         }
 
@@ -180,6 +212,9 @@ namespace Repository.Service
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(paymentIntentId))
+                    return false; // ✅ SILENT FAIL
+
                 // Se stiamo usando una chiave mock, simula rimborso
                 if (_stripeSecretKey == "sk_test_mock_key_for_testing")
                 {
@@ -200,7 +235,7 @@ namespace Repository.Service
             catch (StripeException ex)
             {
                 _logger.LogError(ex, "Errore durante il rimborso per {PaymentIntentId}", paymentIntentId);
-                return false;
+                return false; // ✅ SILENT FAIL
             }
         }
 
@@ -228,7 +263,7 @@ namespace Repository.Service
             return customer.Id;
         }
 
-        internal async Task<int> GetStatoPagamentoId(string nomeStato)
+        internal int GetStatoPagamentoId(string nomeStato)
         {
             if (string.IsNullOrEmpty(nomeStato))
                 return 1; // Default
@@ -279,7 +314,7 @@ namespace Repository.Service
                 var ordine = await _context.Ordine.FirstOrDefaultAsync();
                 if (ordine != null)
                 {
-                    ordine.StatoPagamentoId = await GetStatoPagamentoId("Pagato");
+                    ordine.StatoPagamentoId = GetStatoPagamentoId("Pagato"); // ✅ RIMOSSO AWAIT
                     await _context.SaveChangesAsync();
                     return true;
                 }
@@ -287,12 +322,5 @@ namespace Repository.Service
 
             return false;
         }
-    }
-
-    public class StripeSettings
-    {
-        public string SecretKey { get; set; }
-        public string PublishableKey { get; set; }
-        public string WebhookSecret { get; set; }
-    }
+    }    
 }
