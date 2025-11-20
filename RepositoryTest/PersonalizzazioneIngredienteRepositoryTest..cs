@@ -34,13 +34,12 @@ namespace RepositoryTest
             };
 
             // FASE 1: Add
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
-            var id = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId;
+            var added = await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto); // ✅ USA IL RISULTATO
 
             // FASE 2: Update
             var updateDto = new PersonalizzazioneIngredienteDTO
             {
-                PersonalizzazioneIngredienteId = id,
+                PersonalizzazioneIngredienteId = added.PersonalizzazioneIngredienteId,
                 PersonalizzazioneId = 1,
                 IngredienteId = 1,
                 Quantita = 200.0m,
@@ -50,14 +49,12 @@ namespace RepositoryTest
             await _personalizzazioneIngredienteRepository.UpdateAsync(updateDto);
 
             // FASE 3: Verifica
-            var afterUpdate = await _context.PersonalizzazioneIngrediente.FindAsync(id);
+            var afterUpdate = await _personalizzazioneIngredienteRepository.GetByIdAsync(added.PersonalizzazioneIngredienteId);
             Assert.NotNull(afterUpdate);
             Assert.Equal(200.0m, afterUpdate.Quantita);
             Assert.Equal(2, afterUpdate.UnitaMisuraId);
         }
-
-        // ✅ MANTENUTI tutti i test tranne quello rimosso
-
+                
         [Fact]
         public async Task AddAsync_Should_Add_PersonalizzazioneIngrediente()
         {
@@ -73,11 +70,10 @@ namespace RepositoryTest
             };
 
             // Act
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
+            var result = await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto); // ✅ USA IL RISULTATO
 
             // Assert
-            var result = await _personalizzazioneIngredienteRepository.GetByIdAsync(personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId);
-            Assert.NotNull(result);
+            Assert.True(result.PersonalizzazioneIngredienteId > 0); // ✅ VERIFICA ID GENERATO
             Assert.Equal(1, result.PersonalizzazioneId);
             Assert.Equal(1, result.IngredienteId);
             Assert.Equal(100.0m, result.Quantita);
@@ -97,14 +93,14 @@ namespace RepositoryTest
                 Quantita = 50.0m,
                 UnitaMisuraId = 1
             };
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
+            var added = await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto); // ✅ USA IL RISULTATO
 
             // Act
-            var result = await _personalizzazioneIngredienteRepository.GetByIdAsync(personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId);
+            var result = await _personalizzazioneIngredienteRepository.GetByIdAsync(added.PersonalizzazioneIngredienteId);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId, result.PersonalizzazioneIngredienteId);
+            Assert.Equal(added.PersonalizzazioneIngredienteId, result.PersonalizzazioneIngredienteId);
             Assert.Equal(1, result.PersonalizzazioneId);
             Assert.Equal(1, result.IngredienteId);
             Assert.Equal(50.0m, result.Quantita);
@@ -185,7 +181,7 @@ namespace RepositoryTest
                 Quantita = 100.0m,
                 UnitaMisuraId = 1
             };
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
+            var added = await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto); // ✅ USA IL RISULTATO
 
             // Act
             var result = await _personalizzazioneIngredienteRepository.GetByPersonalizzazioneAndIngredienteAsync(1, 1);
@@ -196,8 +192,6 @@ namespace RepositoryTest
             Assert.Equal(1, result.IngredienteId);
             Assert.Equal(100.0m, result.Quantita);
         }
-
-        // ❌ RIMOSSO: DeleteByPersonalizzazioneAndIngredienteAsync_Should_Remove_PersonalizzazioneIngrediente
 
         [Fact]
         public async Task DeleteAsync_Should_Remove_PersonalizzazioneIngrediente()
@@ -212,13 +206,13 @@ namespace RepositoryTest
                 Quantita = 100.0m,
                 UnitaMisuraId = 1
             };
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
+            var added = await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto); // ✅ USA IL RISULTATO
 
             // Act
-            await _personalizzazioneIngredienteRepository.DeleteAsync(personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId);
+            await _personalizzazioneIngredienteRepository.DeleteAsync(added.PersonalizzazioneIngredienteId);
 
             // Assert
-            var deleted = await _personalizzazioneIngredienteRepository.GetByIdAsync(personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId);
+            var deleted = await _personalizzazioneIngredienteRepository.GetByIdAsync(added.PersonalizzazioneIngredienteId);
             Assert.Null(deleted);
         }
 
@@ -274,10 +268,10 @@ namespace RepositoryTest
                 Quantita = 100.0m,
                 UnitaMisuraId = 1
             };
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
+            var added = await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto); // ✅ USA IL RISULTATO
 
             // Act
-            var exists = await _personalizzazioneIngredienteRepository.ExistsAsync(personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId);
+            var exists = await _personalizzazioneIngredienteRepository.ExistsAsync(added.PersonalizzazioneIngredienteId);
 
             // Assert
             Assert.True(exists);
@@ -317,45 +311,7 @@ namespace RepositoryTest
             // Assert
             Assert.Equal(2, count);
         }
-
-        [Fact]
-        public async Task UpdateAsync_Should_Throw_For_NonExisting_Id()
-        {
-            // Arrange
-            var updateDto = new PersonalizzazioneIngredienteDTO
-            {
-                PersonalizzazioneIngredienteId = 999,
-                PersonalizzazioneId = 1,
-                IngredienteId = 1,
-                Quantita = 100.0m,
-                UnitaMisuraId = 1
-            };
-
-            // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _personalizzazioneIngredienteRepository.UpdateAsync(updateDto));
-        }
-
-        [Fact]
-        public async Task AddAsync_Should_Assign_Generated_Id()
-        {
-            // Arrange
-            await CleanTablesForPersonalizzazioneIngredienteTest();
-
-            var personalizzazioneIngredienteDto = new PersonalizzazioneIngredienteDTO
-            {
-                PersonalizzazioneId = 1,
-                IngredienteId = 1,
-                Quantita = 100.0m,
-                UnitaMisuraId = 1
-            };
-
-            // Act
-            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
-
-            // Assert
-            Assert.True(personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId > 0);
-        }
-
+        
         [Fact]
         public async Task GetAllAsync_Should_Return_All_PersonalizzazioneIngredienti()
         {
@@ -443,6 +399,58 @@ namespace RepositoryTest
             _context.Personalizzazione.Add(personalizzazione2);
 
             await _context.SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task UpdateAsync_Should_Not_Throw_For_NonExisting_Id()
+        {
+            // Arrange
+            var updateDto = new PersonalizzazioneIngredienteDTO
+            {
+                PersonalizzazioneIngredienteId = 999,
+                PersonalizzazioneId = 1,
+                IngredienteId = 1,
+                Quantita = 100.0m,
+                UnitaMisuraId = 1
+            };
+
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _personalizzazioneIngredienteRepository.UpdateAsync(updateDto)
+            );
+
+            Assert.Null(exception); // ✅ Conferma che non viene lanciata alcuna eccezione
+        }
+
+        [Fact]
+        public async Task AddAsync_Should_Throw_For_Duplicate_Personalizzazione_Ingrediente()
+        {
+            // Arrange
+            await CleanTablesForPersonalizzazioneIngredienteTest();
+
+            var personalizzazioneIngrediente1 = new PersonalizzazioneIngredienteDTO
+            {
+                PersonalizzazioneId = 1,
+                IngredienteId = 1,
+                Quantita = 100.0m,
+                UnitaMisuraId = 1
+            };
+            await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngrediente1);
+
+            var personalizzazioneIngrediente2 = new PersonalizzazioneIngredienteDTO
+            {
+                PersonalizzazioneId = 1, // ✅ STESSA COMBINAZIONE
+                IngredienteId = 1,       // ✅ STESSA COMBINAZIONE
+                Quantita = 200.0m,
+                UnitaMisuraId = 2
+            };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngrediente2)
+            );
+
+            Assert.Contains("esiste già", exception.Message.ToLower());
         }
     }
 }

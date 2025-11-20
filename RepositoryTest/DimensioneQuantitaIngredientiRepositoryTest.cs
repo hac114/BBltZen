@@ -158,7 +158,6 @@ namespace RepositoryTest
             Assert.Equal(1, result.DimensioneBicchiereId);
             Assert.Equal(1, result.PersonalizzazioneIngredienteId);
         }
-
         [Fact]
         public async Task AddAsync_ShouldAddNewDimensioneQuantita()
         {
@@ -172,12 +171,17 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newDimensioneQuantita);
+            var result = await _repository.AddAsync(newDimensioneQuantita); // ✅ USA IL RISULTATO
 
             // Assert
-            var result = await _repository.GetByIdAsync(4, 2);
-            Assert.NotNull(result);
+            Assert.Equal(4, result.DimensioneId);
+            Assert.Equal(2, result.PersonalizzazioneIngredienteId);
             Assert.Equal(1.5m, result.Moltiplicatore);
+
+            // Verifica anche nel database
+            var fromDb = await _repository.GetByIdAsync(4, 2);
+            Assert.NotNull(fromDb);
+            Assert.Equal(1.5m, fromDb.Moltiplicatore);
         }
 
         [Fact]
@@ -230,6 +234,117 @@ namespace RepositoryTest
 
             // Assert
             Assert.True(result);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldNotThrow_ForNonExistingId()
+        {
+            // Arrange
+            var updateDto = new DimensioneQuantitaIngredientiDTO
+            {
+                DimensioneId = 999,
+                PersonalizzazioneIngredienteId = 999,
+                DimensioneBicchiereId = 1,
+                Moltiplicatore = 2.0m
+            };
+
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _repository.UpdateAsync(updateDto)
+            );
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldNotThrow_ForNonExistingId()
+        {
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _repository.DeleteAsync(999, 999)
+            );
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldThrow_ForDuplicateCombinazione()
+        {
+            // Arrange
+            var dimensioneQuantita1 = new DimensioneQuantitaIngredientiDTO
+            {
+                DimensioneId = 10,
+                PersonalizzazioneIngredienteId = 10,
+                DimensioneBicchiereId = 1,
+                Moltiplicatore = 1.0m
+            };
+            await _repository.AddAsync(dimensioneQuantita1);
+
+            var dimensioneQuantita2 = new DimensioneQuantitaIngredientiDTO
+            {
+                DimensioneId = 11, // ✅ DIVERSO DimensioneId
+                PersonalizzazioneIngredienteId = 10, // ✅ STESSO PersonalizzazioneIngredienteId
+                DimensioneBicchiereId = 1, // ✅ STESSA COMBINAZIONE DimensioneBicchiereId + PersonalizzazioneIngredienteId
+                Moltiplicatore = 1.5m
+            };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _repository.AddAsync(dimensioneQuantita2)
+            );
+
+            Assert.Contains("esiste già", exception.Message.ToLower());
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldThrow_ForDuplicateCombinazione()
+        {
+            // Arrange - Crea due record con combinazioni DIVERSE
+            var dimensioneQuantita1 = new DimensioneQuantitaIngredientiDTO
+            {
+                // ✅ NOTA: Non impostare DimensioneId - sarà generato automaticamente
+                PersonalizzazioneIngredienteId = 20,
+                DimensioneBicchiereId = 1,  // Combinazione: (1, 20)
+                Moltiplicatore = 1.0m
+            };
+            var result1 = await _repository.AddAsync(dimensioneQuantita1);
+
+            var dimensioneQuantita2 = new DimensioneQuantitaIngredientiDTO
+            {
+                // ✅ NOTA: Non impostare DimensioneId - sarà generato automaticamente
+                PersonalizzazioneIngredienteId = 21,
+                DimensioneBicchiereId = 2,  // Combinazione: (2, 21)
+                Moltiplicatore = 1.2m
+            };
+            var result2 = await _repository.AddAsync(dimensioneQuantita2);
+
+            // Act & Assert - Prova a fare l'update del secondo record con la STESSA combinazione del primo
+            var updateDto = new DimensioneQuantitaIngredientiDTO
+            {
+                DimensioneId = result2.DimensioneId,         // ✅ Mantiene il suo DimensioneId
+                PersonalizzazioneIngredienteId = 21,         // ✅ Mantiene il suo PersonalizzazioneIngredienteId  
+                DimensioneBicchiereId = 1,                   // ✅ CAMBIA a STESSO DimensioneBicchiereId del primo
+                Moltiplicatore = 1.5m
+            };
+
+            // Ora dovrebbe lanciare eccezione perché la combinazione (1, 21) è già usata dal primo record?
+            // ATTENZIONE: Il primo record ha combinazione (1, 20), il secondo (1, 21) - NON sono duplicati!
+            // Dobbiamo creare un vero duplicato:
+
+            // ✅ CORREZIONE: Crea un vero scenario di duplicato
+            var updateDtoDuplicate = new DimensioneQuantitaIngredientiDTO
+            {
+                DimensioneId = result2.DimensioneId,         // Secondo record
+                PersonalizzazioneIngredienteId = 20,         // ✅ STESSO PersonalizzazioneIngredienteId del primo
+                DimensioneBicchiereId = 1,                   // ✅ STESSO DimensioneBicchiereId del primo
+                Moltiplicatore = 1.5m
+            };
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _repository.UpdateAsync(updateDtoDuplicate)
+            );
+
+            Assert.Contains("esiste già", exception.Message.ToLower());
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using DTO;
 using Repository.Interface;
 using Repository.Service;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,10 +20,10 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task AddAsync_Should_Add_Tavolo()
+        public async Task AddAsync_ShouldAddNewTavolo()
         {
             // Arrange
-            var tavoloDto = new TavoloDTO
+            var newTavolo = new TavoloDTO
             {
                 Numero = 1,
                 Zona = "Terrazza",
@@ -30,47 +31,59 @@ namespace RepositoryTest
             };
 
             // Act
-            await _tavoloRepository.AddAsync(tavoloDto);
+            var result = await _tavoloRepository.AddAsync(newTavolo); // ✅ USA IL RISULTATO
 
             // Assert
-            var result = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
-            Assert.NotNull(result);
+            Assert.True(result.TavoloId > 0); // ✅ VERIFICA ID GENERATO
             Assert.Equal(1, result.Numero);
             Assert.Equal("Terrazza", result.Zona);
+            Assert.True(result.Disponibile);
         }
 
         [Fact]
-        public async Task GetByIdAsync_Should_Return_Correct_Tavolo()
+        public async Task GetByIdAsync_WithValidId_ShouldReturnTavolo()
         {
             // Arrange
-            var tavoloDto = new TavoloDTO
+            var newTavolo = new TavoloDTO
             {
                 Numero = 2,
                 Zona = "Interno",
                 Disponibile = true
             };
-            await _tavoloRepository.AddAsync(tavoloDto);
+            var addedTavolo = await _tavoloRepository.AddAsync(newTavolo); // ✅ USA RISULTATO
 
             // Act
-            var result = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
+            var result = await _tavoloRepository.GetByIdAsync(addedTavolo.TavoloId);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(tavoloDto.TavoloId, result.TavoloId);
+            Assert.Equal(addedTavolo.TavoloId, result.TavoloId);
+            Assert.Equal(2, result.Numero);
             Assert.Equal("Interno", result.Zona);
+            Assert.True(result.Disponibile);
         }
 
         [Fact]
-        public async Task GetByNumeroAsync_Should_Return_Correct_Tavolo()
+        public async Task GetByIdAsync_WithInvalidId_ShouldReturnNull()
+        {
+            // Act
+            var result = await _tavoloRepository.GetByIdAsync(999);
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task GetByNumeroAsync_WithValidNumero_ShouldReturnTavolo()
         {
             // Arrange
-            var tavoloDto = new TavoloDTO
+            var newTavolo = new TavoloDTO
             {
                 Numero = 3,
                 Zona = "Terrazza",
                 Disponibile = true
             };
-            await _tavoloRepository.AddAsync(tavoloDto);
+            await _tavoloRepository.AddAsync(newTavolo);
 
             // Act
             var result = await _tavoloRepository.GetByNumeroAsync(3);
@@ -79,10 +92,21 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.Equal(3, result.Numero);
             Assert.Equal("Terrazza", result.Zona);
+            Assert.True(result.Disponibile);
         }
 
         [Fact]
-        public async Task GetDisponibiliAsync_Should_Return_Only_Available_Tables()
+        public async Task GetByNumeroAsync_WithInvalidNumero_ShouldReturnNull()
+        {
+            // Act
+            var result = await _tavoloRepository.GetByNumeroAsync(999);
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task GetDisponibiliAsync_ShouldReturnOnlyAvailableTables()
         {
             // Arrange
             var tavoli = new List<TavoloDTO>
@@ -101,26 +125,52 @@ namespace RepositoryTest
             var result = await _tavoloRepository.GetDisponibiliAsync();
 
             // Assert
-            Assert.Equal(2, result.Count());
-            Assert.All(result, t => Assert.True(t.Disponibile));
+            var resultList = result.ToList();
+            Assert.Equal(2, resultList.Count);
+            Assert.All(resultList, t => Assert.True(t.Disponibile));
         }
 
         [Fact]
-        public async Task UpdateAsync_Should_Update_Tavolo_Correctly()
+        public async Task GetByZonaAsync_ShouldReturnFilteredResults()
         {
             // Arrange
-            var tavoloDto = new TavoloDTO
+            var tavoli = new List<TavoloDTO>
             {
-                Numero = 7,
+                new TavoloDTO { Numero = 7, Zona = "Terrazza", Disponibile = true },
+                new TavoloDTO { Numero = 8, Zona = "Interno", Disponibile = true },
+                new TavoloDTO { Numero = 9, Zona = "Terrazza", Disponibile = false }
+            };
+
+            foreach (var tavolo in tavoli)
+            {
+                await _tavoloRepository.AddAsync(tavolo);
+            }
+
+            // Act
+            var result = await _tavoloRepository.GetByZonaAsync("Terrazza");
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Equal(2, resultList.Count);
+            Assert.All(resultList, t => Assert.Equal("Terrazza", t.Zona));
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldUpdateExistingTavolo()
+        {
+            // Arrange
+            var newTavolo = new TavoloDTO
+            {
+                Numero = 10,
                 Zona = "Interno",
                 Disponibile = true
             };
-            await _tavoloRepository.AddAsync(tavoloDto);
+            var addedTavolo = await _tavoloRepository.AddAsync(newTavolo);
 
             var updateDto = new TavoloDTO
             {
-                TavoloId = tavoloDto.TavoloId,
-                Numero = 77,
+                TavoloId = addedTavolo.TavoloId,
+                Numero = 20,
                 Zona = "Terrazza",
                 Disponibile = false
             };
@@ -129,51 +179,202 @@ namespace RepositoryTest
             await _tavoloRepository.UpdateAsync(updateDto);
 
             // Assert
-            var updated = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
-            Assert.NotNull(updated);
-            Assert.Equal(77, updated.Numero);
-            Assert.Equal("Terrazza", updated.Zona);
-            Assert.False(updated.Disponibile);
+            var result = await _tavoloRepository.GetByIdAsync(addedTavolo.TavoloId);
+            Assert.NotNull(result);
+            Assert.Equal(20, result.Numero);
+            Assert.Equal("Terrazza", result.Zona);
+            Assert.False(result.Disponibile);
         }
 
         [Fact]
-        public async Task DeleteAsync_Should_Remove_Tavolo()
+        public async Task UpdateAsync_ShouldNotThrow_ForNonExistingId()
         {
             // Arrange
-            var tavoloDto = new TavoloDTO
+            var updateDto = new TavoloDTO
             {
-                Numero = 8,
+                TavoloId = 999,
+                Numero = 99,
                 Zona = "Interno",
                 Disponibile = true
             };
-            await _tavoloRepository.AddAsync(tavoloDto);
+
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _tavoloRepository.UpdateAsync(updateDto)
+            );
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldRemoveTavolo()
+        {
+            // Arrange
+            var newTavolo = new TavoloDTO
+            {
+                Numero = 11,
+                Zona = "Interno",
+                Disponibile = true
+            };
+            var addedTavolo = await _tavoloRepository.AddAsync(newTavolo);
 
             // Act
-            await _tavoloRepository.DeleteAsync(tavoloDto.TavoloId);
+            await _tavoloRepository.DeleteAsync(addedTavolo.TavoloId);
 
             // Assert
-            var deleted = await _tavoloRepository.GetByIdAsync(tavoloDto.TavoloId);
-            Assert.Null(deleted);
+            var result = await _tavoloRepository.GetByIdAsync(addedTavolo.TavoloId);
+            Assert.Null(result);
         }
 
         [Fact]
-        public async Task NumeroExistsAsync_Should_Check_Number_Uniqueness()
+        public async Task DeleteAsync_ShouldNotThrow_ForNonExistingId()
+        {
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _tavoloRepository.DeleteAsync(999)
+            );
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task ExistsAsync_WithExistingId_ShouldReturnTrue()
         {
             // Arrange
-            var tavoloDto = new TavoloDTO
+            var newTavolo = new TavoloDTO
             {
-                Numero = 9,
+                Numero = 12,
                 Zona = "Interno",
                 Disponibile = true
             };
-            await _tavoloRepository.AddAsync(tavoloDto);
+            var addedTavolo = await _tavoloRepository.AddAsync(newTavolo);
+
+            // Act
+            var result = await _tavoloRepository.ExistsAsync(addedTavolo.TavoloId);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task ExistsAsync_WithNonExistingId_ShouldReturnFalse()
+        {
+            // Act
+            var result = await _tavoloRepository.ExistsAsync(999);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public async Task NumeroExistsAsync_WithExistingNumero_ShouldReturnTrue()
+        {
+            // Arrange
+            var newTavolo = new TavoloDTO
+            {
+                Numero = 13,
+                Zona = "Interno",
+                Disponibile = true
+            };
+            await _tavoloRepository.AddAsync(newTavolo);
+
+            // Act
+            var result = await _tavoloRepository.NumeroExistsAsync(13);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task NumeroExistsAsync_WithNonExistingNumero_ShouldReturnFalse()
+        {
+            // Act
+            var result = await _tavoloRepository.NumeroExistsAsync(999);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public async Task NumeroExistsAsync_WithExcludeId_ShouldExcludeCurrentRecord()
+        {
+            // Arrange
+            var newTavolo = new TavoloDTO
+            {
+                Numero = 14,
+                Zona = "Interno",
+                Disponibile = true
+            };
+            var addedTavolo = await _tavoloRepository.AddAsync(newTavolo);
+
+            // Act - Cerca numero 14 escludendo il record corrente
+            var result = await _tavoloRepository.NumeroExistsAsync(14, addedTavolo.TavoloId);
+
+            // Assert - Non dovrebbe trovare altri record con numero 14
+            Assert.False(result);
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldThrow_ForDuplicateNumero()
+        {
+            // Arrange
+            var tavolo1 = new TavoloDTO
+            {
+                Numero = 15,
+                Zona = "Interno",
+                Disponibile = true
+            };
+            await _tavoloRepository.AddAsync(tavolo1);
+
+            var tavolo2 = new TavoloDTO
+            {
+                Numero = 15, // ✅ STESSO NUMERO
+                Zona = "Terrazza",
+                Disponibile = false
+            };
 
             // Act & Assert
-            var exists = await _tavoloRepository.NumeroExistsAsync(9);
-            Assert.True(exists);
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _tavoloRepository.AddAsync(tavolo2)
+            );
 
-            var notExists = await _tavoloRepository.NumeroExistsAsync(99);
-            Assert.False(notExists);
+            Assert.Contains("esiste già", exception.Message.ToLower());
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldThrow_ForDuplicateNumero()
+        {
+            // Arrange - Crea due tavoli con numeri diversi
+            var tavolo1 = new TavoloDTO
+            {
+                Numero = 16,
+                Zona = "Interno",
+                Disponibile = true
+            };
+            var addedTavolo1 = await _tavoloRepository.AddAsync(tavolo1);
+
+            var tavolo2 = new TavoloDTO
+            {
+                Numero = 17,
+                Zona = "Terrazza",
+                Disponibile = true
+            };
+            var addedTavolo2 = await _tavoloRepository.AddAsync(tavolo2);
+
+            // Act & Assert - Prova a fare l'update del secondo tavolo con lo stesso numero del primo
+            var updateDto = new TavoloDTO
+            {
+                TavoloId = addedTavolo2.TavoloId,
+                Numero = 16, // ✅ STESSO NUMERO DEL PRIMO TAVOLO
+                Zona = "Terrazza",
+                Disponibile = true
+            };
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _tavoloRepository.UpdateAsync(updateDto)
+            );
+
+            Assert.Contains("esiste già", exception.Message.ToLower());
         }
     }
 }

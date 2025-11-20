@@ -17,114 +17,129 @@ namespace Repository.Service
         {
             _context = context;
         }
+
+        private TavoloDTO MapToDTO(Tavolo tavolo)
+        {
+            return new TavoloDTO
+            {
+                TavoloId = tavolo.TavoloId,
+                Numero = tavolo.Numero,
+                Zona = tavolo.Zona,
+                Disponibile = tavolo.Disponibile
+            };
+        }
+
         public async Task<IEnumerable<TavoloDTO>> GetAllAsync()
         {
             return await _context.Tavolo
-                .Select(t => new TavoloDTO
-                {
-                    TavoloId = t.TavoloId,
-                    Numero = t.Numero,
-                    Zona = t.Zona,
-                    Disponibile = t.Disponibile,
-                })
+                .AsNoTracking()
+                .OrderBy(t => t.Numero)
+                .Select(t => MapToDTO(t))
                 .ToListAsync();
         }
 
-        public async Task<TavoloDTO> GetByIdAsync(int tavoloId)
-        {
-            var tavolo = await _context.Tavolo.FindAsync(tavoloId);
-            if (tavolo == null) return null;
-
-            return new TavoloDTO
-            {
-                TavoloId = tavolo.TavoloId,
-                Numero = tavolo.Numero,
-                Zona = tavolo.Zona,
-                Disponibile = tavolo.Disponibile,
-            };
-        }
-
-        public async Task<TavoloDTO> GetByNumeroAsync(int numero)
+        public async Task<TavoloDTO?> GetByIdAsync(int tavoloId)
         {
             var tavolo = await _context.Tavolo
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
+
+            if (tavolo == null)
+                return null;
+
+            return MapToDTO(tavolo);
+        }
+
+        public async Task<TavoloDTO?> GetByNumeroAsync(int numero)
+        {
+            var tavolo = await _context.Tavolo
+                .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Numero == numero);
 
-            if (tavolo == null) return null;
+            if (tavolo == null)
+                return null;
 
-            return new TavoloDTO
-            {
-                TavoloId = tavolo.TavoloId,
-                Numero = tavolo.Numero,
-                Zona = tavolo.Zona,
-                Disponibile = tavolo.Disponibile,
-            };
+            return MapToDTO(tavolo);
         }
 
         public async Task<IEnumerable<TavoloDTO>> GetDisponibiliAsync()
         {
             return await _context.Tavolo
+                .AsNoTracking()
                 .Where(t => t.Disponibile)
-                .Select(t => new TavoloDTO
-                {
-                    TavoloId = t.TavoloId,
-                    Numero = t.Numero,
-                    Zona = t.Zona,
-                    Disponibile = t.Disponibile,
-                })
+                .OrderBy(t => t.Numero)
+                .Select(t => MapToDTO(t))
                 .ToListAsync();
         }
 
         public async Task<IEnumerable<TavoloDTO>> GetByZonaAsync(string zona)
         {
             return await _context.Tavolo
+                .AsNoTracking()
                 .Where(t => t.Zona == zona)
-                .Select(t => new TavoloDTO
-                {
-                    TavoloId = t.TavoloId,
-                    Numero = t.Numero,
-                    Zona = t.Zona,
-                    Disponibile = t.Disponibile,
-                })
+                .OrderBy(t => t.Numero)
+                .Select(t => MapToDTO(t))
                 .ToListAsync();
         }
 
-        public async Task AddAsync(TavoloDTO tavoloDto)
+        public async Task<TavoloDTO> AddAsync(TavoloDTO tavoloDto)
         {
+            if (tavoloDto == null)
+                throw new ArgumentNullException(nameof(tavoloDto));
+
+            // ✅ VERIFICA UNICITÀ NUMERO TAVOLO
+            if (await NumeroExistsAsync(tavoloDto.Numero))
+            {
+                throw new ArgumentException($"Esiste già un tavolo con numero {tavoloDto.Numero}");
+            }
+
             var tavolo = new Tavolo
             {
                 Numero = tavoloDto.Numero,
                 Zona = tavoloDto.Zona,
-                Disponibile = tavoloDto.Disponibile,
+                Disponibile = tavoloDto.Disponibile
             };
 
-            await _context.Tavolo.AddAsync(tavolo);
+            _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON ID GENERATO E RITORNALO
             tavoloDto.TavoloId = tavolo.TavoloId;
+            return tavoloDto;
         }
 
         public async Task UpdateAsync(TavoloDTO tavoloDto)
         {
-            var tavolo = await _context.Tavolo.FindAsync(tavoloDto.TavoloId);
+            var tavolo = await _context.Tavolo
+                .FirstOrDefaultAsync(t => t.TavoloId == tavoloDto.TavoloId);
+
             if (tavolo == null)
-                throw new ArgumentException("Tavolo not found");
+                return; // ✅ SILENT FAIL
+
+            // ✅ VERIFICA UNICITÀ NUMERO TAVOLO (escludendo il record corrente)
+            if (await NumeroExistsAsync(tavoloDto.Numero, tavoloDto.TavoloId))
+            {
+                throw new ArgumentException($"Esiste già un altro tavolo con numero {tavoloDto.Numero}");
+            }
 
             tavolo.Numero = tavoloDto.Numero;
             tavolo.Zona = tavoloDto.Zona;
             tavolo.Disponibile = tavoloDto.Disponibile;
 
-            _context.Tavolo.Update(tavolo);
             await _context.SaveChangesAsync();
         }
 
         public async Task DeleteAsync(int tavoloId)
         {
-            var tavolo = await _context.Tavolo.FindAsync(tavoloId);
+            var tavolo = await _context.Tavolo
+                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
+
             if (tavolo != null)
             {
                 _context.Tavolo.Remove(tavolo);
                 await _context.SaveChangesAsync();
             }
+            // ✅ SILENT FAIL - Nessuna eccezione se non trovato
         }
 
         public async Task<bool> ExistsAsync(int tavoloId)

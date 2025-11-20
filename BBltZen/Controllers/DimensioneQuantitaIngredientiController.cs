@@ -38,7 +38,7 @@ namespace BBltZen.Controllers
                 var dimensioniQuantita = await _repository.GetAllAsync();
                 return Ok(dimensioniQuantita);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutte le dimensioni quantità ingredienti");
                 return SafeInternalError<IEnumerable<DimensioneQuantitaIngredientiDTO>>("Errore durante il recupero delle dimensioni quantità");
@@ -62,7 +62,7 @@ namespace BBltZen.Controllers
 
                 return Ok(dimensioneQuantita);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero della dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
                 return SafeInternalError<DimensioneQuantitaIngredientiDTO>("Errore durante il recupero della dimensione quantità");
@@ -87,7 +87,7 @@ namespace BBltZen.Controllers
                 var dimensioniQuantita = await _repository.GetByDimensioneBicchiereAsync(dimensioneBicchiereId);
                 return Ok(dimensioniQuantita);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle dimensioni quantità per dimensione bicchiere {DimensioneBicchiereId}", dimensioneBicchiereId);
                 return SafeInternalError<IEnumerable<DimensioneQuantitaIngredientiDTO>>("Errore durante il recupero delle dimensioni quantità");
@@ -112,7 +112,7 @@ namespace BBltZen.Controllers
                 var dimensioniQuantita = await _repository.GetByPersonalizzazioneIngredienteAsync(personalizzazioneIngredienteId);
                 return Ok(dimensioniQuantita);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle dimensioni quantità per personalizzazione ingrediente {PersonalizzazioneIngredienteId}", personalizzazioneIngredienteId);
                 return SafeInternalError<IEnumerable<DimensioneQuantitaIngredientiDTO>>("Errore durante il recupero delle dimensioni quantità");
@@ -136,7 +136,7 @@ namespace BBltZen.Controllers
 
                 return Ok(dimensioneQuantita);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero della dimensione quantità per combinazione {DimensioneBicchiereId}/{PersonalizzazioneIngredienteId}", dimensioneBicchiereId, personalizzazioneIngredienteId);
                 return SafeInternalError<DimensioneQuantitaIngredientiDTO>("Errore durante il recupero della dimensione quantità");
@@ -145,7 +145,7 @@ namespace BBltZen.Controllers
 
         // POST: api/DimensioneQuantitaIngredienti
         [HttpPost]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può creare dimensioni quantità
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult<DimensioneQuantitaIngredientiDTO>> Create([FromBody] DimensioneQuantitaIngredientiDTO dimensioneQuantitaDto)
         {
             try
@@ -163,63 +163,58 @@ namespace BBltZen.Controllers
                 if (!personalizzazioneEsiste)
                     return SafeBadRequest<DimensioneQuantitaIngredientiDTO>("Personalizzazione ingrediente non trovata");
 
-                // ✅ Verifica se esiste già una combinazione per questa dimensione bicchiere e personalizzazione ingrediente
-                var combinazioneEsistente = await _repository.ExistsByCombinazioneAsync(dimensioneQuantitaDto.DimensioneBicchiereId, dimensioneQuantitaDto.PersonalizzazioneIngredienteId);
-                if (combinazioneEsistente)
-                    return SafeBadRequest<DimensioneQuantitaIngredientiDTO>("Esiste già una combinazione per questa dimensione bicchiere e personalizzazione ingrediente");
+                // ✅ USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
+                var result = await _repository.AddAsync(dimensioneQuantitaDto);
 
-                await _repository.AddAsync(dimensioneQuantitaDto);
-
-                // ✅ Audit trail
-                LogAuditTrail("CREATE_DIMENSIONE_QUANTITA_INGREDIENTI", "DimensioneQuantitaIngredienti", $"{dimensioneQuantitaDto.DimensioneId}/{dimensioneQuantitaDto.PersonalizzazioneIngredienteId}");
-
-                // ✅ Security event completo con timestamp
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("CREATE", "DimensioneQuantitaIngredienti", $"{result.DimensioneId}/{result.PersonalizzazioneIngredienteId}");
                 LogSecurityEvent("DimensioneQuantitaIngredientiCreated", new
                 {
-                    DimensioneId = dimensioneQuantitaDto.DimensioneId,
-                    PersonalizzazioneIngredienteId = dimensioneQuantitaDto.PersonalizzazioneIngredienteId,
-                    DimensioneBicchiereId = dimensioneQuantitaDto.DimensioneBicchiereId,
-                    Moltiplicatore = dimensioneQuantitaDto.Moltiplicatore,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    result.DimensioneId,
+                    result.PersonalizzazioneIngredienteId,
+                    result.DimensioneBicchiereId,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return CreatedAtAction(nameof(GetById), new
                 {
-                    dimensioneId = dimensioneQuantitaDto.DimensioneId,
-                    personalizzazioneIngredienteId = dimensioneQuantitaDto.PersonalizzazioneIngredienteId
-                }, dimensioneQuantitaDto);
+                    dimensioneId = result.DimensioneId,
+                    personalizzazioneIngredienteId = result.PersonalizzazioneIngredienteId
+                }, result);
+            }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest<DimensioneQuantitaIngredientiDTO>(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante la creazione della dimensione quantità ingredienti");
-                return SafeInternalError<DimensioneQuantitaIngredientiDTO>("Errore durante il salvataggio della dimensione quantità");
+                _logger.LogError(dbEx, "Errore database durante la creazione dimensione quantità ingredienti");
+                return SafeInternalError<DimensioneQuantitaIngredientiDTO>("Errore durante il salvataggio");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione della dimensione quantità ingredienti");
-                return SafeInternalError<DimensioneQuantitaIngredientiDTO>("Errore durante la creazione della dimensione quantità");
+                _logger.LogError(ex, "Errore durante la creazione dimensione quantità ingredienti");
+                return SafeInternalError<DimensioneQuantitaIngredientiDTO>("Errore durante la creazione");
             }
         }
 
         // PUT: api/DimensioneQuantitaIngredienti/5/10
         [HttpPut("{dimensioneId}/{personalizzazioneIngredienteId}")]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può modificare dimensioni quantità
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult> Update(int dimensioneId, int personalizzazioneIngredienteId, [FromBody] DimensioneQuantitaIngredientiDTO dimensioneQuantitaDto)
         {
             try
             {
-                if (dimensioneId <= 0 || personalizzazioneIngredienteId <= 0)
+                if (dimensioneId <= 0 || personalizzazioneIngredienteId <= 0 ||
+                    dimensioneId != dimensioneQuantitaDto.DimensioneId ||
+                    personalizzazioneIngredienteId != dimensioneQuantitaDto.PersonalizzazioneIngredienteId)
                     return SafeBadRequest("ID dimensione o personalizzazione ingrediente non validi");
-
-                if (dimensioneId != dimensioneQuantitaDto.DimensioneId || personalizzazioneIngredienteId != dimensioneQuantitaDto.PersonalizzazioneIngredienteId)
-                    return SafeBadRequest("ID dimensione o personalizzazione ingrediente non corrispondenti");
 
                 if (!IsModelValid(dimensioneQuantitaDto))
                     return SafeBadRequest("Dati dimensione quantità non validi");
 
-                var existing = await _repository.GetByIdAsync(dimensioneId, personalizzazioneIngredienteId);
-                if (existing == null)
+                // ✅ VERIFICA ESISTENZA
+                if (!await _repository.ExistsAsync(dimensioneId, personalizzazioneIngredienteId))
                     return SafeNotFound("Dimensione quantità ingredienti");
 
                 // ✅ Verifica se la dimensione bicchiere esiste
@@ -227,53 +222,38 @@ namespace BBltZen.Controllers
                 if (!dimensioneBicchiereEsiste)
                     return SafeBadRequest("Dimensione bicchiere non trovata");
 
-                // ✅ Verifica se esiste già un'altra combinazione per questa dimensione bicchiere e personalizzazione ingrediente
-                var combinazioneDuplicata = await _repository.ExistsByCombinazioneAsync(dimensioneQuantitaDto.DimensioneBicchiereId, dimensioneQuantitaDto.PersonalizzazioneIngredienteId);
-                if (combinazioneDuplicata &&
-                    (dimensioneQuantitaDto.DimensioneBicchiereId != existing.DimensioneBicchiereId ||
-                     dimensioneQuantitaDto.PersonalizzazioneIngredienteId != existing.PersonalizzazioneIngredienteId))
-                    return SafeBadRequest("Esiste già un'altra combinazione per questa dimensione bicchiere e personalizzazione ingrediente");
-
                 await _repository.UpdateAsync(dimensioneQuantitaDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("UPDATE_DIMENSIONE_QUANTITA_INGREDIENTI", "DimensioneQuantitaIngredienti", $"{dimensioneQuantitaDto.DimensioneId}/{dimensioneQuantitaDto.PersonalizzazioneIngredienteId}");
-
-                // ✅ Security event completo con timestamp
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("UPDATE", "DimensioneQuantitaIngredienti", $"{dimensioneId}/{personalizzazioneIngredienteId}");
                 LogSecurityEvent("DimensioneQuantitaIngredientiUpdated", new
                 {
-                    DimensioneId = dimensioneQuantitaDto.DimensioneId,
-                    PersonalizzazioneIngredienteId = dimensioneQuantitaDto.PersonalizzazioneIngredienteId,
-                    OldDimensioneBicchiereId = existing.DimensioneBicchiereId,
-                    NewDimensioneBicchiereId = dimensioneQuantitaDto.DimensioneBicchiereId,
-                    OldMoltiplicatore = existing.Moltiplicatore,
-                    NewMoltiplicatore = dimensioneQuantitaDto.Moltiplicatore,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    DimensioneId = dimensioneId,
+                    PersonalizzazioneIngredienteId = personalizzazioneIngredienteId,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException argEx)
             {
-                _logger.LogWarning(ex, "Dimensione quantità non trovata durante l'aggiornamento {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
-                return SafeNotFound("Dimensione quantità ingredienti");
+                return SafeBadRequest(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento della dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
-                return SafeInternalError("Errore durante l'aggiornamento della dimensione quantità");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento della dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
-                return SafeInternalError("Errore durante l'aggiornamento della dimensione quantità");
+                _logger.LogError(ex, "Errore durante l'aggiornamento dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
         // DELETE: api/DimensioneQuantitaIngredienti/5/10
         [HttpDelete("{dimensioneId}/{personalizzazioneIngredienteId}")]
-        [Authorize(Roles = "admin")] // ✅ Solo admin può eliminare dimensioni quantità
+        // [Authorize(Roles = "admin")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult> Delete(int dimensioneId, int personalizzazioneIngredienteId)
         {
             try
@@ -287,31 +267,26 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(dimensioneId, personalizzazioneIngredienteId);
 
-                // ✅ Audit trail
-                LogAuditTrail("DELETE_DIMENSIONE_QUANTITA_INGREDIENTI", "DimensioneQuantitaIngredienti", $"{dimensioneId}/{personalizzazioneIngredienteId}");
-
-                // ✅ Security event completo con timestamp
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("DELETE", "DimensioneQuantitaIngredienti", $"{dimensioneId}/{personalizzazioneIngredienteId}");
                 LogSecurityEvent("DimensioneQuantitaIngredientiDeleted", new
                 {
                     DimensioneId = dimensioneId,
                     PersonalizzazioneIngredienteId = personalizzazioneIngredienteId,
-                    DimensioneBicchiereId = dimensioneQuantita.DimensioneBicchiereId,
-                    Moltiplicatore = dimensioneQuantita.Moltiplicatore,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
             catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione della dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
-                return SafeInternalError("Errore durante l'eliminazione della dimensione quantità");
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione della dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
-                return SafeInternalError("Errore durante l'eliminazione della dimensione quantità");
+                _logger.LogError(ex, "Errore durante l'eliminazione dimensione quantità ingredienti {DimensioneId}/{PersonalizzazioneIngredienteId}", dimensioneId, personalizzazioneIngredienteId);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
         }
     }

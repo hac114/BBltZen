@@ -38,7 +38,7 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti i tavoli");
-                return SafeInternalError<IEnumerable<TavoloDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<TavoloDTO>>("Errore durante il recupero dei tavoli");
             }
         }
 
@@ -103,7 +103,7 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dei tavoli disponibili");
-                return SafeInternalError<IEnumerable<TavoloDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<TavoloDTO>>("Errore durante il recupero dei tavoli disponibili");
             }
         }
 
@@ -141,41 +141,34 @@ namespace BBltZen.Controllers
                 if (await _repository.NumeroExistsAsync(tavoloDto.Numero))
                     return SafeBadRequest<TavoloDTO>("Numero tavolo già esistente");
 
-                await _repository.AddAsync(tavoloDto);
+                // ✅ CORREZIONE: USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
+                var result = await _repository.AddAsync(tavoloDto);
 
-                // ✅ Recupera il tavolo creato per ottenere l'ID generato
-                var createdTavolo = await _repository.GetByNumeroAsync(tavoloDto.Numero);
-                if (createdTavolo == null)
-                    return SafeInternalError<TavoloDTO>("Errore durante il recupero del tavolo creato");
-
-                // ✅ Audit trail completo
-                LogAuditTrail("CREATE", "Tavolo", createdTavolo.TavoloId.ToString());
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("CREATE", "Tavolo", result.TavoloId.ToString());
                 LogSecurityEvent("TavoloCreated", new
                 {
-                    TavoloId = createdTavolo.TavoloId,
-                    Numero = createdTavolo.Numero,
-                    Zona = createdTavolo.Zona,
-                    Disponibile = createdTavolo.Disponibile,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
+                    result.TavoloId,
+                    result.Numero,
+                    result.Zona,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
-                return CreatedAtAction(nameof(GetById), new { id = createdTavolo.TavoloId }, createdTavolo);
+                return CreatedAtAction(nameof(GetById), new { id = result.TavoloId }, result);
+            }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest<TavoloDTO>(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Errore database durante la creazione del tavolo");
-                return SafeInternalError<TavoloDTO>("Errore durante il salvataggio dei dati");
-            }
-            catch (ArgumentException argEx)
-            {
-                _logger.LogWarning(argEx, "Argomento non valido durante la creazione del tavolo");
-                return SafeBadRequest<TavoloDTO>(argEx.Message);
+                return SafeInternalError<TavoloDTO>("Errore durante il salvataggio");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione del tavolo");
-                return SafeInternalError<TavoloDTO>(ex.Message);
+                return SafeInternalError<TavoloDTO>("Errore durante la creazione");
             }
         }
 
@@ -195,8 +188,8 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(tavoloDto))
                     return SafeBadRequest("Dati tavolo non validi");
 
-                var existing = await _repository.GetByIdAsync(id);
-                if (existing == null)
+                // ✅ VERIFICA ESISTENZA
+                if (!await _repository.ExistsAsync(id))
                     return SafeNotFound("Tavolo");
 
                 // Validazione numero univoco (escludendo l'ID corrente)
@@ -205,33 +198,30 @@ namespace BBltZen.Controllers
 
                 await _repository.UpdateAsync(tavoloDto);
 
-                // ✅ Audit trail completo
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
                 LogAuditTrail("UPDATE", "Tavolo", tavoloDto.TavoloId.ToString());
                 LogSecurityEvent("TavoloUpdated", new
                 {
-                    TavoloId = tavoloDto.TavoloId,
-                    Numero = tavoloDto.Numero,
-                    Zona = tavoloDto.Zona,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
+                    tavoloDto.TavoloId,
+                    tavoloDto.Numero,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest(argEx.Message);
+            }
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Errore database durante l'aggiornamento del tavolo {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dei dati");
-            }
-            catch (ArgumentException argEx)
-            {
-                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento del tavolo {Id}", id);
-                return SafeBadRequest(argEx.Message);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento del tavolo {Id}", id);
-                return SafeInternalError(ex.Message);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
@@ -251,14 +241,13 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(id);
 
-                // ✅ Audit trail completo
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
                 LogAuditTrail("DELETE", "Tavolo", id.ToString());
                 LogSecurityEvent("TavoloDeleted", new
                 {
                     TavoloId = id,
                     Numero = tavolo.Numero,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
@@ -266,12 +255,12 @@ namespace BBltZen.Controllers
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Errore database durante l'eliminazione del tavolo {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione dei dati");
+                return SafeInternalError("Errore durante l'eliminazione");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione del tavolo {Id}", id);
-                return SafeInternalError(ex.Message);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
         }
     }

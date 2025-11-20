@@ -38,7 +38,7 @@ namespace BBltZen.Controllers
                 var personalizzazioneIngredienti = await _personalizzazioneIngredienteRepository.GetAllAsync();
                 return Ok(personalizzazioneIngredienti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutte le associazioni personalizzazione-ingrediente");
                 return SafeInternalError("Errore durante il recupero delle associazioni");
@@ -62,7 +62,7 @@ namespace BBltZen.Controllers
 
                 return Ok(personalizzazioneIngrediente);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dell'associazione personalizzazione-ingrediente {Id}", id);
                 return SafeInternalError("Errore durante il recupero dell'associazione");
@@ -82,7 +82,7 @@ namespace BBltZen.Controllers
                 var personalizzazioneIngredienti = await _personalizzazioneIngredienteRepository.GetByPersonalizzazioneIdAsync(personalizzazioneId);
                 return Ok(personalizzazioneIngredienti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle associazioni per personalizzazione {PersonalizzazioneId}", personalizzazioneId);
                 return SafeInternalError("Errore durante il recupero delle associazioni");
@@ -102,7 +102,7 @@ namespace BBltZen.Controllers
                 var personalizzazioneIngredienti = await _personalizzazioneIngredienteRepository.GetByIngredienteIdAsync(ingredienteId);
                 return Ok(personalizzazioneIngredienti);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero delle associazioni per ingrediente {IngredienteId}", ingredienteId);
                 return SafeInternalError("Errore durante il recupero delle associazioni");
@@ -126,7 +126,7 @@ namespace BBltZen.Controllers
 
                 return Ok(personalizzazioneIngrediente);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dell'associazione per personalizzazione {PersonalizzazioneId} e ingrediente {IngredienteId}", personalizzazioneId, ingredienteId);
                 return SafeInternalError("Errore durante il recupero dell'associazione");
@@ -135,7 +135,7 @@ namespace BBltZen.Controllers
 
         // POST: api/PersonalizzazioneIngrediente
         [HttpPost]
-        //[Authorize(Roles = "admin")]
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
         public async Task<ActionResult<PersonalizzazioneIngredienteDTO>> Create([FromBody] PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
         {
             try
@@ -143,109 +143,117 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(personalizzazioneIngredienteDto))
                     return SafeBadRequest<PersonalizzazioneIngredienteDTO>("Dati associazione non validi");
 
-                // Verifica se l'associazione esiste già
-                var exists = await _personalizzazioneIngredienteRepository.ExistsByPersonalizzazioneAndIngredienteAsync(
-                    personalizzazioneIngredienteDto.PersonalizzazioneId,
-                    personalizzazioneIngredienteDto.IngredienteId);
+                // ✅ USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
+                var result = await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
 
-                if (exists)
-                    return SafeBadRequest<PersonalizzazioneIngredienteDTO>("Esiste già un'associazione per questa personalizzazione e ingrediente");
-
-                await _personalizzazioneIngredienteRepository.AddAsync(personalizzazioneIngredienteDto);
-
-                LogAuditTrail("CREATE_PERSONALIZZAZIONE_INGREDIENTE", "PersonalizzazioneIngrediente", personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId.ToString());
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("CREATE", "PersonalizzazioneIngrediente", result.PersonalizzazioneIngredienteId.ToString());
                 LogSecurityEvent("PersonalizzazioneIngredienteCreated", new
                 {
-                    PersonalizzazioneIngredienteId = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId,
-                    PersonalizzazioneId = personalizzazioneIngredienteDto.PersonalizzazioneId,
-                    IngredienteId = personalizzazioneIngredienteDto.IngredienteId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    result.PersonalizzazioneIngredienteId,
+                    result.PersonalizzazioneId,
+                    result.IngredienteId,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
-                return CreatedAtAction(nameof(GetById), new { id = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId }, personalizzazioneIngredienteDto);
+                return CreatedAtAction(nameof(GetById), new { id = result.PersonalizzazioneIngredienteId }, result);
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
             {
-                _logger.LogError(ex, "Errore durante la creazione dell'associazione personalizzazione-ingrediente");
-                return SafeInternalError("Errore durante la creazione dell'associazione");
+                return SafeBadRequest<PersonalizzazioneIngredienteDTO>(argEx.Message);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione associazione personalizzazione-ingrediente");
+                return SafeInternalError<PersonalizzazioneIngredienteDTO>("Errore durante il salvataggio");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la creazione associazione personalizzazione-ingrediente");
+                return SafeInternalError<PersonalizzazioneIngredienteDTO>("Errore durante la creazione");
             }
         }
 
         // PUT: api/PersonalizzazioneIngrediente/5
         [HttpPut("{id}")]
-        //[Authorize(Roles = "admin")]
-        public async Task<IActionResult> Update(int id, [FromBody] PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
+        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
+        public async Task<ActionResult> Update(int id, [FromBody] PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto)
         {
             try
             {
-                if (id <= 0)
+                if (id <= 0 || id != personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId)
                     return SafeBadRequest("ID associazione non valido");
-
-                if (id != personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId)
-                    return SafeBadRequest("ID nell'URL non corrisponde all'ID nel corpo della richiesta");
 
                 if (!IsModelValid(personalizzazioneIngredienteDto))
                     return SafeBadRequest("Dati associazione non validi");
 
-                var existingAssociazione = await _personalizzazioneIngredienteRepository.GetByIdAsync(id);
-                if (existingAssociazione == null)
+                // ✅ VERIFICA ESISTENZA
+                if (!await _personalizzazioneIngredienteRepository.ExistsAsync(id))
                     return SafeNotFound("Associazione personalizzazione-ingrediente");
 
                 await _personalizzazioneIngredienteRepository.UpdateAsync(personalizzazioneIngredienteDto);
 
-                LogAuditTrail("UPDATE_PERSONALIZZAZIONE_INGREDIENTE", "PersonalizzazioneIngrediente", personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId.ToString());
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("UPDATE", "PersonalizzazioneIngrediente", id.ToString());
                 LogSecurityEvent("PersonalizzazioneIngredienteUpdated", new
                 {
-                    PersonalizzazioneIngredienteId = personalizzazioneIngredienteDto.PersonalizzazioneIngredienteId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    PersonalizzazioneIngredienteId = id,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException argEx)
             {
-                _logger.LogWarning(ex, "Tentativo di aggiornamento di associazione inesistente {Id}", id);
-                return SafeNotFound("Associazione personalizzazione-ingrediente");
+                return SafeBadRequest(argEx.Message);
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento dell'associazione personalizzazione-ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dell'associazione");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento associazione personalizzazione-ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'aggiornamento associazione personalizzazione-ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
         // DELETE: api/PersonalizzazioneIngrediente/5
         [HttpDelete("{id}")]
-        //[Authorize(Roles = "admin")]
-        public async Task<IActionResult> Delete(int id)
+        // [Authorize(Roles = "admin")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
+        public async Task<ActionResult> Delete(int id)
         {
             try
             {
                 if (id <= 0)
                     return SafeBadRequest("ID associazione non valido");
 
-                var existingAssociazione = await _personalizzazioneIngredienteRepository.GetByIdAsync(id);
-                if (existingAssociazione == null)
+                var associazione = await _personalizzazioneIngredienteRepository.GetByIdAsync(id);
+                if (associazione == null)
                     return SafeNotFound("Associazione personalizzazione-ingrediente");
 
                 await _personalizzazioneIngredienteRepository.DeleteAsync(id);
 
-                LogAuditTrail("DELETE_PERSONALIZZAZIONE_INGREDIENTE", "PersonalizzazioneIngrediente", id.ToString());
+                // ✅ AUDIT & SECURITY
+                LogAuditTrail("DELETE", "PersonalizzazioneIngrediente", id.ToString());
                 LogSecurityEvent("PersonalizzazioneIngredienteDeleted", new
                 {
                     PersonalizzazioneIngredienteId = id,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione dell'associazione personalizzazione-ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione dell'associazione");
+                _logger.LogError(dbEx, "Errore database durante l'eliminazione associazione personalizzazione-ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante l'eliminazione associazione personalizzazione-ingrediente {Id}", id);
+                return SafeInternalError("Errore durante l'eliminazione");
             }
         }
 
@@ -262,7 +270,7 @@ namespace BBltZen.Controllers
                 var exists = await _personalizzazioneIngredienteRepository.ExistsAsync(id);
                 return Ok(exists);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la verifica esistenza associazione {Id}", id);
                 return SafeInternalError("Errore durante la verifica dell'esistenza");
@@ -282,7 +290,7 @@ namespace BBltZen.Controllers
                 var exists = await _personalizzazioneIngredienteRepository.ExistsByPersonalizzazioneAndIngredienteAsync(personalizzazioneId, ingredienteId);
                 return Ok(exists);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la verifica esistenza associazione per personalizzazione {PersonalizzazioneId} e ingrediente {IngredienteId}", personalizzazioneId, ingredienteId);
                 return SafeInternalError("Errore durante la verifica dell'esistenza");
@@ -302,7 +310,7 @@ namespace BBltZen.Controllers
                 var count = await _personalizzazioneIngredienteRepository.GetCountByPersonalizzazioneAsync(personalizzazioneId);
                 return Ok(count);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il conteggio delle associazioni per personalizzazione {PersonalizzazioneId}", personalizzazioneId);
                 return SafeInternalError("Errore durante il conteggio delle associazioni");

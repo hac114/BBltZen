@@ -213,7 +213,9 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.Prezzo)
                 .HasColumnType("decimal(4, 2)")
                 .HasColumnName("prezzo");
-            entity.Property(e => e.Priorita).HasColumnName("priorita");
+            entity.Property(e => e.Priorita)
+                .HasDefaultValue(1)
+                .HasColumnName("priorita");
             entity.Property(e => e.SempreDisponibile).HasColumnName("sempre_disponibile");
 
             entity.HasOne(d => d.Articolo).WithOne(p => p.BevandaStandard)
@@ -329,6 +331,8 @@ public partial class BubbleTeaContext : DbContext
 
             entity.ToTable("Dimensione_quantita_ingredienti");
 
+            entity.HasIndex(e => new { e.DimensioneBicchiereId, e.PersonalizzazioneIngredienteId }, "IX_DimensioneQuantitaIngredienti_CombinazioneUnica").IsUnique();
+
             entity.Property(e => e.DimensioneId).HasColumnName("dimensione_id");
             entity.Property(e => e.DimensioneBicchiereId).HasColumnName("dimensione_bicchiere_id");
             entity.Property(e => e.Moltiplicatore)
@@ -384,7 +388,9 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.Prezzo)
                 .HasColumnType("decimal(4, 2)")
                 .HasColumnName("prezzo");
-            entity.Property(e => e.Priorita).HasColumnName("priorita");
+            entity.Property(e => e.Priorita)
+                .HasDefaultValue(1)
+                .HasColumnName("priorita");
 
             entity.HasOne(d => d.Articolo).WithOne(p => p.Dolce)
                 .HasForeignKey<Dolce>(d => d.ArticoloId)
@@ -745,6 +751,7 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.GradoDolcezza).HasColumnName("grado_dolcezza");
             entity.Property(e => e.Nome)
                 .HasMaxLength(100)
+                .HasDefaultValue("Bevanda Custom")
                 .HasColumnName("nome");
 
             entity.HasOne(d => d.DimensioneBicchiere).WithMany(p => p.PersonalizzazioneCustom)
