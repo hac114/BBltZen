@@ -1,5 +1,4 @@
-﻿// BBltZen/Controllers/StatisticheCacheController.cs
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using DTO;
 using Repository.Interface;
 using System;
@@ -32,10 +31,10 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.GetAllAsync();
-                LogAuditTrail("GET_ALL_STATISTICHE_CACHE", "StatisticheCache", "All");
+                LogAuditTrail("GET_ALL", "StatisticheCache", "All");
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutte le cache statistiche");
                 return SafeInternalError<IEnumerable<StatisticheCacheDTO>>("Errore nel recupero dati statistiche");
@@ -59,7 +58,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("GET_STATISTICHE_CACHE_BY_ID", "StatisticheCache", id.ToString());
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero cache statistiche {Id}", id);
                 return SafeInternalError<StatisticheCacheDTO>("Errore nel recupero cache");
@@ -76,10 +75,10 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<IEnumerable<StatisticheCacheDTO>>("Tipo statistica non valido");
 
                 var result = await _repository.GetByTipoAsync(tipoStatistica);
-                LogAuditTrail("GET_STATISTICHE_CACHE_BY_TIPO", "StatisticheCache", tipoStatistica);
+                LogAuditTrail("GET_BY_TIPO", "StatisticheCache", tipoStatistica);
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero cache per tipo {TipoStatistica}", tipoStatistica);
                 return SafeInternalError<IEnumerable<StatisticheCacheDTO>>("Errore nel recupero cache per tipo");
@@ -103,7 +102,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("GET_STATISTICHE_CACHE_BY_TIPO_PERIODO", "StatisticheCache", $"{tipoStatistica}_{periodo}");
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero cache per tipo {TipoStatistica} e periodo {Periodo}", tipoStatistica, periodo);
                 return SafeInternalError<StatisticheCacheDTO>("Errore nel recupero cache specifica");
@@ -124,7 +123,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("AGGIORNA_CACHE_STATISTICHE", "StatisticheCache", $"{request.TipoStatistica}_{request.Periodo}");
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'aggiornamento cache per tipo {TipoStatistica} e periodo {Periodo}",
                     request.TipoStatistica, request.Periodo);
@@ -141,29 +140,35 @@ namespace BBltZen.Controllers
                 if (id <= 0)
                     return SafeBadRequest("ID cache statistiche non valido");
 
+                if (id != statisticheCacheDto.Id)
+                    return SafeBadRequest("Identificativi non corrispondenti");
+
                 if (!IsModelValid(statisticheCacheDto))
                     return SafeBadRequest("Dati cache statistiche non validi");
 
-                if (statisticheCacheDto.Id != id)
-                    return SafeBadRequest("Identificativi non corrispondenti");
-
-                var exists = await _repository.ExistsAsync(id);
-                if (!exists)
+                // ✅ VERIFICA ESISTENZA
+                if (!await _repository.ExistsAsync(id))
                     return SafeNotFound("Cache statistiche");
 
                 await _repository.UpdateAsync(statisticheCacheDto);
 
-                LogAuditTrail("UPDATE_STATISTICHE_CACHE", "StatisticheCache", id.ToString());
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("UPDATE", "StatisticheCache", id.ToString());
                 LogSecurityEvent("StatisticheCacheUpdated", new
                 {
                     CacheId = id,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
+                    statisticheCacheDto.TipoStatistica,
+                    statisticheCacheDto.Periodo,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'aggiornamento cache statistiche {Id}", id);
                 return SafeInternalError("Errore nell'aggiornamento cache");
@@ -179,23 +184,25 @@ namespace BBltZen.Controllers
                 if (id <= 0)
                     return SafeBadRequest("ID cache statistiche non valido");
 
-                var exists = await _repository.ExistsAsync(id);
-                if (!exists)
+                var cache = await _repository.GetByIdAsync(id);
+                if (cache == null)
                     return SafeNotFound("Cache statistiche");
 
                 await _repository.DeleteAsync(id);
 
-                LogAuditTrail("DELETE_STATISTICHE_CACHE", "StatisticheCache", id.ToString());
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("DELETE", "StatisticheCache", id.ToString());
                 LogSecurityEvent("StatisticheCacheDeleted", new
                 {
                     CacheId = id,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
+                    cache.TipoStatistica,
+                    cache.Periodo,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'eliminazione cache statistiche {Id}", id);
                 return SafeInternalError("Errore nell'eliminazione cache");
@@ -213,10 +220,18 @@ namespace BBltZen.Controllers
 
                 await _repository.AggiornaCacheAsync(request.TipoStatistica, request.Periodo, request.Metriche);
 
-                LogAuditTrail("AGGIORNA_CACHE_STATISTICHE", "StatisticheCache", $"{request.TipoStatistica}_{request.Periodo}");
+                // ✅ AUDIT OTTIMIZZATO
+                LogAuditTrail("AGGIORNA_CACHE", "StatisticheCache", $"{request.TipoStatistica}_{request.Periodo}");
+                LogSecurityEvent("StatisticheCacheAggiornata", new
+                {
+                    request.TipoStatistica,
+                    request.Periodo,
+                    UserId = GetCurrentUserIdOrDefault()
+                });
+
                 return NoContent();
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'aggiornamento cache per tipo {TipoStatistica} e periodo {Periodo}",
                     request.TipoStatistica, request.Periodo);
@@ -239,14 +254,49 @@ namespace BBltZen.Controllers
                 var validita = TimeSpan.FromHours(oreValidita);
                 var result = await _repository.IsCacheValidaAsync(tipoStatistica, periodo, validita);
 
-                LogAuditTrail("CHECK_CACHE_VALIDITY", "StatisticheCache", $"{tipoStatistica}_{periodo}_{oreValidita}h");
+                LogAuditTrail("CHECK_VALIDITY", "StatisticheCache", $"{tipoStatistica}_{periodo}");
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel controllo validità cache per tipo {TipoStatistica} e periodo {Periodo}",
                     tipoStatistica, periodo);
                 return SafeInternalError<bool>("Errore nel controllo validità cache");
+            }
+        }
+
+        [HttpPost("create")]
+        //[Authorize(Roles = "admin,manager")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<StatisticheCacheDTO>> Create([FromBody] StatisticheCacheDTO statisticheCacheDto)
+        {
+            try
+            {
+                if (!IsModelValid(statisticheCacheDto))
+                    return SafeBadRequest<StatisticheCacheDTO>("Dati cache statistiche non validi");
+
+                // ✅ CORREZIONE: USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
+                var result = await _repository.AddAsync(statisticheCacheDto);
+
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("CREATE", "StatisticheCache", result.Id.ToString());
+                LogSecurityEvent("StatisticheCacheCreated", new
+                {
+                    result.Id,
+                    result.TipoStatistica,
+                    result.Periodo,
+                    UserId = GetCurrentUserIdOrDefault()
+                });
+
+                return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+            }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest<StatisticheCacheDTO>(argEx.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante la creazione della cache statistiche");
+                return SafeInternalError<StatisticheCacheDTO>("Errore durante la creazione");
             }
         }
     }    

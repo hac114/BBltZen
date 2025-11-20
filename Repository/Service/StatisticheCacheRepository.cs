@@ -18,18 +18,25 @@ namespace Repository.Service
             _context = context;
         }
 
+        private StatisticheCacheDTO MapToDTO(StatisticheCache statisticheCache)
+        {
+            return new StatisticheCacheDTO
+            {
+                Id = statisticheCache.Id,
+                TipoStatistica = statisticheCache.TipoStatistica,
+                Periodo = statisticheCache.Periodo,
+                Metriche = statisticheCache.Metriche,
+                DataAggiornamento = statisticheCache.DataAggiornamento
+            };
+        }
+
         public async Task<IEnumerable<StatisticheCacheDTO>> GetAllAsync()
         {
             return await _context.StatisticheCache
                 .AsNoTracking()
-                .Select(s => new StatisticheCacheDTO
-                {
-                    Id = s.Id,
-                    TipoStatistica = s.TipoStatistica,
-                    Periodo = s.Periodo,
-                    Metriche = s.Metriche,
-                    DataAggiornamento = s.DataAggiornamento
-                })
+                .OrderByDescending(s => s.DataAggiornamento)
+                .ThenBy(s => s.TipoStatistica)
+                .Select(s => MapToDTO(s))
                 .ToListAsync();
         }
 
@@ -39,16 +46,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.Id == id);
 
-            if (statisticheCache == null) return null;
-
-            return new StatisticheCacheDTO
-            {
-                Id = statisticheCache.Id,
-                TipoStatistica = statisticheCache.TipoStatistica,
-                Periodo = statisticheCache.Periodo,
-                Metriche = statisticheCache.Metriche,
-                DataAggiornamento = statisticheCache.DataAggiornamento
-            };
+            return statisticheCache == null ? null : MapToDTO(statisticheCache);
         }
 
         public async Task<StatisticheCacheDTO?> GetByTipoAndPeriodoAsync(string tipoStatistica, string periodo)
@@ -57,16 +55,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.TipoStatistica == tipoStatistica && s.Periodo == periodo);
 
-            if (statisticheCache == null) return null;
-
-            return new StatisticheCacheDTO
-            {
-                Id = statisticheCache.Id,
-                TipoStatistica = statisticheCache.TipoStatistica,
-                Periodo = statisticheCache.Periodo,
-                Metriche = statisticheCache.Metriche,
-                DataAggiornamento = statisticheCache.DataAggiornamento
-            };
+            return statisticheCache == null ? null : MapToDTO(statisticheCache);
         }
 
         public async Task<IEnumerable<StatisticheCacheDTO>> GetByTipoAsync(string tipoStatistica)
@@ -74,32 +63,40 @@ namespace Repository.Service
             return await _context.StatisticheCache
                 .AsNoTracking()
                 .Where(s => s.TipoStatistica == tipoStatistica)
-                .Select(s => new StatisticheCacheDTO
-                {
-                    Id = s.Id,
-                    TipoStatistica = s.TipoStatistica,
-                    Periodo = s.Periodo,
-                    Metriche = s.Metriche,
-                    DataAggiornamento = s.DataAggiornamento
-                })
+                .OrderByDescending(s => s.DataAggiornamento)
+                .ThenBy(s => s.Periodo)
+                .Select(s => MapToDTO(s))
                 .ToListAsync();
         }
 
-        public async Task AddAsync(StatisticheCacheDTO statisticheCacheDto)
+        public async Task<StatisticheCacheDTO> AddAsync(StatisticheCacheDTO statisticheCacheDto)
         {
+            if (statisticheCacheDto == null)
+                throw new ArgumentNullException(nameof(statisticheCacheDto));
+
+            // ✅ VERIFICA UNICITÀ COMBINAZIONE
+            var cacheEsistente = await GetByTipoAndPeriodoAsync(statisticheCacheDto.TipoStatistica, statisticheCacheDto.Periodo);
+            if (cacheEsistente != null)
+            {
+                throw new ArgumentException($"Esiste già una cache per questa combinazione tipo/periodo");
+            }
+
             var statisticheCache = new StatisticheCache
             {
+                // ✅ NON impostare Id - sarà generato automaticamente
                 TipoStatistica = statisticheCacheDto.TipoStatistica,
                 Periodo = statisticheCacheDto.Periodo,
                 Metriche = statisticheCacheDto.Metriche,
-                DataAggiornamento = DateTime.Now
+                DataAggiornamento = DateTime.UtcNow // ✅ UTC per consistenza
             };
 
             _context.StatisticheCache.Add(statisticheCache);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON ID GENERATO E RITORNALO
             statisticheCacheDto.Id = statisticheCache.Id;
             statisticheCacheDto.DataAggiornamento = statisticheCache.DataAggiornamento;
+            return statisticheCacheDto;
         }
 
         public async Task UpdateAsync(StatisticheCacheDTO statisticheCacheDto)
@@ -108,15 +105,27 @@ namespace Repository.Service
                 .FirstOrDefaultAsync(s => s.Id == statisticheCacheDto.Id);
 
             if (statisticheCache == null)
-                throw new ArgumentException($"Statistiche cache con ID {statisticheCacheDto.Id} non trovato");
+                return; // ✅ SILENT FAIL
+
+            // ✅ VERIFICA UNICITÀ COMBINAZIONE (escludendo il record corrente)
+            var cacheDuplicata = await _context.StatisticheCache
+                .AnyAsync(s => s.TipoStatistica == statisticheCacheDto.TipoStatistica &&
+                             s.Periodo == statisticheCacheDto.Periodo &&
+                             s.Id != statisticheCacheDto.Id);
+
+            if (cacheDuplicata)
+            {
+                throw new ArgumentException($"Esiste già un'altra cache per questa combinazione tipo/periodo");
+            }
 
             statisticheCache.TipoStatistica = statisticheCacheDto.TipoStatistica;
             statisticheCache.Periodo = statisticheCacheDto.Periodo;
             statisticheCache.Metriche = statisticheCacheDto.Metriche;
-            statisticheCache.DataAggiornamento = DateTime.Now;
+            statisticheCache.DataAggiornamento = DateTime.UtcNow; // ✅ UTC
 
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DATA NEL DTO
             statisticheCacheDto.DataAggiornamento = statisticheCache.DataAggiornamento;
         }
 
@@ -130,6 +139,7 @@ namespace Repository.Service
                 _context.StatisticheCache.Remove(statisticheCache);
                 await _context.SaveChangesAsync();
             }
+            // ✅ SILENT FAIL - Nessuna eccezione se non trovato
         }
 
         public async Task<bool> ExistsAsync(int id)
@@ -147,7 +157,7 @@ namespace Repository.Service
             {
                 // Aggiorna cache esistente
                 cacheEsistente.Metriche = metriche;
-                cacheEsistente.DataAggiornamento = DateTime.Now;
+                cacheEsistente.DataAggiornamento = DateTime.UtcNow; // ✅ UTC
             }
             else
             {
@@ -157,7 +167,7 @@ namespace Repository.Service
                     TipoStatistica = tipoStatistica,
                     Periodo = periodo,
                     Metriche = metriche,
-                    DataAggiornamento = DateTime.Now
+                    DataAggiornamento = DateTime.UtcNow // ✅ UTC
                 };
                 _context.StatisticheCache.Add(nuovaCache);
             }
@@ -173,8 +183,8 @@ namespace Repository.Service
 
             if (cache == null)
                 return false;
-                        
-            var tempoTrascorso = DateTime.Now - cache.DataAggiornamento; //rigo 177 corretto
+
+            var tempoTrascorso = DateTime.UtcNow - cache.DataAggiornamento; // ✅ UTC
             return tempoTrascorso <= validita;
         }
     }

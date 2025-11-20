@@ -8,39 +8,43 @@ namespace DTO
     {
         public int StatisticheCacheId { get; set; }
 
-        [StringLength(50)]
+        [Required(ErrorMessage = "Il tipo statistica è obbligatorio")]
+        [StringLength(50, ErrorMessage = "Il tipo statistica non può superare 50 caratteri")]
         public string TipoStatistica { get; set; } = string.Empty;
 
-        [StringLength(4000)]
+        [Required(ErrorMessage = "I dati cache sono obbligatori")]
+        [StringLength(4000, ErrorMessage = "I dati cache non possono superare 4000 caratteri")]
         public string DatiCache { get; set; } = string.Empty;
 
         public DateTime DataAggiornamento { get; set; }
         public DateTime ScadenzaCache { get; set; }
 
-        [Range(0, long.MaxValue)]
+        [Range(0, long.MaxValue, ErrorMessage = "La dimensione deve essere positiva")]
         public int DimensioneBytes { get; set; }
 
-        [Range(0, int.MaxValue)]
+        [Range(0, int.MaxValue, ErrorMessage = "Gli hits devono essere positivi")]
         public int Hits { get; set; }
 
-        [Range(0, int.MaxValue)]
+        [Range(0, int.MaxValue, ErrorMessage = "I misses devono essere positivi")]
         public int Misses { get; set; }
 
-        [Range(0, 100)]
+        [Range(0, 100, ErrorMessage = "L'hit rate deve essere tra 0 e 100")]
         public decimal HitRate { get; set; }
     }
 
     public class CacheConfigDTO
     {
-        [StringLength(200)]
+        [Required(ErrorMessage = "La chiave è obbligatoria")]
+        [StringLength(200, ErrorMessage = "La chiave non può superare 200 caratteri")]
         public string Chiave { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = "La durata è obbligatoria")]
         public TimeSpan Durata { get; set; }
 
-        [Range(1, 10)]
+        [Range(1, 10, ErrorMessage = "La priorità deve essere tra 1 e 10")]
         public int Priorita { get; set; } = 1;
 
-        [Range(1024, long.MaxValue)]
+        [Range(1024, long.MaxValue, ErrorMessage = "La dimensione massima deve essere almeno 1KB")]
         public long DimensioneMassimaBytes { get; set; } = 1024 * 1024;
     }
 

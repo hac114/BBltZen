@@ -41,7 +41,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_GET", "SistemaCache", chiave);
                 return Ok(valore);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero cache per chiave: {Chiave}", chiave);
                 return SafeInternalError<object>("Errore nel recupero cache");
@@ -76,7 +76,7 @@ namespace BBltZen.Controllers
                 else
                     return SafeBadRequest(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'impostazione cache per chiave: {Chiave}", chiave);
                 return SafeInternalError<CacheOperationResultDTO>("Errore nell'impostazione cache");
@@ -107,7 +107,7 @@ namespace BBltZen.Controllers
                 else
                     return SafeBadRequest(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella rimozione cache per chiave: {Chiave}", chiave);
                 return SafeInternalError<CacheOperationResultDTO>("Errore nella rimozione cache");
@@ -127,7 +127,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_EXISTS", "SistemaCache", chiave);
                 return Ok(exists);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel verificare esistenza cache per chiave: {Chiave}", chiave);
                 return SafeInternalError<bool>("Errore nel controllo esistenza cache");
@@ -147,7 +147,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_BULK_GET", "SistemaCache", $"Chiavi: {chiavi.Count}");
                 return Ok(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'operazione bulk get");
                 return SafeInternalError<CacheBulkResultDTO>("Errore nell'operazione bulk get");
@@ -166,20 +166,21 @@ namespace BBltZen.Controllers
                 if (request.Valori == null || request.Valori.Count == 0)
                     return SafeBadRequest<CacheBulkResultDTO>("Dati valori non validi");
 
-                var risultato = await _cacheRepository.SetBulkAsync(request.Valori, request.Durata);
+                // ✅ CORREZIONE: Specifica il tipo object per il dizionario
+                var risultato = await _cacheRepository.SetBulkAsync<object>(request.Valori, request.Durata);
 
                 LogAuditTrail("CACHE_BULK_SET", "SistemaCache", $"Chiavi: {request.Valori.Count}");
                 LogSecurityEvent("CacheBulkSet", new
                 {
                     NumeroChiavi = request.Valori.Count,
                     Durata = request.Durata?.ToString() ?? "default",
-                    User = User.Identity?.Name ?? "Anonymous",
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
                 return Ok(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'operazione bulk set");
                 return SafeInternalError<CacheBulkResultDTO>("Errore nell'operazione bulk set");
@@ -207,7 +208,7 @@ namespace BBltZen.Controllers
 
                 return Ok(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'operazione bulk remove");
                 return SafeInternalError<CacheBulkResultDTO>("Errore nell'operazione bulk remove");
@@ -224,7 +225,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_INFO", "SistemaCache", $"HitRate: {info.HitRatePercentuale}%");
                 return Ok(info);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero informazioni cache");
                 return SafeInternalError<CacheInfoDTO>("Errore nel recupero informazioni cache");
@@ -242,15 +243,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_CLEANUP", "SistemaCache", $"Rimossi: {risultato.EntryRimosse}");
                 LogSecurityEvent("CacheCleanup", new
                 {
-                    EntryRimosse = risultato.EntryRimosse,
-                    BytesLiberati = risultato.BytesLiberati,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    risultato.EntryRimosse,           
+                    risultato.BytesLiberati,
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
                 return Ok(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella pulizia cache");
                 return SafeInternalError<CacheCleanupDTO>("Errore nella pulizia cache");
@@ -270,7 +271,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_REFRESH", "SistemaCache", chiave);
                 return Ok(successo);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel refresh cache per chiave: {Chiave}", chiave);
                 return SafeInternalError<bool>("Errore nel refresh cache");
@@ -288,24 +289,20 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_PRELOAD_MENU", "SistemaCache", risultato.Successo.ToString());
                 LogSecurityEvent("MenuCached", new
                 {
-                    Successo = risultato.Successo,
-                    Messaggio = risultato.Messaggio,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    risultato.Successo,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    risultato.Messaggio,          // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
-                if (risultato.Successo)
-                    return Ok(risultato);
-                else
-                    return SafeBadRequest(risultato);
+                return risultato.Successo ? Ok(risultato) : SafeBadRequest(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel precaricamento menu in cache");
                 return SafeInternalError<CacheOperationResultDTO>("Errore nel precaricamento menu");
             }
         }
-
         [HttpPost("preload/statistiche")]
         //[Authorize(Roles = "admin,system")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<CacheOperationResultDTO>> PreloadStatistiche()
@@ -317,18 +314,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_PRELOAD_STATISTICHE", "SistemaCache", risultato.Successo.ToString());
                 LogSecurityEvent("StatisticheCached", new
                 {
-                    Successo = risultato.Successo,
-                    Messaggio = risultato.Messaggio,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    risultato.Successo,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    risultato.Messaggio,          // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
-                if (risultato.Successo)
-                    return Ok(risultato);
-                else
-                    return SafeBadRequest(risultato);
+                return risultato.Successo ? Ok(risultato) : SafeBadRequest(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel precaricamento statistiche in cache");
                 return SafeInternalError<CacheOperationResultDTO>("Errore nel precaricamento statistiche");
@@ -346,18 +340,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_PRELOAD_PREZZI", "SistemaCache", risultato.Successo.ToString());
                 LogSecurityEvent("PrezziCached", new
                 {
-                    Successo = risultato.Successo,
-                    Messaggio = risultato.Messaggio,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    risultato.Successo,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    risultato.Messaggio,          // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
-                if (risultato.Successo)
-                    return Ok(risultato);
-                else
-                    return SafeBadRequest(risultato);
+                return risultato.Successo ? Ok(risultato) : SafeBadRequest(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel precaricamento prezzi in cache");
                 return SafeInternalError<CacheOperationResultDTO>("Errore nel precaricamento prezzi");
@@ -375,18 +366,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_PRELOAD_CONFIG", "SistemaCache", risultato.Successo.ToString());
                 LogSecurityEvent("ConfigCached", new
                 {
-                    Successo = risultato.Successo,
-                    Messaggio = risultato.Messaggio,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    risultato.Successo,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    risultato.Messaggio,          // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
-                if (risultato.Successo)
-                    return Ok(risultato);
-                else
-                    return SafeBadRequest(risultato);
+                return risultato.Successo ? Ok(risultato) : SafeBadRequest(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel precaricamento configurazioni in cache");
                 return SafeInternalError<CacheOperationResultDTO>("Errore nel precaricamento configurazioni");
@@ -404,18 +392,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_PRELOAD_ALL", "SistemaCache", risultato.Successo.ToString());
                 LogSecurityEvent("AllDataCached", new
                 {
-                    Successo = risultato.Successo,
-                    Messaggio = risultato.Messaggio,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    risultato.Successo,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    risultato.Messaggio,          // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
-                if (risultato.Successo)
-                    return Ok(risultato);
-                else
-                    return SafeBadRequest(risultato);
+                return risultato.Successo ? Ok(risultato) : SafeBadRequest(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel precaricamento dati comuni in cache");
                 return SafeInternalError<CacheOperationResultDTO>("Errore nel precaricamento dati comuni");
@@ -432,7 +417,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_PERFORMANCE", "SistemaCache", $"HitRate: {stats.HitRate}%");
                 return Ok(stats);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero statistiche performance cache");
                 return SafeInternalError<CachePerformanceDTO>("Errore nel recupero statistiche performance");
@@ -449,7 +434,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_STATISTICS", "SistemaCache", $"Count: {statistiche.Count}");
                 return Ok(statistiche);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero statistiche cache");
                 return SafeInternalError<List<CacheStatisticheDTO>>("Errore nel recupero statistiche cache");
@@ -473,7 +458,7 @@ namespace BBltZen.Controllers
 
                 return Ok("Operazione completata");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel reset statistiche cache");
                 return SafeInternalError("Errore nel reset statistiche");
@@ -491,15 +476,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_COMPACT", "SistemaCache", risultato.Successo.ToString());
                 LogSecurityEvent("CacheCompacted", new
                 {
-                    Successo = risultato.Successo,
-                    Messaggio = risultato.Messaggio,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    risultato.Successo,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    risultato.Messaggio,          // ✅ NOME MEMBRO SEMPLIFICATO
+                    User = GetCurrentUserIdOrDefault(),
                     Timestamp = DateTime.UtcNow
                 });
 
                 return Ok(risultato);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella compattazione cache");
                 return SafeInternalError<CacheOperationResultDTO>("Errore nella compattazione cache");
@@ -523,7 +508,7 @@ namespace BBltZen.Controllers
 
                 return Ok("Operazione completata");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella pulizia completa cache");
                 return SafeInternalError("Errore nella pulizia cache");
@@ -543,7 +528,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CACHE_VALIDATE", "SistemaCache", $"{tipoCache}: {isValid}");
                 return Ok(isValid);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella validazione cache per tipo: {TipoCache}", tipoCache);
                 return SafeInternalError<bool>("Errore nella validazione cache");
@@ -562,28 +547,103 @@ namespace BBltZen.Controllers
                 var health = new
                 {
                     Status = "Healthy",
-                    Timestamp = DateTime.Now,
+                    Timestamp = DateTime.UtcNow,
                     Performance = new
                     {
-                        HitRate = $"{performance.HitRate}%",
-                        TotalHits = info.HitsTotali,
-                        TotalMisses = info.MissesTotali
+                        performance.HitRate,           // ✅ NOME MEMBRO SEMPLIFICATO
+                        info.HitsTotali,               // ✅ NOME MEMBRO SEMPLIFICATO
+                        info.MissesTotali              // ✅ NOME MEMBRO SEMPLIFICATO
                     },
                     Memory = new
                     {
-                        ActiveEntries = info.TotaleEntry,
-                        LastCleanup = info.UltimaPulizia
+                        ActiveEntries = info.TotaleEntry >= 0 ? info.TotaleEntry.ToString() : "N/A",
+                        LastCleanup = info.UltimaPulizia.ToString("yyyy-MM-dd HH:mm:ss")
                     }
                 };
 
-                LogAuditTrail("CACHE_HEALTH_CHECK", "SistemaCache", "OK");
+                LogAuditTrail("CACHE_HEALTH_CHECK", "SistemaCache", $"HitRate: {performance.HitRate}%");
                 return Ok(health);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel health check cache");
                 LogAuditTrail("CACHE_HEALTH_CHECK_FAILED", "SistemaCache", ex.Message);
-                return SafeInternalError("Health check fallito");
+
+                return Ok(new
+                {
+                    Status = "Unhealthy",
+                    Error = _environment.IsDevelopment() ? ex.Message : "Service unavailable",
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+        }
+
+        [HttpPut("expiration/{chiave}")]
+        //[Authorize(Roles = "admin,system")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<CacheOperationResultDTO>> UpdateExpiration(string chiave, [FromBody] TimeSpan durata)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(chiave))
+                    return SafeBadRequest<CacheOperationResultDTO>("Chiave cache non valida");
+
+                if (durata <= TimeSpan.Zero)
+                    return SafeBadRequest<CacheOperationResultDTO>("Durata non valida");
+
+                var risultato = await _cacheRepository.UpdateExpirationAsync(chiave, durata);
+
+                LogAuditTrail("CACHE_UPDATE_EXPIRATION", "SistemaCache", $"{chiave} -> {durata}");
+                LogSecurityEvent("CacheExpirationUpdated", new
+                {
+                    Chiave = chiave,
+                    NuovaDurata = durata.ToString(),
+                    User = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
+                });
+
+                if (risultato.Successo)
+                    return Ok(risultato);
+                else
+                    return SafeBadRequest(risultato);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nell'aggiornamento scadenza cache per chiave: {Chiave}", chiave);
+                return SafeInternalError<CacheOperationResultDTO>("Errore nell'aggiornamento scadenza cache");
+            }
+        }
+
+        [HttpPost("getorset/{chiave}")]
+        //[Authorize(Roles = "admin,system")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<object>> GetOrSet(string chiave, [FromBody] CacheSetRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(chiave))
+                    return SafeBadRequest<object>("Chiave cache non valida");
+
+                if (!IsModelValid(request))
+                    return SafeBadRequest<object>("Dati richiesta non validi");
+
+                // ✅ PATTERN GET OR SET - fondamentale per performance
+                var valore = await _cacheRepository.GetOrSetAsync(chiave, () =>
+                    Task.FromResult(request.Valore), request.Durata);
+
+                LogAuditTrail("CACHE_GET_OR_SET", "SistemaCache", chiave);
+                LogSecurityEvent("CacheGetOrSet", new
+                {
+                    Chiave = chiave,
+                    Durata = request.Durata?.ToString() ?? "default",
+                    User = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
+                });
+
+                return Ok(valore);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel pattern get-or-set per chiave: {Chiave}", chiave);
+                return SafeInternalError<object>("Errore nel pattern get-or-set cache");
             }
         }
     }

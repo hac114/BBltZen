@@ -18,17 +18,24 @@ namespace Repository.Service
             _context = context;
         }
 
+        private IngredientiPersonalizzazioneDTO MapToDTO(IngredientiPersonalizzazione ingredientePers)
+        {
+            return new IngredientiPersonalizzazioneDTO
+            {
+                IngredientePersId = ingredientePers.IngredientePersId,
+                PersCustomId = ingredientePers.PersCustomId,
+                IngredienteId = ingredientePers.IngredienteId,
+                DataCreazione = ingredientePers.DataCreazione
+            };
+        }
+
         public async Task<IEnumerable<IngredientiPersonalizzazioneDTO>> GetAllAsync()
         {
             return await _context.IngredientiPersonalizzazione
                 .AsNoTracking()
-                .Select(ip => new IngredientiPersonalizzazioneDTO
-                {
-                    IngredientePersId = ip.IngredientePersId,
-                    PersCustomId = ip.PersCustomId,
-                    IngredienteId = ip.IngredienteId,
-                    DataCreazione = ip.DataCreazione
-                })
+                .OrderByDescending(ip => ip.DataCreazione)
+                .ThenBy(ip => ip.IngredientePersId)
+                .Select(ip => MapToDTO(ip))
                 .ToListAsync();
         }
 
@@ -38,15 +45,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(ip => ip.IngredientePersId == ingredientePersId);
 
-            if (ingredientePers == null) return null;
-
-            return new IngredientiPersonalizzazioneDTO
-            {
-                IngredientePersId = ingredientePers.IngredientePersId,
-                PersCustomId = ingredientePers.PersCustomId,
-                IngredienteId = ingredientePers.IngredienteId,
-                DataCreazione = ingredientePers.DataCreazione
-            };
+            return ingredientePers == null ? null : MapToDTO(ingredientePers);
         }
 
         public async Task<IEnumerable<IngredientiPersonalizzazioneDTO>> GetByPersCustomIdAsync(int persCustomId)
@@ -54,13 +53,8 @@ namespace Repository.Service
             return await _context.IngredientiPersonalizzazione
                 .AsNoTracking()
                 .Where(ip => ip.PersCustomId == persCustomId)
-                .Select(ip => new IngredientiPersonalizzazioneDTO
-                {
-                    IngredientePersId = ip.IngredientePersId,
-                    PersCustomId = ip.PersCustomId,
-                    IngredienteId = ip.IngredienteId,
-                    DataCreazione = ip.DataCreazione
-                })
+                .OrderByDescending(ip => ip.DataCreazione)
+                .Select(ip => MapToDTO(ip))
                 .ToListAsync();
         }
 
@@ -69,13 +63,8 @@ namespace Repository.Service
             return await _context.IngredientiPersonalizzazione
                 .AsNoTracking()
                 .Where(ip => ip.IngredienteId == ingredienteId)
-                .Select(ip => new IngredientiPersonalizzazioneDTO
-                {
-                    IngredientePersId = ip.IngredientePersId,
-                    PersCustomId = ip.PersCustomId,
-                    IngredienteId = ip.IngredienteId,
-                    DataCreazione = ip.DataCreazione
-                })
+                .OrderByDescending(ip => ip.DataCreazione)
+                .Select(ip => MapToDTO(ip))
                 .ToListAsync();
         }
 
@@ -85,32 +74,37 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(ip => ip.PersCustomId == persCustomId && ip.IngredienteId == ingredienteId);
 
-            if (ingredientePers == null) return null;
-
-            return new IngredientiPersonalizzazioneDTO
-            {
-                IngredientePersId = ingredientePers.IngredientePersId,
-                PersCustomId = ingredientePers.PersCustomId,
-                IngredienteId = ingredientePers.IngredienteId,
-                DataCreazione = ingredientePers.DataCreazione
-            };
+            return ingredientePers == null ? null : MapToDTO(ingredientePers);
         }
 
-        public async Task AddAsync(IngredientiPersonalizzazioneDTO ingredientiPersDto)
+        public async Task<IngredientiPersonalizzazioneDTO> AddAsync(IngredientiPersonalizzazioneDTO ingredientiPersDto)
         {
+            if (ingredientiPersDto == null)
+                throw new ArgumentNullException(nameof(ingredientiPersDto));
+
+            // ✅ VERIFICA UNICITÀ COMBINAZIONE
+            if (await ExistsByCombinazioneAsync(ingredientiPersDto.PersCustomId, ingredientiPersDto.IngredienteId))
+            {
+                throw new ArgumentException($"Esiste già questa combinazione di personalizzazione e ingrediente");
+            }
+
             var ingredientePers = new IngredientiPersonalizzazione
             {
-                IngredientePersId = ingredientiPersDto.IngredientePersId,
+                // ✅ NON impostare IngredientePersId - sarà generato automaticamente
                 PersCustomId = ingredientiPersDto.PersCustomId,
                 IngredienteId = ingredientiPersDto.IngredienteId,
-                DataCreazione = DateTime.Now
+                DataCreazione = DateTime.UtcNow // ✅ UTC per consistenza
             };
 
             _context.IngredientiPersonalizzazione.Add(ingredientePers);
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON ID GENERATO E RITORNALO
+            ingredientiPersDto.IngredientePersId = ingredientePers.IngredientePersId;
             ingredientiPersDto.DataCreazione = ingredientePers.DataCreazione;
+            return ingredientiPersDto;
         }
+
 
         public async Task UpdateAsync(IngredientiPersonalizzazioneDTO ingredientiPersDto)
         {
@@ -118,7 +112,18 @@ namespace Repository.Service
                 .FirstOrDefaultAsync(ip => ip.IngredientePersId == ingredientiPersDto.IngredientePersId);
 
             if (ingredientePers == null)
-                throw new ArgumentException($"IngredientiPersonalizzazione con IngredientePersId {ingredientiPersDto.IngredientePersId} non trovata");
+                return; // ✅ SILENT FAIL
+
+            // ✅ VERIFICA UNICITÀ COMBINAZIONE (escludendo il record corrente)
+            var existingCombinazione = await _context.IngredientiPersonalizzazione
+                .AnyAsync(ip => ip.PersCustomId == ingredientiPersDto.PersCustomId &&
+                              ip.IngredienteId == ingredientiPersDto.IngredienteId &&
+                              ip.IngredientePersId != ingredientiPersDto.IngredientePersId);
+
+            if (existingCombinazione)
+            {
+                throw new ArgumentException($"Esiste già un'altra combinazione per questa personalizzazione e ingrediente");
+            }
 
             ingredientePers.PersCustomId = ingredientiPersDto.PersCustomId;
             ingredientePers.IngredienteId = ingredientiPersDto.IngredienteId;
@@ -136,6 +141,7 @@ namespace Repository.Service
                 _context.IngredientiPersonalizzazione.Remove(ingredientePers);
                 await _context.SaveChangesAsync();
             }
+            // ✅ SILENT FAIL - Nessuna eccezione se non trovato
         }
 
         public async Task<bool> ExistsAsync(int ingredientePersId)

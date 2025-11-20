@@ -40,7 +40,7 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetAllAsync();
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero di tutti gli ingredienti personalizzazione");
                 return SafeInternalError<IEnumerable<IngredientiPersonalizzazioneDTO>>("Errore durante il recupero degli ingredienti personalizzazione");
@@ -93,7 +93,7 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetByPersCustomIdAsync(persCustomId);
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero degli ingredienti per personalizzazione custom {PersCustomId}", persCustomId);
                 return SafeInternalError<IEnumerable<IngredientiPersonalizzazioneDTO>>("Errore durante il recupero degli ingredienti per personalizzazione custom");
@@ -179,42 +179,38 @@ namespace BBltZen.Controllers
                 if (!ingredienteEsiste)
                     return SafeBadRequest<IngredientiPersonalizzazioneDTO>("Ingrediente non trovato");
 
-                // ✅ Verifica se esiste già un record con lo stesso ID
-                if (await _repository.ExistsAsync(ingredientiPersDto.IngredientePersId))
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("Esiste già un ingrediente personalizzazione con questo ID");
-
                 // ✅ Verifica se esiste già la stessa combinazione
                 if (await _repository.ExistsByCombinazioneAsync(ingredientiPersDto.PersCustomId, ingredientiPersDto.IngredienteId))
                     return SafeBadRequest<IngredientiPersonalizzazioneDTO>("Esiste già un ingrediente personalizzazione con la stessa combinazione");
 
-                await _repository.AddAsync(ingredientiPersDto);
+                // ✅ CORREZIONE: USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
+                var result = await _repository.AddAsync(ingredientiPersDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("CREATE_INGREDIENTE_PERSONALIZZAZIONE", "IngredientiPersonalizzazione", ingredientiPersDto.IngredientePersId.ToString());
-
-                // ✅ Security event completo con timestamp
-                LogSecurityEvent("IngredientePersonalizzazioneCreated", new
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("CREATE", "IngredientiPersonalizzazione", result.IngredientePersId.ToString());
+                LogSecurityEvent("IngredientiPersonalizzazioneCreated", new
                 {
-                    IngredientePersId = ingredientiPersDto.IngredientePersId,
-                    PersCustomId = ingredientiPersDto.PersCustomId,
-                    IngredienteId = ingredientiPersDto.IngredienteId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    result.IngredientePersId,
+                    result.PersCustomId,
+                    result.IngredienteId,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
-                return CreatedAtAction(nameof(GetById),
-                    new { ingredientePersId = ingredientiPersDto.IngredientePersId },
-                    ingredientiPersDto);
+                return CreatedAtAction(nameof(GetById), new { ingredientePersId = result.IngredientePersId }, result);
+            }
+            catch (ArgumentException argEx)
+            {
+                return SafeBadRequest<IngredientiPersonalizzazioneDTO>(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Errore database durante la creazione dell'ingrediente personalizzazione");
-                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante il salvataggio dell'ingrediente personalizzazione");
+                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante il salvataggio");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dell'ingrediente personalizzazione");
-                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante la creazione dell'ingrediente personalizzazione");
+                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante la creazione");
             }
         }
 
@@ -237,8 +233,8 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(ingredientiPersDto))
                     return SafeBadRequest("Dati ingrediente personalizzazione non validi");
 
-                var existing = await _repository.GetByIdAsync(ingredientePersId);
-                if (existing == null)
+                // ✅ VERIFICA ESISTENZA
+                if (!await _repository.ExistsAsync(ingredientePersId))
                     return SafeNotFound("Ingrediente personalizzazione");
 
                 // ✅ Verifica se la personalizzazione custom esiste
@@ -251,46 +247,33 @@ namespace BBltZen.Controllers
                 if (!ingredienteEsiste)
                     return SafeBadRequest("Ingrediente non trovato");
 
-                // ✅ Verifica se esiste già un'altra combinazione
-                var combinazioneDuplicata = await _repository.ExistsByCombinazioneAsync(ingredientiPersDto.PersCustomId, ingredientiPersDto.IngredienteId);
-                if (combinazioneDuplicata &&
-                    (ingredientiPersDto.PersCustomId != existing.PersCustomId ||
-                     ingredientiPersDto.IngredienteId != existing.IngredienteId))
-                    return SafeBadRequest("Esiste già un'altra combinazione per questa personalizzazione custom e ingrediente");
-
                 await _repository.UpdateAsync(ingredientiPersDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("UPDATE_INGREDIENTE_PERSONALIZZAZIONE", "IngredientiPersonalizzazione", ingredientiPersDto.IngredientePersId.ToString());
-
-                // ✅ Security event completo con timestamp
-                LogSecurityEvent("IngredientePersonalizzazioneUpdated", new
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("UPDATE", "IngredientiPersonalizzazione", ingredientiPersDto.IngredientePersId.ToString());
+                LogSecurityEvent("IngredientiPersonalizzazioneUpdated", new
                 {
-                    IngredientePersId = ingredientiPersDto.IngredientePersId,
-                    OldPersCustomId = existing.PersCustomId,
-                    NewPersCustomId = ingredientiPersDto.PersCustomId,
-                    OldIngredienteId = existing.IngredienteId,
-                    NewIngredienteId = ingredientiPersDto.IngredienteId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    ingredientiPersDto.IngredientePersId,
+                    ingredientiPersDto.PersCustomId,
+                    ingredientiPersDto.IngredienteId,
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException argEx)
             {
-                _logger.LogWarning(ex, "Tentativo di aggiornamento di un ingrediente personalizzazione non trovato {IngredientePersId}", ingredientePersId);
-                return SafeNotFound("Ingrediente personalizzazione");
+                return SafeBadRequest(argEx.Message);
             }
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'aggiornamento dell'ingrediente personalizzazione");
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'aggiornamento dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'aggiornamento dell'ingrediente personalizzazione");
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
@@ -313,17 +296,14 @@ namespace BBltZen.Controllers
 
                 await _repository.DeleteAsync(ingredientePersId);
 
-                // ✅ Audit trail
-                LogAuditTrail("DELETE_INGREDIENTE_PERSONALIZZAZIONE", "IngredientiPersonalizzazione", ingredientePersId.ToString());
-
-                // ✅ Security event completo con timestamp
-                LogSecurityEvent("IngredientePersonalizzazioneDeleted", new
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("DELETE", "IngredientiPersonalizzazione", ingredientePersId.ToString());
+                LogSecurityEvent("IngredientiPersonalizzazioneDeleted", new
                 {
                     IngredientePersId = ingredientePersId,
                     PersCustomId = existing.PersCustomId,
                     IngredienteId = existing.IngredienteId,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
+                    UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
@@ -331,12 +311,12 @@ namespace BBltZen.Controllers
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Errore database durante l'eliminazione dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'eliminazione dell'ingrediente personalizzazione");
+                return SafeInternalError("Errore durante l'eliminazione");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'eliminazione dell'ingrediente personalizzazione");
+                return SafeInternalError("Errore durante l'eliminazione");
             }
         }
     }

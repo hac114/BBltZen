@@ -18,7 +18,6 @@ namespace Repository.Service
         private readonly ILogger<SistemaCacheRepository> _logger;
 
         // Cache keys patterns
-        private const string CACHE_STATS_KEY = "CacheStatistics";
         private const string MENU_CACHE_KEY = "MenuCompleto";
         private const string STATISTICHE_CACHE_KEY = "StatisticheGlobali";
         private const string PREZZI_CACHE_KEY = "PrezziCalcolati";
@@ -43,23 +42,23 @@ namespace Repository.Service
         {
             try
             {
-                if (_memoryCache.TryGetValue(chiave, out T valore))
+                if (_memoryCache.TryGetValue(chiave, out T? valore))
                 {
-                    _totalHits++;
-                    _logger.LogDebug($"Cache HIT per chiave: {chiave}");
-                    return valore;
+                    Interlocked.Increment(ref _totalHits);
+                    _logger.LogDebug("Cache HIT per chiave: {Chiave}", chiave);
+                    return await Task.FromResult(valore);
                 }
                 else
                 {
-                    _totalMisses++;
-                    _logger.LogDebug($"Cache MISS per chiave: {chiave}");
-                    return default;
+                    Interlocked.Increment(ref _totalMisses);
+                    _logger.LogDebug("Cache MISS per chiave: {Chiave}", chiave);
+                    return await Task.FromResult(default(T?));
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero cache per chiave: {chiave}");
-                return default;
+                _logger.LogError(ex, "Errore nel recupero cache per chiave: {Chiave}", chiave);
+                return await Task.FromResult(default(T?));
             }
         }
 
@@ -78,37 +77,38 @@ namespace Repository.Service
                 }
                 else
                 {
-                    opzioni.SetAbsoluteExpiration(TimeSpan.FromMinutes(30));
+                    opzioni.SetAbsoluteExpiration(TimeSpan.FromMinutes(30)); // ✅ Default esplicito
                 }
 
                 opzioni.RegisterPostEvictionCallback((key, value, reason, state) =>
                 {
-                    _logger.LogInformation($"Entry cache rimossa: {key}, motivo: {reason}");
+                    _logger.LogInformation("Entry cache rimossa: {Key}, motivo: {Reason}", key, reason);
                 });
 
                 _memoryCache.Set(chiave, valore, opzioni);
 
-                _logger.LogInformation($"Cache SET per chiave: {chiave}, durata: {durata ?? TimeSpan.FromMinutes(30)}");
+                _logger.LogInformation("Cache SET per chiave: {Chiave}, durata: {Durata}",
+                    chiave, durata ?? TimeSpan.FromMinutes(30));
 
-                return new CacheOperationResultDTO
+                return await Task.FromResult(new CacheOperationResultDTO
                 {
                     Successo = true,
                     Messaggio = "Cache impostata con successo",
                     Chiave = chiave,
-                    Scadenza = DateTime.Now.Add(durata ?? TimeSpan.FromMinutes(30)),
+                    Scadenza = DateTime.UtcNow.Add(durata ?? TimeSpan.FromMinutes(30)),
                     DurataCache = durata ?? TimeSpan.FromMinutes(30),
                     DimensioneBytes = 1
-                };
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nell'impostazione cache per chiave: {chiave}");
-                return new CacheOperationResultDTO
+                _logger.LogError(ex, "Errore nell'impostazione cache per chiave: {Chiave}", chiave);
+                return await Task.FromResult(new CacheOperationResultDTO
                 {
                     Successo = false,
                     Messaggio = $"Errore: {ex.Message}",
                     Chiave = chiave
-                };
+                });
             }
         }
 
@@ -119,28 +119,28 @@ namespace Repository.Service
                 _memoryCache.Remove(chiave);
                 _logger.LogInformation($"Cache REMOVE per chiave: {chiave}");
 
-                return new CacheOperationResultDTO
+                return await Task.FromResult(new CacheOperationResultDTO
                 {
                     Successo = true,
                     Messaggio = "Cache rimossa con successo",
                     Chiave = chiave
-                };
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Errore nella rimozione cache per chiave: {chiave}");
-                return new CacheOperationResultDTO
+                return await Task.FromResult(new CacheOperationResultDTO
                 {
                     Successo = false,
                     Messaggio = $"Errore: {ex.Message}",
                     Chiave = chiave
-                };
+                });
             }
         }
 
         public async Task<bool> ExistsAsync(string chiave)
         {
-            return _memoryCache.TryGetValue(chiave, out _);
+            return await Task.FromResult(_memoryCache.TryGetValue(chiave, out _));
         }
 
         public async Task<DateTime?> GetExpirationAsync(string chiave)
@@ -269,9 +269,9 @@ namespace Repository.Service
                 ? Math.Round((decimal)_totalHits / (_totalHits + _totalMisses) * 100, 2)
                 : 0;
 
-            return new CacheInfoDTO
+            return await Task.FromResult(new CacheInfoDTO
             {
-                TotaleEntry = -1, // Non disponibile con IMemoryCache
+                TotaleEntry = -1,
                 DimensioneTotaleBytes = -1,
                 EntryScadute = -1,
                 HitsTotali = (int)_totalHits,
@@ -280,7 +280,7 @@ namespace Repository.Service
                 UltimaPulizia = _lastCleanup,
                 ChiaviAttive = new List<string>(),
                 StatistichePerTipo = new Dictionary<string, int>()
-            };
+            });
         }
 
         public async Task<CacheCleanupDTO> CleanupExpiredAsync()
@@ -290,14 +290,14 @@ namespace Repository.Service
 
             _logger.LogInformation("Pulizia cache eseguita (gestita automaticamente da IMemoryCache)");
 
-            return new CacheCleanupDTO
+            return await Task.FromResult(new CacheCleanupDTO
             {
                 EntryRimosse = 0,
                 BytesLiberati = 0,
                 EntryScadute = 0,
                 TempoEsecuzione = DateTime.Now - primaPulizia,
                 DataPulizia = _lastCleanup
-            };
+            });
         }
 
         public async Task<CacheOperationResultDTO> UpdateExpirationAsync(string chiave, TimeSpan durata)
@@ -341,7 +341,7 @@ namespace Repository.Service
         public async Task<List<CacheEntryDTO>> GetAllEntriesAsync()
         {
             _logger.LogWarning("Enumerazione entries cache non supportata con IMemoryCache");
-            return new List<CacheEntryDTO>();
+            return await Task.FromResult(new List<CacheEntryDTO>());
         }
 
         public async Task<T> GetOrSetAsync<T>(string chiave, Func<Task<T>> factory, TimeSpan? durata = null)
@@ -365,7 +365,7 @@ namespace Repository.Service
                 return valore;
             }
 
-            var nuovoValore = factory();
+            var nuovoValore = await Task.Run(factory);
             await SetAsync(chiave, nuovoValore, durata);
             return nuovoValore;
         }
@@ -416,7 +416,7 @@ namespace Repository.Service
 
                 var menuData = new
                 {
-                    UltimoAggiornamento = DateTime.Now,
+                    UltimoAggiornamento = DateTime.UtcNow,
                     BevandeStandard = bevandeStandard,
                     Dolci = dolci,
                     TotaleVoci = bevandeStandard.Count + dolci.Count
@@ -429,7 +429,7 @@ namespace Repository.Service
                     Successo = true,
                     Messaggio = "Menu cached con successo",
                     Chiave = MENU_CACHE_KEY,
-                    Scadenza = DateTime.Now.AddHours(1),
+                    Scadenza = DateTime.UtcNow.AddHours(1),
                     DurataCache = TimeSpan.FromHours(1)
                 };
             }
@@ -445,34 +445,42 @@ namespace Repository.Service
             }
         }
 
-        public async Task<CacheOperationResultDTO> CacheStatisticheAsync()
+        private int CalculateSize(string data)
+        {
+            if (string.IsNullOrEmpty(data))
+                return 0;
+
+            return System.Text.Encoding.UTF8.GetByteCount(data);
+        }
+
+        public async Task<List<CacheStatisticheDTO>> GetCacheStatisticsAsync()
         {
             try
             {
                 var statistiche = await _context.StatisticheCache
+                    .AsNoTracking() // ✅ Performance
                     .OrderByDescending(s => s.DataAggiornamento)
-                    .FirstOrDefaultAsync();
+                    .Take(10)
+                    .Select(s => new CacheStatisticheDTO
+                    {
+                        StatisticheCacheId = s.Id,
+                        TipoStatistica = s.TipoStatistica,
+                        DatiCache = s.Metriche,
+                        DataAggiornamento = s.DataAggiornamento,
+                        ScadenzaCache = s.DataAggiornamento.AddHours(1),
+                        DimensioneBytes = CalculateSize(s.Metriche),
+                        Hits = 0,
+                        Misses = 0,
+                        HitRate = 0
+                    })
+                    .ToListAsync();
 
-                await SetAsync(STATISTICHE_CACHE_KEY, statistiche, TimeSpan.FromMinutes(15));
-
-                return new CacheOperationResultDTO
-                {
-                    Successo = true,
-                    Messaggio = "Statistiche cached con successo",
-                    Chiave = STATISTICHE_CACHE_KEY,
-                    Scadenza = DateTime.Now.AddMinutes(15),
-                    DurataCache = TimeSpan.FromMinutes(15)
-                };
+                return statistiche;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel caching statistiche");
-                return new CacheOperationResultDTO
-                {
-                    Successo = false,
-                    Messaggio = $"Errore: {ex.Message}",
-                    Chiave = STATISTICHE_CACHE_KEY
-                };
+                _logger.LogError(ex, "Errore nel recupero statistiche cache");
+                return new List<CacheStatisticheDTO>();
             }
         }
 
@@ -504,7 +512,7 @@ namespace Repository.Service
                 {
                     Dimensioni = dimensioni,
                     Ingredienti = ingredienti,
-                    UltimoRicalcolo = DateTime.Now
+                    UltimoRicalcolo = DateTime.UtcNow
                 };
 
                 await SetAsync(PREZZI_CACHE_KEY, prezziData, TimeSpan.FromMinutes(30));
@@ -514,7 +522,7 @@ namespace Repository.Service
                     Successo = true,
                     Messaggio = "Prezzi cached con successo",
                     Chiave = PREZZI_CACHE_KEY,
-                    Scadenza = DateTime.Now.AddMinutes(30),
+                    Scadenza = DateTime.UtcNow.AddMinutes(30),
                     DurataCache = TimeSpan.FromMinutes(30)
                 };
             }
@@ -535,7 +543,7 @@ namespace Repository.Service
             try
             {
                 var configurazioni = await _context.ConfigSoglieTempi
-                    .ToListAsync(); // Rimosso .Where(c => c.Attivo)
+                    .ToListAsync();
 
                 await SetAsync(CONFIG_CACHE_KEY, configurazioni, TimeSpan.FromHours(2));
 
@@ -544,7 +552,7 @@ namespace Repository.Service
                     Successo = true,
                     Messaggio = "Configurazioni cached con successo",
                     Chiave = CONFIG_CACHE_KEY,
-                    Scadenza = DateTime.Now.AddHours(2),
+                    Scadenza = DateTime.UtcNow.AddHours(2),
                     DurataCache = TimeSpan.FromHours(2)
                 };
             }
@@ -566,7 +574,7 @@ namespace Repository.Service
                 ? Math.Round((decimal)_totalHits / (_totalHits + _totalMisses) * 100, 2)
                 : 0;
 
-            return new CachePerformanceDTO
+            return await Task.FromResult(new CachePerformanceDTO
             {
                 HitRate = hitRate,
                 MissRate = 100 - hitRate,
@@ -575,38 +583,8 @@ namespace Repository.Service
                 MemoriaLiberaBytes = -1,
                 EntryAttive = -1,
                 TempoMedioAccesso = TimeSpan.Zero,
-                DataRaccolta = DateTime.Now
-            };
-        }
-
-        public async Task<List<CacheStatisticheDTO>> GetCacheStatisticsAsync()
-        {
-            try
-            {
-                var statistiche = await _context.StatisticheCache
-                    .OrderByDescending(s => s.DataAggiornamento)
-                    .Take(10)
-                    .Select(s => new CacheStatisticheDTO
-                    {
-                        StatisticheCacheId = s.Id,
-                        TipoStatistica = s.TipoStatistica,
-                        DatiCache = s.Metriche, // Usa Metriche invece di DatiCache
-                        DataAggiornamento = s.DataAggiornamento, // rigo 594 CORRETTO - rimuovi ??
-                        ScadenzaCache = DateTime.Now.AddHours(1), // Valore default poiché non presente nell'entità
-                        DimensioneBytes = 0, // Valore default poiché non presente nell'entità
-                        Hits = 0, // Valore default poiché non presente nell'entità
-                        Misses = 0, // Valore default poiché non presente nell'entità
-                        HitRate = 0 // Valore default poiché non presente nell'entità
-                    })
-                    .ToListAsync();
-
-                return statistiche;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero statistiche cache");
-                return new List<CacheStatisticheDTO>();
-            }
+                DataRaccolta = DateTime.UtcNow
+            });
         }
 
         public async Task ResetStatisticsAsync()
@@ -614,28 +592,29 @@ namespace Repository.Service
             _totalHits = 0;
             _totalMisses = 0;
             _logger.LogInformation("Statistiche cache resetate");
+            await Task.CompletedTask;
         }
 
         public async Task<CacheOperationResultDTO> CompactCacheAsync()
         {
             _logger.LogInformation("Compattazione cache richiesta (gestita automaticamente)");
 
-            return new CacheOperationResultDTO
+            return await Task.FromResult(new CacheOperationResultDTO
             {
                 Successo = true,
                 Messaggio = "Compattazione completata",
                 Chiave = "SYSTEM_COMPACT"
-            };
+            });
         }
 
         public async Task<long> GetMemoryUsageAsync()
         {
-            return -1; // Non disponibile con IMemoryCache
+            return await Task.FromResult(-1L);
         }
 
         public async Task<bool> IsMemoryCriticalAsync()
         {
-            return false; // Implementazione semplificata
+            return await Task.FromResult(false);
         }
 
         public async Task<bool> IsCacheValidAsync(string tipoCache)
@@ -648,6 +627,39 @@ namespace Repository.Service
                 "CONFIG" => await ExistsAsync(CONFIG_CACHE_KEY),
                 _ => false
             };
+        }
+
+        public async Task<CacheOperationResultDTO> CacheStatisticheAsync()
+        {
+            try
+            {
+                var statistiche = await _context.StatisticheCache
+                    .AsNoTracking()
+                    .OrderByDescending(s => s.DataAggiornamento)
+                    .Take(5)
+                    .ToListAsync();
+
+                await SetAsync(STATISTICHE_CACHE_KEY, statistiche, TimeSpan.FromMinutes(15));
+
+                return new CacheOperationResultDTO
+                {
+                    Successo = true,
+                    Messaggio = "Statistiche cached con successo",
+                    Chiave = STATISTICHE_CACHE_KEY,
+                    Scadenza = DateTime.UtcNow.AddMinutes(15),
+                    DurataCache = TimeSpan.FromMinutes(15)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel caching statistiche");
+                return new CacheOperationResultDTO
+                {
+                    Successo = false,
+                    Messaggio = $"Errore: {ex.Message}",
+                    Chiave = STATISTICHE_CACHE_KEY
+                };
+            }
         }
 
         public async Task<CacheOperationResultDTO> PreloadCommonDataAsync()

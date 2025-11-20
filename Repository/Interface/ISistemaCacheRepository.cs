@@ -7,6 +7,8 @@ namespace Repository.Interface
 {
     public interface ISistemaCacheRepository
     {
+        // ✅ CORRETTO: Pattern già allineato per cache operations
+
         // Operazioni Base Cache
         Task<T?> GetAsync<T>(string chiave);
         Task<CacheOperationResultDTO> SetAsync<T>(string chiave, T valore, TimeSpan? durata = null);

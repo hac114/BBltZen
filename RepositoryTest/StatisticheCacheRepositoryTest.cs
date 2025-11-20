@@ -80,16 +80,27 @@ namespace RepositoryTest
         [Fact]
         public async Task GetByIdAsync_WithValidId_ShouldReturnStatisticheCache()
         {
+            // Arrange
+            var newCache = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestGetById",
+                Periodo = "2024-01-24",
+                Metriche = "{\"test\": \"getbyid\"}"
+            };
+            var addedCache = await _repository.AddAsync(newCache); // ✅ USA RISULTATO
+
             // Act
-            var result = await _repository.GetByIdAsync(1);
+            var result = await _repository.GetByIdAsync(addedCache.Id);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(1, result.Id);
-            Assert.Equal("VenditeGiornaliere", result.TipoStatistica);
-            Assert.Equal("2024-01-15", result.Periodo);
-            Assert.Contains("totaleVendite", result.Metriche);
+            Assert.Equal(addedCache.Id, result.Id);
+            Assert.Equal("TestGetById", result.TipoStatistica);
+            Assert.Equal("2024-01-24", result.Periodo);
+            Assert.Contains("getbyid", result.Metriche);
+            Assert.NotEqual(default, result.DataAggiornamento);
         }
+
 
         [Fact]
         public async Task GetByIdAsync_WithInvalidId_ShouldReturnNull()
@@ -116,15 +127,25 @@ namespace RepositoryTest
         [Fact]
         public async Task GetByTipoAndPeriodoAsync_ShouldReturnSpecificCache()
         {
+            // Arrange
+            var newCache = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestGetByTipoPeriodo",
+                Periodo = "2024-01-25",
+                Metriche = "{\"test\": \"tipoperiodo\"}"
+            };
+            await _repository.AddAsync(newCache);
+
             // Act
-            var result = await _repository.GetByTipoAndPeriodoAsync("VenditeGiornaliere", "2024-01-15");
+            var result = await _repository.GetByTipoAndPeriodoAsync("TestGetByTipoPeriodo", "2024-01-25");
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(1, result.Id);
-            Assert.Equal("VenditeGiornaliere", result.TipoStatistica);
-            Assert.Equal("2024-01-15", result.Periodo);
+            Assert.Equal("TestGetByTipoPeriodo", result.TipoStatistica);
+            Assert.Equal("2024-01-25", result.Periodo);
+            Assert.Contains("tipoperiodo", result.Metriche);
         }
+
 
         [Fact]
         public async Task GetByTipoAndPeriodoAsync_WithInvalidParams_ShouldReturnNull()
@@ -148,56 +169,80 @@ namespace RepositoryTest
             };
 
             // Act
-            await _repository.AddAsync(newCache);
+            var result = await _repository.AddAsync(newCache); // ✅ USA IL RISULTATO
 
             // Assert
-            Assert.True(newCache.Id > 0);
-            var result = await _repository.GetByIdAsync(newCache.Id);
-            Assert.NotNull(result);
+            Assert.True(result.Id > 0); // ✅ VERIFICA ID GENERATO
             Assert.Equal("TempiPreparazione", result.TipoStatistica);
             Assert.Equal("2024-01-17", result.Periodo);
-            Assert.NotNull(result.DataAggiornamento);
+            Assert.NotEqual(default, result.DataAggiornamento); // ✅ VERIFICA DATA CREAZIONE
         }
+
 
         [Fact]
         public async Task UpdateAsync_ShouldUpdateExistingStatisticheCache()
         {
             // Arrange
+            var newCache = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestUpdate",
+                Periodo = "2024-01-18",
+                Metriche = "{\"test\": \"originale\"}"
+            };
+            var addedCache = await _repository.AddAsync(newCache); // ✅ USA RISULTATO
+
             var updateDto = new StatisticheCacheDTO
             {
-                Id = 1,
-                TipoStatistica = "VenditeGiornaliereModificato",
-                Periodo = "2024-01-15-modificato",
-                Metriche = "{\"totaleVendite\": 1500.00, \"numeroOrdini\": 50}"
+                Id = addedCache.Id,
+                TipoStatistica = "TestUpdateModificato",
+                Periodo = "2024-01-18-modificato",
+                Metriche = "{\"test\": \"modificato\"}"
             };
 
             // Act
             await _repository.UpdateAsync(updateDto);
 
             // Assert
-            var result = await _repository.GetByIdAsync(1);
+            var result = await _repository.GetByIdAsync(addedCache.Id);
             Assert.NotNull(result);
-            Assert.Equal("VenditeGiornaliereModificato", result.TipoStatistica);
-            Assert.Equal("2024-01-15-modificato", result.Periodo);
-            Assert.Contains("1500.00", result.Metriche);
+            Assert.Equal("TestUpdateModificato", result.TipoStatistica);
+            Assert.Equal("2024-01-18-modificato", result.Periodo);
+            Assert.Contains("modificato", result.Metriche);
         }
-
         [Fact]
         public async Task DeleteAsync_ShouldRemoveStatisticheCache()
         {
+            // Arrange
+            var newCache = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestDelete",
+                Periodo = "2024-01-19",
+                Metriche = "{\"test\": \"delete\"}"
+            };
+            var addedCache = await _repository.AddAsync(newCache); // ✅ USA RISULTATO
+
             // Act
-            await _repository.DeleteAsync(1);
+            await _repository.DeleteAsync(addedCache.Id);
 
             // Assert
-            var result = await _repository.GetByIdAsync(1);
+            var result = await _repository.GetByIdAsync(addedCache.Id);
             Assert.Null(result);
         }
 
         [Fact]
         public async Task ExistsAsync_WithExistingId_ShouldReturnTrue()
         {
+            // Arrange
+            var newCache = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestExists",
+                Periodo = "2024-01-20",
+                Metriche = "{\"test\": \"exists\"}"
+            };
+            var addedCache = await _repository.AddAsync(newCache); // ✅ USA RISULTATO
+
             // Act
-            var result = await _repository.ExistsAsync(1);
+            var result = await _repository.ExistsAsync(addedCache.Id);
 
             // Assert
             Assert.True(result);
@@ -271,6 +316,100 @@ namespace RepositoryTest
 
             // Assert
             Assert.False(result);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldNotThrow_ForNonExistingId()
+        {
+            // Arrange
+            var updateDto = new StatisticheCacheDTO
+            {
+                Id = 999,
+                TipoStatistica = "Inesistente",
+                Periodo = "2024-01-01",
+                Metriche = "{\"test\": \"data\"}"
+            };
+
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _repository.UpdateAsync(updateDto)
+            );
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldNotThrow_ForNonExistingId()
+        {
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _repository.DeleteAsync(999)
+            );
+
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public async Task AddAsync_ShouldThrow_ForDuplicateCombinazione()
+        {
+            // Arrange
+            var cache1 = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestDuplicato",
+                Periodo = "2024-01-21",
+                Metriche = "{\"test\": \"primo\"}"
+            };
+            await _repository.AddAsync(cache1);
+
+            var cache2 = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestDuplicato", // ✅ STESSO TipoStatistica
+                Periodo = "2024-01-21",           // ✅ STESSO Periodo
+                Metriche = "{\"test\": \"secondo\"}"
+            };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _repository.AddAsync(cache2)
+            );
+
+            Assert.Contains("esiste già", exception.Message.ToLower());
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ShouldThrow_ForDuplicateCombinazione()
+        {
+            // Arrange - Crea due record con combinazioni DIVERSE
+            var cache1 = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestUpdateDuplicato1",
+                Periodo = "2024-01-22",
+                Metriche = "{\"test\": \"primo\"}"
+            };
+            var addedCache1 = await _repository.AddAsync(cache1);
+
+            var cache2 = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestUpdateDuplicato2",
+                Periodo = "2024-01-23",
+                Metriche = "{\"test\": \"secondo\"}"
+            };
+            var addedCache2 = await _repository.AddAsync(cache2);
+
+            // Act & Assert - Prova a fare l'update del secondo record con la STESSA combinazione del primo
+            var updateDto = new StatisticheCacheDTO
+            {
+                Id = addedCache2.Id,
+                TipoStatistica = "TestUpdateDuplicato1", // ✅ STESSO TipoStatistica del primo
+                Periodo = "2024-01-22",                  // ✅ STESSO Periodo del primo
+                Metriche = "{\"test\": \"modificato\"}"
+            };
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _repository.UpdateAsync(updateDto)
+            );
+
+            Assert.Contains("esiste già", exception.Message.ToLower());
         }
     }
 }
