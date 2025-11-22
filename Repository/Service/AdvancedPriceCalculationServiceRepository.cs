@@ -116,22 +116,48 @@ namespace Repository.Service
 
         public async Task<decimal> GetTaxRateAsync(int taxRateId)
         {
-            // Usa cache per performance
-            if (!_memoryCache.TryGetValue(TAX_RATES_CACHE_KEY, out Dictionary<int, decimal> taxRates))
+            try
             {
-                taxRates = await _context.TaxRates
-                    .ToDictionaryAsync(tr => tr.TaxRateId, tr => tr.Aliquota);
+                if (taxRateId <= 0)
+                    return 22.00m;
 
-                _memoryCache.Set(TAX_RATES_CACHE_KEY, taxRates, TimeSpan.FromMinutes(30));
+                // ✅ CORREZIONE: CHIAVE CACHE UNICA PER QUESTO REPOSITORY
+                const string ADVANCED_TAX_RATES_CACHE_KEY = "AdvancedTaxRates";
+
+                if (!_memoryCache.TryGetValue(ADVANCED_TAX_RATES_CACHE_KEY, out Dictionary<int, decimal>? taxRates) || taxRates == null)
+                {
+                    taxRates = await _context.TaxRates
+                        .ToDictionaryAsync(tr => tr.TaxRateId, tr => tr.Aliquota);
+
+                    _memoryCache.Set(ADVANCED_TAX_RATES_CACHE_KEY, taxRates, TimeSpan.FromMinutes(30));
+                }
+
+                return taxRates.TryGetValue(taxRateId, out var aliquota) ? aliquota : 22.00m;
             }
-
-            return taxRates.TryGetValue(taxRateId, out var aliquota) ? aliquota : 22.00m; // Default IVA standard
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Errore nel recupero tax rate {TaxRateId}, usando default", taxRateId);
+                return 22.00m;
+            }
         }
 
         public async Task<PriceCalculationResultDTO> CalculateCompletePriceAsync(PriceCalculationRequestDTO request)
         {
             try
             {
+                // ✅ VALIDAZIONE INPUT CRITICA
+                if (request == null)
+                    throw new ArgumentNullException(nameof(request));
+
+                if (request.ArticoloId <= 0)
+                    throw new ArgumentException("ID articolo non valido", nameof(request.ArticoloId));
+
+                if (string.IsNullOrWhiteSpace(request.TipoArticolo))
+                    throw new ArgumentException("Tipo articolo obbligatorio", nameof(request.TipoArticolo));
+
+                if (request.Quantita <= 0)
+                    throw new ArgumentException("Quantità deve essere maggiore di zero", nameof(request.Quantita));
+
                 decimal prezzoBase = 0;
 
                 // Calcola prezzo base in base al tipo articolo
@@ -169,18 +195,19 @@ namespace Repository.Service
                 {
                     ArticoloId = request.ArticoloId,
                     TipoArticolo = request.TipoArticolo,
-                    PrezzoBase = prezzoBase,
-                    PrezzoUnitario = prezzoUnitario,
-                    Imponibile = imponibile,
-                    IvaAmount = ivaAmount,
-                    TotaleIvato = totaleIvato,
+                    PrezzoBase = Math.Round(prezzoBase, 2),
+                    PrezzoUnitario = Math.Round(prezzoUnitario, 2),
+                    Imponibile = Math.Round(imponibile, 2),
+                    IvaAmount = Math.Round(ivaAmount, 2),
+                    TotaleIvato = Math.Round(totaleIvato, 2),
                     AliquotaIva = aliquotaIva,
-                    Quantita = request.Quantita
+                    Quantita = request.Quantita,
+                    DataCalcolo = DateTime.UtcNow // ✅ UTC
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel calcolo completo prezzo per articolo {request.ArticoloId}");
+                _logger.LogError(ex, "Errore nel calcolo completo prezzo per articolo {ArticoloId}", request?.ArticoloId);
                 throw;
             }
         }
@@ -309,17 +336,31 @@ namespace Repository.Service
         {
             var results = new List<PriceCalculationResultDTO>();
 
-            foreach (var request in requests)
+            if (requests == null || !requests.Any())
+                return results;
+
+            // ✅ CALCOLO PARALLELO SICURO
+            var tasks = requests.Select(async request =>
             {
                 try
                 {
                     var result = await CalculateCompletePriceAsync(request);
-                    results.Add(result);
+                    return (Success: true, Result: result, Error: (string?)null);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Errore nel calcolo batch per articolo {request.ArticoloId}");
-                    // Continua con gli altri calcoli
+                    _logger.LogWarning(ex, "Errore nel calcolo batch per articolo {ArticoloId}", request.ArticoloId);
+                    return (Success: false, Result: (PriceCalculationResultDTO?)null, Error: ex.Message);
+                }
+            });
+
+            var taskResults = await Task.WhenAll(tasks);
+
+            foreach (var taskResult in taskResults)
+            {
+                if (taskResult.Success && taskResult.Result != null)
+                {
+                    results.Add(taskResult.Result);
                 }
             }
 
@@ -388,44 +429,50 @@ namespace Repository.Service
                 throw new ArgumentException("Percentuale sconto deve essere tra 0 e 100");
 
             var sconto = prezzo * (percentualeSconto / 100);
-            return Math.Round(prezzo - sconto, 2);
+            return await Task.FromResult(Math.Round(prezzo - sconto, 2)); // ✅ AWAIT CON TASK.FROMRESULT
         }
 
         public async Task<decimal> CalculateShippingCostAsync(decimal subtotal, string metodoSpedizione)
         {
-            // Logica semplificata per costi spedizione
-            return metodoSpedizione?.ToLower() switch
+            var costo = metodoSpedizione?.ToLower() switch
             {
                 "express" => 5.00m,
                 "priority" => 3.50m,
                 "standard" => 2.00m,
-                _ => 2.50m // Default
+                _ => 2.50m
             };
+
+            return await Task.FromResult(costo); // ✅ AWAIT CON TASK.FROMRESULT
         }
 
         public async Task PreloadCalculationCacheAsync()
         {
             try
             {
+                // ✅ CHIAVI CACHE UNICHE PER QUESTO REPOSITORY
+                const string ADVANCED_TAX_RATES_CACHE_KEY = "AdvancedTaxRates";
+                const string ADVANCED_DIMENSIONI_CACHE_KEY = "AdvancedDimensioniBicchieri";
+                const string ADVANCED_INGREDIENTI_CACHE_KEY = "AdvancedIngredienti";
+
                 // Precarica dati frequentemente usati
                 var taxRates = await _context.TaxRates
                     .ToDictionaryAsync(tr => tr.TaxRateId, tr => tr.Aliquota);
-                _memoryCache.Set(TAX_RATES_CACHE_KEY, taxRates, TimeSpan.FromMinutes(30));
+                _memoryCache.Set(ADVANCED_TAX_RATES_CACHE_KEY, taxRates, TimeSpan.FromMinutes(30));
 
                 var dimensioni = await _context.DimensioneBicchiere
                     .ToDictionaryAsync(db => db.DimensioneBicchiereId);
-                _memoryCache.Set(DIMENSIONI_CACHE_KEY, dimensioni, TimeSpan.FromMinutes(60));
+                _memoryCache.Set(ADVANCED_DIMENSIONI_CACHE_KEY, dimensioni, TimeSpan.FromMinutes(60));
 
                 var ingredienti = await _context.Ingrediente
                     .Where(i => i.Disponibile)
                     .ToDictionaryAsync(i => i.IngredienteId);
-                _memoryCache.Set(INGREDIENTI_CACHE_KEY, ingredienti, TimeSpan.FromMinutes(60));
+                _memoryCache.Set(ADVANCED_INGREDIENTI_CACHE_KEY, ingredienti, TimeSpan.FromMinutes(60));
 
-                _logger.LogInformation("Cache calcoli prezzi precaricata con successo");
+                _logger.LogInformation("Cache calcoli avanzati precaricata con successo");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel precaricamento cache calcoli prezzi");
+                _logger.LogError(ex, "Errore nel precaricamento cache calcoli avanzati");
             }
         }
 
@@ -436,12 +483,16 @@ namespace Repository.Service
             _memoryCache.Remove(INGREDIENTI_CACHE_KEY);
 
             _logger.LogInformation("Cache calcoli prezzi pulita");
+
+            await Task.CompletedTask;
         }
 
         public async Task<bool> IsCacheValidAsync()
         {
-            return _memoryCache.TryGetValue(TAX_RATES_CACHE_KEY, out _) &&
-                   _memoryCache.TryGetValue(DIMENSIONI_CACHE_KEY, out _);
+            return await Task.FromResult(
+                _memoryCache.TryGetValue(TAX_RATES_CACHE_KEY, out _) &&
+                _memoryCache.TryGetValue(DIMENSIONI_CACHE_KEY, out _)
+            );
         }
     }
 }

@@ -38,7 +38,7 @@ namespace DTO
         public decimal Imponibile { get; set; }
 
         [Required(ErrorMessage = "L'ID aliquota IVA è obbligatorio")]
-        [Range(1, 10, ErrorMessage = "L'ID aliquota IVA deve essere valido")]
+        [Range(1, int.MaxValue, ErrorMessage = "L'ID aliquota IVA deve essere valido")] // ✅ MIGLIORATO RANGE
         public int TaxRateId { get; set; }
     }
 

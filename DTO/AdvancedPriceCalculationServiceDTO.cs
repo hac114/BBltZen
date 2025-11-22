@@ -8,17 +8,19 @@ namespace DTO
     {
         public int ArticoloId { get; set; }
 
-        [StringLength(10)]
-        public string TipoArticolo { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Il tipo articolo è obbligatorio")]
+        [StringLength(10, ErrorMessage = "Il tipo articolo non può superare 10 caratteri")]
+        public required string TipoArticolo { get; set; }
 
         public int? PersonalizzazioneCustomId { get; set; }
 
-        [Range(1, 100)]
+        [Range(1, 100, ErrorMessage = "La quantità deve essere tra 1 e 100")]
         public int Quantita { get; set; } = 1;
 
+        [Range(1, int.MaxValue, ErrorMessage = "L'ID aliquota IVA deve essere valido")]
         public int TaxRateId { get; set; } = 1;
 
-        [Range(0.01, 1000)]
+        [Range(0.01, 1000, ErrorMessage = "Il prezzo fisso deve essere tra 0.01 e 1000")]
         public decimal? PrezzoFisso { get; set; }
     }
 
@@ -27,7 +29,7 @@ namespace DTO
         public int ArticoloId { get; set; }
 
         [StringLength(10)]
-        public string TipoArticolo { get; set; } = string.Empty;
+        public required string TipoArticolo { get; set; }
 
         [Range(0, 1000)]
         public decimal PrezzoBase { get; set; }
@@ -53,7 +55,7 @@ namespace DTO
         [Range(0, 100)]
         public decimal? ScontoApplicato { get; set; }
 
-        public DateTime DataCalcolo { get; set; } = DateTime.Now;
+        public DateTime DataCalcolo { get; set; } = DateTime.UtcNow;
     }
 
     public class CustomBeverageCalculationDTO
@@ -93,7 +95,7 @@ namespace DTO
         [Range(0.01, 1000)]
         public decimal Quantita { get; set; }
 
-        [StringLength(2)]
+        [StringLength(10)]
         public string UnitaMisura { get; set; } = string.Empty;
 
         [Range(0, 200)]
@@ -115,7 +117,7 @@ namespace DTO
 
         public List<OrderItemCalculationDTO> Items { get; set; } = new();
 
-        public DateTime DataCalcolo { get; set; } = DateTime.Now;
+        public DateTime DataCalcolo { get; set; } = DateTime.UtcNow;
     }
 
     public class OrderItemCalculationDTO
@@ -123,7 +125,7 @@ namespace DTO
         public int OrderItemId { get; set; }
         public int ArticoloId { get; set; }
 
-        [StringLength(2)]
+        [StringLength(10)]
         public string TipoArticolo { get; set; } = string.Empty;
 
         [Range(1, 100)]
@@ -165,30 +167,41 @@ namespace DTO
         public decimal ImportoTotale { get; set; }
     }
 
-    // ✅ DTO AGGIUNTIVI PER IL CONTROLLER
+    // ✅ DTO PER IL CONTROLLER
     public class DiscountRequestDTO
     {
-        [Required]
-        [Range(0.01, 10000)]
+        [Required(ErrorMessage = "Il prezzo è obbligatorio")]
+        [Range(0.01, 10000, ErrorMessage = "Il prezzo deve essere tra 0.01 e 10000")]
         public decimal Prezzo { get; set; }
 
-        [Required]
-        [Range(0, 100)]
+        [Required(ErrorMessage = "La percentuale sconto è obbligatoria")]
+        [Range(0, 100, ErrorMessage = "La percentuale sconto deve essere tra 0 e 100")]
         public decimal PercentualeSconto { get; set; }
     }
 
     public class ValidationRequestDTO
     {
-        [Required]
+        [Required(ErrorMessage = "L'ID articolo è obbligatorio")]
         public int ArticoloId { get; set; }
 
-        [Required]
-        [StringLength(10)]
+        [Required(ErrorMessage = "Il tipo articolo è obbligatorio")]
+        [StringLength(10, ErrorMessage = "Il tipo articolo non può superare 10 caratteri")]
         public string TipoArticolo { get; set; } = string.Empty;
 
-        [Required]
-        [Range(0.01, 10000)]
+        [Required(ErrorMessage = "Il prezzo calcolato è obbligatorio")]
+        [Range(0.01, 10000, ErrorMessage = "Il prezzo calcolato deve essere tra 0.01 e 10000")]
         public decimal PrezzoCalcolato { get; set; }
+    }
+
+    public class ShippingCostRequestDTO
+    {
+        [Required(ErrorMessage = "Il subtotale è obbligatorio")]
+        [Range(0.01, 100000, ErrorMessage = "Il subtotale deve essere tra 0.01 e 100000")]
+        public decimal Subtotal { get; set; }
+
+        [Required(ErrorMessage = "Il metodo di spedizione è obbligatorio")]
+        [StringLength(20, ErrorMessage = "Il metodo di spedizione non può superare 20 caratteri")]
+        public string MetodoSpedizione { get; set; } = string.Empty;
     }
 
     public class AdvancedBatchCalculationRequestDTO

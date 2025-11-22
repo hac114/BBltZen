@@ -25,7 +25,7 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("bevanda-standard/{articoloId}")]
-        [AllowAnonymous] // ✅ CALCOLO PREZZI PUBBLICO
+        [AllowAnonymous]
         public async Task<ActionResult<decimal>> CalculateBevandaStandardPrice(int articoloId)
         {
             try
@@ -34,24 +34,23 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<decimal>("ID articolo non valido");
 
                 var result = await _repository.CalculateBevandaStandardPriceAsync(articoloId);
-
                 LogAuditTrail("CALCULATE_BEVANDA_STANDARD", "AdvancedPriceCalculation", articoloId.ToString());
                 return Ok(result);
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Articolo non trovato: {ArticoloId}", articoloId);
                 return SafeNotFound<decimal>(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo prezzo bevanda standard {ArticoloId}", articoloId);
-                return SafeInternalError("Errore nel calcolo del prezzo");
+                return SafeInternalError<decimal>("Errore nel calcolo del prezzo");
             }
         }
 
         [HttpGet("bevanda-custom/{personalizzazioneCustomId}")]
-        [AllowAnonymous] // ✅ CALCOLO PREZZI PUBBLICO
+        [AllowAnonymous]
         public async Task<ActionResult<decimal>> CalculateBevandaCustomPrice(int personalizzazioneCustomId)
         {
             try
@@ -60,24 +59,23 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<decimal>("ID personalizzazione non valido");
 
                 var result = await _repository.CalculateBevandaCustomPriceAsync(personalizzazioneCustomId);
-
                 LogAuditTrail("CALCULATE_BEVANDA_CUSTOM", "AdvancedPriceCalculation", personalizzazioneCustomId.ToString());
                 return Ok(result);
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Personalizzazione non trovata: {PersonalizzazioneCustomId}", personalizzazioneCustomId);
                 return SafeNotFound<decimal>(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo prezzo bevanda custom {PersonalizzazioneCustomId}", personalizzazioneCustomId);
-                return SafeInternalError("Errore nel calcolo del prezzo");
+                return SafeInternalError<decimal>("Errore nel calcolo del prezzo");
             }
         }
 
         [HttpGet("dolce/{articoloId}")]
-        [AllowAnonymous] // ✅ CALCOLO PREZZI PUBBLICO
+        [AllowAnonymous]
         public async Task<ActionResult<decimal>> CalculateDolcePrice(int articoloId)
         {
             try
@@ -86,24 +84,23 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<decimal>("ID articolo non valido");
 
                 var result = await _repository.CalculateDolcePriceAsync(articoloId);
-
                 LogAuditTrail("CALCULATE_DOLCE", "AdvancedPriceCalculation", articoloId.ToString());
                 return Ok(result);
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Dolce non trovato: {ArticoloId}", articoloId);
                 return SafeNotFound<decimal>(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo prezzo dolce {ArticoloId}", articoloId);
-                return SafeInternalError("Errore nel calcolo del prezzo");
+                return SafeInternalError<decimal>("Errore nel calcolo del prezzo");
             }
         }
 
         [HttpPost("calcolo-completo")]
-        [AllowAnonymous] // ✅ CALCOLO PREZZI PUBBLICO
+        [AllowAnonymous]
         public async Task<ActionResult<PriceCalculationResultDTO>> CalculateCompletePrice([FromBody] PriceCalculationRequestDTO request)
         {
             try
@@ -116,29 +113,28 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CALCULATE_COMPLETE_PRICE", "AdvancedPriceCalculation", $"{request.TipoArticolo}_{request.ArticoloId}");
                 LogSecurityEvent("CompletePriceCalculated", new
                 {
-                    ArticoloId = request.ArticoloId,
-                    TipoArticolo = request.TipoArticolo,
-                    Quantita = request.Quantita,
-                    PrezzoFinale = result.TotaleIvato,
-                    User = User.Identity?.Name ?? "Anonymous"
+                    request.ArticoloId,
+                    request.TipoArticolo,
+                    result.TotaleIvato,
+                    User = GetCurrentUserIdOrDefault()
                 });
 
                 return Ok(result);
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "Dati calcolo non validi per articolo {ArticoloId}", request.ArticoloId);
+                _logger.LogWarning(ex, "Dati calcolo non validi per articolo {ArticoloId}", request?.ArticoloId);
                 return SafeBadRequest<PriceCalculationResultDTO>(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel calcolo completo prezzo per articolo {ArticoloId}", request.ArticoloId);
-                return SafeInternalError("Errore nel calcolo del prezzo");
+                _logger.LogError(ex, "Errore nel calcolo completo prezzo per articolo {ArticoloId}", request?.ArticoloId);
+                return SafeInternalError<PriceCalculationResultDTO>("Errore nel calcolo del prezzo");
             }
         }
 
         [HttpGet("bevanda-custom-dettagliata/{personalizzazioneCustomId}")]
-        [AllowAnonymous] // ✅ CALCOLO PREZZI PUBBLICO
+        [AllowAnonymous]
         public async Task<ActionResult<CustomBeverageCalculationDTO>> CalculateDetailedCustomBeveragePrice(int personalizzazioneCustomId)
         {
             try
@@ -147,24 +143,23 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<CustomBeverageCalculationDTO>("ID personalizzazione non valido");
 
                 var result = await _repository.CalculateDetailedCustomBeveragePriceAsync(personalizzazioneCustomId);
-
                 LogAuditTrail("CALCULATE_DETAILED_CUSTOM_BEVERAGE", "AdvancedPriceCalculation", personalizzazioneCustomId.ToString());
                 return Ok(result);
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Personalizzazione non trovata: {PersonalizzazioneCustomId}", personalizzazioneCustomId);
                 return SafeNotFound<CustomBeverageCalculationDTO>(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo dettagliato bevanda custom {PersonalizzazioneCustomId}", personalizzazioneCustomId);
-                return SafeInternalError("Errore nel calcolo del prezzo");
+                return SafeInternalError<CustomBeverageCalculationDTO>("Errore nel calcolo del prezzo");
             }
         }
 
         [HttpGet("ordine/{ordineId}")]
-        //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin,staff")]
         public async Task<ActionResult<OrderCalculationSummaryDTO>> CalculateCompleteOrder(int ordineId)
         {
             try
@@ -177,43 +172,42 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CALCULATE_COMPLETE_ORDER", "AdvancedPriceCalculation", ordineId.ToString());
                 LogSecurityEvent("CompleteOrderCalculated", new
                 {
-                    OrdineId = ordineId,
-                    TotaleOrdine = result.TotaleOrdine,
-                    User = User.Identity?.Name
+                    ordineId,
+                    result.TotaleOrdine,
+                    User = GetCurrentUserIdOrDefault()
                 });
 
                 return Ok(result);
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Ordine non trovato: {OrdineId}", ordineId);
                 return SafeNotFound<OrderCalculationSummaryDTO>(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo completo ordine {OrdineId}", ordineId);
-                return SafeInternalError("Errore nel calcolo dell'ordine");
+                return SafeInternalError<OrderCalculationSummaryDTO>("Errore nel calcolo dell'ordine");
             }
         }
 
         [HttpPost("calcolo-batch")]
-        [AllowAnonymous] // ✅ CALCOLO BATCH PUBBLICO
+        [AllowAnonymous]
         public async Task<ActionResult<List<PriceCalculationResultDTO>>> CalculateBatchPrices([FromBody] List<PriceCalculationRequestDTO> requests)
         {
             try
             {
-                if (requests == null || requests.Count == 0)
-                    return SafeBadRequest<List<PriceCalculationResultDTO>>("Nessuna richiesta di calcolo"); // ✅ CORRETTO
+                if (requests == null || !requests.Any())
+                    return SafeBadRequest<List<PriceCalculationResultDTO>>("Nessuna richiesta di calcolo");
 
                 var results = await _repository.CalculateBatchPricesAsync(requests);
-
                 LogAuditTrail("CALCULATE_BATCH_PRICES", "AdvancedPriceCalculation", $"Count:{requests.Count}");
                 return Ok(results);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo batch per {Count} richieste", requests?.Count);
-                return SafeInternalError("Errore nel calcolo batch");
+                return SafeInternalError<List<PriceCalculationResultDTO>>("Errore nel calcolo batch");
             }
         }
 
@@ -231,12 +225,12 @@ namespace BBltZen.Controllers
                 LogAuditTrail("APPLY_DISCOUNT", "AdvancedPriceCalculation", $"{request.PercentualeSconto}%");
                 return Ok(result);
             }
-            catch (System.ArgumentException ex)
+            catch (ArgumentException ex)
             {
                 _logger.LogWarning(ex, "Percentuale sconto non valida: {Percentuale}", request.PercentualeSconto);
                 return SafeBadRequest<decimal>(ex.Message);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nell'applicazione sconto {Percentuale}%", request.PercentualeSconto);
                 return SafeInternalError("Errore nell'applicazione sconto");
@@ -255,7 +249,7 @@ namespace BBltZen.Controllers
                 var result = await _repository.GetTaxRateAsync(taxRateId);
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero aliquota IVA {TaxRateId}", taxRateId);
                 return SafeInternalError("Errore nel recupero aliquota IVA");
@@ -263,7 +257,7 @@ namespace BBltZen.Controllers
         }
 
         [HttpPost("validazione-prezzo")]
-        //[Authorize(Roles = "admin,staff")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin,staff")]
         public async Task<ActionResult<bool>> ValidatePriceCalculation([FromBody] ValidationRequestDTO request)
         {
             try
@@ -272,19 +266,18 @@ namespace BBltZen.Controllers
                     return SafeBadRequest<bool>("Dati validazione non validi");
 
                 var result = await _repository.ValidatePriceCalculationAsync(request.ArticoloId, request.TipoArticolo, request.PrezzoCalcolato);
-
                 LogAuditTrail("VALIDATE_PRICE_CALCULATION", "AdvancedPriceCalculation", $"{request.TipoArticolo}_{request.ArticoloId}");
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella validazione prezzo per articolo {ArticoloId}", request.ArticoloId);
-                return SafeInternalError("Errore nella validazione prezzo");
+                return SafeInternalError<bool>("Errore nella validazione prezzo");
             }
         }
 
         [HttpPost("precarica-cache")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin")]
         public async Task<ActionResult> PreloadCache()
         {
             try
@@ -294,24 +287,22 @@ namespace BBltZen.Controllers
                 LogAuditTrail("PRELOAD_CALCULATION_CACHE", "AdvancedPriceCalculation", "All");
                 LogSecurityEvent("CalculationCachePreloaded", new
                 {
-                    User = User.Identity?.Name,
-                    Timestamp = System.DateTime.UtcNow
+                    User = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
                 });
 
-                if (_environment.IsDevelopment())
-                    return Ok("Cache precaricata con successo");
-                else
-                    return Ok("Operazione completata");
+                return Ok(_environment.IsDevelopment() ? "Cache precaricata con successo" : "Operazione completata");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel precaricamento cache calcoli");
                 return SafeInternalError("Errore nel precaricamento cache");
             }
         }
 
+
         [HttpDelete("pulisci-cache")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin")]
         public async Task<ActionResult> ClearCache()
         {
             try
@@ -321,16 +312,13 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CLEAR_CALCULATION_CACHE", "AdvancedPriceCalculation", "All");
                 LogSecurityEvent("CalculationCacheCleared", new
                 {
-                    User = User.Identity?.Name,
-                    Timestamp = System.DateTime.UtcNow
+                    User = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
                 });
 
-                if (_environment.IsDevelopment())
-                    return Ok("Cache pulita con successo");
-                else
-                    return Ok("Operazione completata");
+                return Ok(_environment.IsDevelopment() ? "Cache pulita con successo" : "Operazione completata");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella pulizia cache calcoli");
                 return SafeInternalError("Errore nella pulizia cache");
@@ -338,7 +326,7 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("cache-valida")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "admin")]
         public async Task<ActionResult<bool>> IsCacheValid()
         {
             try
@@ -346,10 +334,52 @@ namespace BBltZen.Controllers
                 var result = await _repository.IsCacheValidAsync();
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella verifica validità cache");
-                return SafeInternalError("Errore nella verifica cache");
+                return SafeInternalError<bool>("Errore nella verifica cache");
+            }
+        }
+
+        // ✅ MANCANTI NEL CONTROLLER:
+        [HttpPost("calcolo-spedizione")]
+        //[Authorize(Roles = "admin,staff")]
+        public async Task<ActionResult<decimal>> CalculateShippingCost([FromBody] ShippingCostRequestDTO request)
+        {
+            try
+            {
+                if (!IsModelValid(request))
+                    return SafeBadRequest<decimal>("Dati spedizione non validi");
+
+                var result = await _repository.CalculateShippingCostAsync(request.Subtotal, request.MetodoSpedizione);
+
+                LogAuditTrail("CALCULATE_SHIPPING_COST", "AdvancedPriceCalculation", request.MetodoSpedizione);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel calcolo costo spedizione per metodo {Metodo}", request.MetodoSpedizione);
+                return SafeInternalError<decimal>("Errore nel calcolo costo spedizione");
+            }
+        }
+
+        [HttpPost("totale-order-items")]
+        //[Authorize(Roles = "admin,staff")]
+        public async Task<ActionResult<Dictionary<int, decimal>>> CalculateOrderItemsTotal([FromBody] List<int> orderItemIds)
+        {
+            try
+            {
+                if (orderItemIds == null || !orderItemIds.Any())
+                    return SafeBadRequest<Dictionary<int, decimal>>("Nessun OrderItem ID specificato");
+
+                var results = await _repository.CalculateOrderItemsTotalAsync(orderItemIds);
+                LogAuditTrail("CALCULATE_ORDER_ITEMS_TOTAL", "AdvancedPriceCalculation", $"Count:{orderItemIds.Count}");
+                return Ok(results);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel calcolo totale per {Count} order items", orderItemIds?.Count);
+                return SafeInternalError<Dictionary<int, decimal>>("Errore nel calcolo totale order items");
             }
         }
     }

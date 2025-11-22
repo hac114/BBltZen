@@ -37,6 +37,8 @@ namespace RepositoryTest
             _context.Database.EnsureDeleted();
             _context.Database.EnsureCreated();
 
+            var now = DateTime.UtcNow; // ✅ UTC PER COERENZA
+
             // Tax Rates
             _context.TaxRates.AddRange(
                 new TaxRates { TaxRateId = 1, Aliquota = 22.00m, Descrizione = "IVA Standard" },
@@ -55,21 +57,21 @@ namespace RepositoryTest
                 new Ingrediente { IngredienteId = 2, Ingrediente1 = "Latte Condensato", CategoriaId = 2, PrezzoAggiunto = 0.50m, Disponibile = true }
             );
 
-            // Articoli e Bevande Standard (DATI CRITICI PER I TEST)
+            // Articoli e Bevande Standard
             _context.Articolo.AddRange(
-                new Articolo { ArticoloId = 1, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new Articolo { ArticoloId = 2, Tipo = "BS", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new Articolo { ArticoloId = 3, Tipo = "D", DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+                new Articolo { ArticoloId = 1, Tipo = "BS", DataCreazione = now, DataAggiornamento = now },
+                new Articolo { ArticoloId = 2, Tipo = "BS", DataCreazione = now, DataAggiornamento = now },
+                new Articolo { ArticoloId = 3, Tipo = "D", DataCreazione = now, DataAggiornamento = now }
             );
 
             _context.BevandaStandard.AddRange(
-                new BevandaStandard { ArticoloId = 1, PersonalizzazioneId = 1, DimensioneBicchiereId = 1, Prezzo = 4.50m, Disponibile = true, DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now },
-                new BevandaStandard { ArticoloId = 2, PersonalizzazioneId = 1, DimensioneBicchiereId = 2, Prezzo = 6.00m, Disponibile = true, DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+                new BevandaStandard { ArticoloId = 1, PersonalizzazioneId = 1, DimensioneBicchiereId = 1, Prezzo = 4.50m, Disponibile = true, DataCreazione = now, DataAggiornamento = now },
+                new BevandaStandard { ArticoloId = 2, PersonalizzazioneId = 1, DimensioneBicchiereId = 2, Prezzo = 6.00m, Disponibile = true, DataCreazione = now, DataAggiornamento = now }
             );
 
             // Dolci
             _context.Dolce.AddRange(
-                new Dolce { ArticoloId = 3, Nome = "Tiramisu", Prezzo = 5.50m, Disponibile = true, DataCreazione = DateTime.Now, DataAggiornamento = DateTime.Now }
+                new Dolce { ArticoloId = 3, Nome = "Tiramisu", Prezzo = 5.50m, Disponibile = true, DataCreazione = now, DataAggiornamento = now }
             );
 
             _context.SaveChanges();
@@ -145,12 +147,15 @@ namespace RepositoryTest
         public async Task CalculateBevandaCustomPrice_WithValidInput_ReturnsCorrectPrice()
         {
             // Arrange
+            var now = DateTime.UtcNow;
+
             var personalizzazioneCustom = new PersonalizzazioneCustom
             {
                 PersCustomId = 1,
                 Nome = "Test Custom",
                 GradoDolcezza = 3,
-                DimensioneBicchiereId = 1
+                DimensioneBicchiereId = 1,
+                DataCreazione = now
             };
             _context.PersonalizzazioneCustom.Add(personalizzazioneCustom);
 
@@ -167,7 +172,7 @@ namespace RepositoryTest
             // Act
             var result = await _priceCalculationService.CalculateBevandaCustomPrice(1);
 
-            // Assert
+            // Assert - Calcolo: PrezzoBase (3.50) + Ingrediente (1.00 * 1.00) = 4.50
             Assert.Equal(4.50m, result);
         }
 
@@ -241,6 +246,115 @@ namespace RepositoryTest
 
             var result = await isolatedService.CalculateBevandaStandardPrice(1);
             Assert.Equal(3.50m, result);
+        }
+
+        [Fact]
+        public async Task CalculateOrderItemPrice_WithValidOrderItem_ReturnsCalculation()
+        {
+            // Arrange
+            var orderItem = new OrderItem
+            {
+                OrderItemId = 1,
+                ArticoloId = 1, // Bevanda Standard
+                TipoArticolo = "BS",
+                Quantita = 2,
+                TaxRateId = 1
+            };
+
+            // Act
+            var result = await _priceCalculationService.CalculateOrderItemPrice(orderItem);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(4.50m, result.PrezzoBase); // Prezzo singolo
+            Assert.Equal(9.00m, result.TotaleIvato); // 4.50 * 2
+            Assert.Equal(22.00m, result.TaxRate);
+            Assert.Equal(1, result.TaxRateId);
+        }
+
+        [Fact]
+        public async Task ValidateTaxRate_WithValidId_ReturnsTrue()
+        {
+            // Act
+            var result = await _priceCalculationService.ValidateTaxRate(1);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task ValidateTaxRate_WithInvalidId_ReturnsFalse()
+        {
+            // Act
+            var result = await _priceCalculationService.ValidateTaxRate(999); // ID inesistente
+
+            // Assert
+            Assert.False(result); // ✅ ORA DOVREBBE RESTITUIRE FALSE
+        }
+
+        [Fact]
+        public async Task CalculateBatchPricesAsync_WithValidIds_ReturnsBatchResults()
+        {
+            // Arrange
+            var request = new BatchCalculationRequestDTO
+            {
+                BevandeStandardIds = new List<int> { 1, 2 },
+                DolciIds = new List<int> { 3 }
+            };
+
+            // Act
+            var result = await _priceCalculationService.CalculateBatchPricesAsync(request);
+
+            // Assert
+            Assert.NotNull(result);
+
+            // ✅ VERIFICHE ESPLICITE PER OGNI PROPRIETÀ
+            Assert.NotNull(result.BevandeStandardPrezzi);
+            Assert.NotNull(result.DolciPrezzi);
+            Assert.NotNull(result.BevandeCustomPrezzi);
+            Assert.NotNull(result.Errori);
+
+            // ✅ VERIFICHE COUNT
+            Assert.Equal(2, result.BevandeStandardPrezzi.Count);
+            Assert.Single(result.DolciPrezzi); // ✅ SINGLE PER 1 ELEMENTO
+            Assert.Empty(result.BevandeCustomPrezzi);
+            Assert.Empty(result.Errori);
+
+            // ✅ VERIFICHE VALORI
+            Assert.Equal(4.50m, result.BevandeStandardPrezzi[1]);
+            Assert.Equal(6.00m, result.BevandeStandardPrezzi[2]);
+            Assert.Equal(5.50m, result.DolciPrezzi[3]);
+        }
+
+        [Fact]
+        public async Task CalculateBatchPricesAsync_WithInvalidIds_ReturnsErrors()
+        {
+            // Arrange
+            var request = new BatchCalculationRequestDTO
+            {
+                BevandeStandardIds = new List<int> { 999 }, // ID inesistente
+                DolciIds = new List<int> { 888 } // ID inesistente
+            };
+
+            // Act
+            var result = await _priceCalculationService.CalculateBatchPricesAsync(request);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Empty(result.BevandeStandardPrezzi);
+            Assert.Empty(result.DolciPrezzi);
+            Assert.NotEmpty(result.Errori); // Dovrebbe contenere errori
+            Assert.True(result.Errori.Count >= 2);
+        }
+
+        [Fact]
+        public async Task GetTaxRate_WithInvalidId_ReturnsDefault()
+        {
+            // Act
+            var result = await _priceCalculationService.GetTaxRate(999);
+
+            // Assert
+            Assert.Equal(22.00m, result); // Default IVA standard
         }
     }
 }

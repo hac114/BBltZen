@@ -41,7 +41,7 @@ namespace BBltZen.Controllers
 
                 return Ok(prezzo);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo prezzo bevanda standard {BevandaStandardId}", bevandaStandardId);
                 return SafeBadRequest<decimal>("Errore nel calcolo del prezzo");
@@ -64,7 +64,7 @@ namespace BBltZen.Controllers
 
                 return Ok(prezzo);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo prezzo bevanda custom {PersonalizzazioneCustomId}", personalizzazioneCustomId);
                 return SafeBadRequest<decimal>("Errore nel calcolo del prezzo");
@@ -87,7 +87,7 @@ namespace BBltZen.Controllers
 
                 return Ok(prezzo);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo prezzo dolce {DolceId}", dolceId);
                 return SafeBadRequest<decimal>("Errore nel calcolo del prezzo");
@@ -126,16 +126,16 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CALCULATE_ORDER_ITEM_PRICE", "PriceCalculation", orderItemDto.OrderItemId.ToString());
                 LogSecurityEvent("OrderItemPriceCalculated", new
                 {
-                    OrderItemId = orderItemDto.OrderItemId,
-                    TipoArticolo = orderItemDto.TipoArticolo,
-                    Quantita = orderItemDto.Quantita,
-                    PrezzoFinale = result.TotaleIvato,
-                    User = User.Identity?.Name ?? "Anonymous"
+                    orderItemDto.OrderItemId,           // ✅ NOME MEMBRO SEMPLIFICATO
+                    orderItemDto.TipoArticolo,          // ✅ NOME MEMBRO SEMPLIFICATO
+                    orderItemDto.Quantita,              // ✅ NOME MEMBRO SEMPLIFICATO
+                    PrezzoFinale = result.TotaleIvato,  // ✅ MANTIENI NOME ESPLICITO
+                    User = GetCurrentUserIdOrDefault()
                 });
 
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo prezzo order item {OrderItemId}", orderItemDto?.OrderItemId);
                 return SafeBadRequest<PriceCalculationServiceDTO>("Errore nel calcolo del prezzo");
@@ -164,7 +164,7 @@ namespace BBltZen.Controllers
 
                 return Ok(taxAmount);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo IVA per imponibile {Imponibile} e tax rate {TaxRateId}", request.Imponibile, request.TaxRateId);
                 return SafeBadRequest<decimal>("Errore nel calcolo IVA");
@@ -196,7 +196,7 @@ namespace BBltZen.Controllers
 
                 return Ok(imponibile);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo imponibile per prezzo {Prezzo}, quantità {Quantita} e tax rate {TaxRateId}",
                     request.Prezzo, request.Quantita, request.TaxRateId);
@@ -216,7 +216,7 @@ namespace BBltZen.Controllers
                 var taxRate = await _repository.GetTaxRate(taxRateId);
                 return Ok(taxRate);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero aliquota IVA {TaxRateId}", taxRateId);
                 return SafeBadRequest<decimal>("Errore nel recupero aliquota IVA");
@@ -235,16 +235,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("CLEAR_PRICE_CACHE", "PriceCalculation", "All");
                 LogSecurityEvent("PriceCacheCleared", new
                 {
-                    User = User.Identity?.Name,
-                    Timestamp = System.DateTime.UtcNow
+                    User = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
                 });
 
-                if (_environment.IsDevelopment())
-                    return Ok("Cache del servizio di calcolo prezzi pulita con successo");
-                else
-                    return Ok("Operazione completata");
+                return Ok(_environment.IsDevelopment()
+                    ? "Cache del servizio di calcolo prezzi pulita con successo"
+                    : "Operazione completata");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella pulizia cache prezzi");
                 return SafeInternalError("Errore nella pulizia cache");
@@ -263,16 +262,15 @@ namespace BBltZen.Controllers
                 LogAuditTrail("PRELOAD_PRICE_CACHE", "PriceCalculation", "All");
                 LogSecurityEvent("PriceCachePreloaded", new
                 {
-                    User = User.Identity?.Name,
-                    Timestamp = System.DateTime.UtcNow
+                    User = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
                 });
 
-                if (_environment.IsDevelopment())
-                    return Ok("Precaricamento cache completato con successo");
-                else
-                    return Ok("Operazione completata");
+                return Ok(_environment.IsDevelopment()
+                    ? "Precaricamento cache completato con successo"
+                    : "Operazione completata");
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel precaricamento cache prezzi");
                 return SafeInternalError("Errore nel precaricamento cache");
@@ -289,61 +287,8 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(request))
                     return SafeBadRequest<BatchCalculationResponseDTO>("Dati calcolo batch non validi");
 
-                var response = new BatchCalculationResponseDTO();
-
-                // Calcola prezzi bevande standard
-                foreach (var bevandaId in request.BevandeStandardIds)
-                {
-                    if (bevandaId > 0)
-                    {
-                        try
-                        {
-                            var prezzo = await _repository.CalculateBevandaStandardPrice(bevandaId);
-                            response.BevandeStandardPrezzi.Add(bevandaId, prezzo);
-                        }
-                        catch (System.Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Errore nel calcolo batch bevanda standard {BevandaId}", bevandaId);
-                            response.Errori.Add($"Bevanda standard {bevandaId}: {ex.Message}");
-                        }
-                    }
-                }
-
-                // Calcola prezzi bevande custom
-                foreach (var customId in request.BevandeCustomIds)
-                {
-                    if (customId > 0)
-                    {
-                        try
-                        {
-                            var prezzo = await _repository.CalculateBevandaCustomPrice(customId);
-                            response.BevandeCustomPrezzi.Add(customId, prezzo);
-                        }
-                        catch (System.Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Errore nel calcolo batch bevanda custom {CustomId}", customId);
-                            response.Errori.Add($"Bevanda custom {customId}: {ex.Message}");
-                        }
-                    }
-                }
-
-                // Calcola prezzi dolci
-                foreach (var dolceId in request.DolciIds)
-                {
-                    if (dolceId > 0)
-                    {
-                        try
-                        {
-                            var prezzo = await _repository.CalculateDolcePrice(dolceId);
-                            response.DolciPrezzi.Add(dolceId, prezzo);
-                        }
-                        catch (System.Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Errore nel calcolo batch dolce {DolceId}", dolceId);
-                            response.Errori.Add($"Dolce {dolceId}: {ex.Message}");
-                        }
-                    }
-                }
+                // ✅ CORREZIONE: USA IL METODO DEL REPOSITORY INVECE DI LOGICA NEL CONTROLLER
+                var response = await _repository.CalculateBatchPricesAsync(request);
 
                 // ✅ Log per audit
                 LogAuditTrail("BATCH_PRICE_CALCULATION", "PriceCalculation",
@@ -351,10 +296,68 @@ namespace BBltZen.Controllers
 
                 return Ok(response);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel calcolo batch prezzi");
-                return SafeInternalError("Errore nel calcolo batch prezzi");
+                return SafeInternalError<BatchCalculationResponseDTO>("Errore nel calcolo batch prezzi");
+            }
+        }
+
+        [HttpGet("validate-tax-rate/{taxRateId}")]
+        [AllowAnonymous] // ✅ VALIDAZIONE PUBBLICA
+        public async Task<ActionResult<bool>> ValidateTaxRate(int taxRateId)
+        {
+            try
+            {
+                if (taxRateId <= 0)
+                    return SafeBadRequest<bool>("ID aliquota IVA non valido");
+
+                var isValid = await _repository.ValidateTaxRate(taxRateId);
+
+                LogAuditTrail("VALIDATE_TAX_RATE", "PriceCalculation", taxRateId.ToString());
+
+                return Ok(isValid);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella validazione tax rate {TaxRateId}", taxRateId);
+                return SafeBadRequest<bool>("Errore nella validazione aliquota IVA");
+            }
+        }
+
+        [HttpGet("health")]
+        [AllowAnonymous] // ✅ HEALTH CHECK PUBBLICO
+        public async Task<ActionResult<object>> HealthCheck()
+        {
+            try
+            {
+                // ✅ TESTA FUNZIONALITÀ CRITICHE
+                var taxRate = await _repository.GetTaxRate(1); // Aliquota standard
+                var isValid = await _repository.ValidateTaxRate(1);
+
+                var health = new
+                {
+                    Status = "Healthy",
+                    Timestamp = DateTime.UtcNow,
+                    TaxRateService = taxRate > 0 ? "Operational" : "Degraded",
+                    ValidationService = isValid ? "Operational" : "Degraded",
+                    CacheStatus = "Enabled"
+                };
+
+                LogAuditTrail("PRICE_CALCULATION_HEALTH_CHECK", "PriceCalculation", "OK");
+
+                return Ok(health);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Health check fallito per PriceCalculationService");
+
+                return Ok(new
+                {
+                    Status = "Unhealthy",
+                    Error = _environment.IsDevelopment() ? ex.Message : "Service unavailable",
+                    Timestamp = DateTime.UtcNow
+                });
             }
         }
     }
