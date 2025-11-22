@@ -42,10 +42,10 @@ namespace RepositoryTest.IntegrationTests
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<VwArticoliCompletiDTO>>(result);
+            Assert.IsAssignableFrom<IEnumerable<VwArticoliCompletiDTO>>(result);
 
             // Log per debugging
-            Console.WriteLine($"✅ Trovati {result.Count} articoli nella vista VwArticoliCompleti");
+            Console.WriteLine($"✅ Trovati {result.Count()} articoli nella vista VwArticoliCompleti");
 
             if (result.Any())
             {
@@ -67,9 +67,9 @@ namespace RepositoryTest.IntegrationTests
             Assert.NotNull(resultD);
             Assert.NotNull(resultBc);
 
-            Console.WriteLine($"🍵 Bevande Standard (BS): {resultBs.Count}");
-            Console.WriteLine($"🍰 Dolci (D): {resultD.Count}");
-            Console.WriteLine($"🎨 Bevande Custom (BC): {resultBc.Count}");
+            Console.WriteLine($"🍵 Bevande Standard (BS): {resultBs.Count()}");
+            Console.WriteLine($"🍰 Dolci (D): {resultD.Count()}");
+            Console.WriteLine($"🎨 Bevande Custom (BC): {resultBc.Count()}");
         }
 
         [Fact]
@@ -85,7 +85,7 @@ namespace RepositoryTest.IntegrationTests
                 Assert.All(result, a => Assert.Equal(1, a.Disponibile));
             }
 
-            Console.WriteLine($"🟢 Articoli disponibili: {result.Count}");
+            Console.WriteLine($"🟢 Articoli disponibili: {result.Count()}");
         }
 
         [Fact]
@@ -96,7 +96,7 @@ namespace RepositoryTest.IntegrationTests
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<string>>(result);
+            Assert.IsAssignableFrom<IEnumerable<string>>(result);
 
             Console.WriteLine($"📂 Categorie trovate: {string.Join(", ", result)}");
         }
@@ -109,7 +109,7 @@ namespace RepositoryTest.IntegrationTests
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<string>>(result);
+            Assert.IsAssignableFrom<IEnumerable<string>>(result);
 
             Console.WriteLine($"🏷️ Tipi articolo trovati: {string.Join(", ", result)}");
         }
@@ -125,8 +125,8 @@ namespace RepositoryTest.IntegrationTests
             Assert.NotNull(result);
             Assert.NotNull(result2);
 
-            Console.WriteLine($"🔍 Risultati ricerca 'tea': {result.Count}");
-            Console.WriteLine($"🔍 Risultati ricerca 'latte': {result2.Count}");
+            Console.WriteLine($"🔍 Risultati ricerca 'tea': {result.Count()}");
+            Console.WriteLine($"🔍 Risultati ricerca 'latte': {result2.Count()}");
         }
 
         [Fact]
@@ -150,10 +150,91 @@ namespace RepositoryTest.IntegrationTests
 
             Console.WriteLine($"📊 Statistiche complete:");
             Console.WriteLine($"   • Totale articoli: {count}");
-            Console.WriteLine($"   • Categorie: {categories.Count}");
-            Console.WriteLine($"   • Tipi: {types.Count}");
-            Console.WriteLine($"   • Disponibili: {available.Count}");
-            Console.WriteLine($"   • Con IVA: {withIva.Count}");
+            Console.WriteLine($"   • Categorie: {categories.Count()}");
+            Console.WriteLine($"   • Tipi: {types.Count()}");
+            Console.WriteLine($"   • Disponibili: {available.Count()}");
+            Console.WriteLine($"   • Con IVA: {withIva.Count()}");
+        }
+
+        [Fact]
+        public async Task GetByPriceRangeAsync_Integration_ReturnsFilteredByPrice()
+        {
+            // Act
+            var result = await _repository.GetByPriceRangeAsync(0m, 10m);
+
+            // Assert
+            Assert.NotNull(result);
+            if (result.Any())
+            {
+                Assert.All(result, a =>
+                {
+                    Assert.True(a.PrezzoBase >= 0m);
+                    Assert.True(a.PrezzoBase <= 10m);
+                });
+            }
+
+            Console.WriteLine($"💰 Articoli nel range 0-10€: {result.Count()}");
+        }
+
+        [Fact]
+        public async Task GetArticoliConIvaAsync_Integration_ReturnsItemsWithTax()
+        {
+            // Act
+            var result = await _repository.GetArticoliConIvaAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            if (result.Any())
+            {
+                Assert.All(result, a => Assert.True(a.AliquotaIva > 0));
+            }
+
+            Console.WriteLine($"🧾 Articoli con IVA: {result.Count()}");
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_Integration_ReturnsSingleItem()
+        {
+            // Arrange - Prendi un ID esistente dalla vista
+            var allItems = await _repository.GetAllAsync();
+            var existingId = allItems.FirstOrDefault()?.ArticoloId;
+
+            if (existingId.HasValue)
+            {
+                // Act
+                var result = await _repository.GetByIdAsync(existingId.Value);
+
+                // Assert
+                Assert.NotNull(result);
+                Assert.Equal(existingId.Value, result.ArticoloId);
+                Console.WriteLine($"🔎 Trovato articolo con ID {existingId.Value}: {result.NomeArticolo}");
+            }
+            else
+            {
+                Console.WriteLine("ℹ️ Nessun articolo trovato per test GetByIdAsync");
+            }
+        }
+
+        [Fact]
+        public async Task ExistsAsync_Integration_ChecksItemExistence()
+        {
+            // Arrange - Prendi un ID esistente dalla vista
+            var allItems = await _repository.GetAllAsync();
+            var existingId = allItems.FirstOrDefault()?.ArticoloId;
+
+            if (existingId.HasValue)
+            {
+                // Act
+                var result = await _repository.ExistsAsync(existingId.Value);
+
+                // Assert
+                Assert.True(result);
+                Console.WriteLine($"✅ Articolo con ID {existingId.Value} esiste: {result}");
+            }
+            else
+            {
+                Console.WriteLine("ℹ️ Nessun articolo trovato per test ExistsAsync");
+            }
         }
 
         public void Dispose()

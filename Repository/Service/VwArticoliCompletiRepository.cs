@@ -21,32 +21,76 @@ namespace Repository.Service
             _logger = logger;
         }
 
-        public async Task<List<VwArticoliCompletiDTO>> GetAllAsync()
+        private VwArticoliCompletiDTO MapToDTO(VwArticoliCompleti entity)
+        {
+            return new VwArticoliCompletiDTO
+            {
+                ArticoloId = entity.ArticoloId,
+                TipoArticolo = entity.TipoArticolo,
+                DataCreazione = entity.DataCreazione,
+                DataAggiornamento = entity.DataAggiornamento,
+                NomeArticolo = entity.NomeArticolo,
+                PrezzoBase = entity.PrezzoBase,
+                AliquotaIva = entity.AliquotaIva,
+                Disponibile = entity.Disponibile,
+                Categoria = entity.Categoria
+            };
+        }
+
+        public async Task<IEnumerable<VwArticoliCompletiDTO>> GetByTipoAsync(string tipoArticolo)
         {
             try
             {
                 var articoli = await _context.VwArticoliCompleti
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
+                    .AsNoTracking()
+                    .Where(a => a.TipoArticolo == tipoArticolo)
+                    .Select(a => MapToDTO(a))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperati {articoli.Count} articoli completi");
+                _logger.LogInformation("Recuperati {Count} articoli completi di tipo: {Tipo}", articoli.Count, tipoArticolo);
+                return articoli; // ✅ List<T> è assegnabile a IEnumerable<T>
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero articoli completi di tipo: {Tipo}", tipoArticolo);
+                return Enumerable.Empty<VwArticoliCompletiDTO>();
+            }
+        }
+
+        public async Task<IEnumerable<VwArticoliCompletiDTO>> GetAllAsync()
+        {
+            try
+            {
+                var articoli = await _context.VwArticoliCompleti
+                    .AsNoTracking() // ✅ PERFORMANCE - SOLO LETTURA
+                    .Select(a => MapToDTO(a))
+                    .ToListAsync();
+
+                _logger.LogInformation("Recuperati {Count} articoli completi", articoli.Count);
                 return articoli;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutti gli articoli completi");
-                return new List<VwArticoliCompletiDTO>();
+                return Enumerable.Empty<VwArticoliCompletiDTO>();
+            }
+        }
+
+        // ✅ AGGIUNGI METODO EXISTS
+        public async Task<bool> ExistsAsync(int articoloId)
+        {
+            try
+            {
+                var exists = await _context.VwArticoliCompleti
+                    .AsNoTracking()
+                    .AnyAsync(a => a.ArticoloId == articoloId);
+
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella verifica esistenza articolo {ArticoloId}", articoloId);
+                return false;
             }
         }
 
@@ -55,212 +99,122 @@ namespace Repository.Service
             try
             {
                 var articolo = await _context.VwArticoliCompleti
+                    .AsNoTracking() // ✅ AGGIUNTO PER PERFORMANCE
                     .Where(a => a.ArticoloId == articoloId)
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
+                    .Select(a => MapToDTO(a)) // ✅ SEMPLIFICATO
                     .FirstOrDefaultAsync();
 
                 if (articolo != null)
-                    _logger.LogInformation($"Recuperato articolo completo con ID: {articoloId}");
+                    _logger.LogInformation("Recuperato articolo completo con ID: {ArticoloId}", articoloId);
                 else
-                    _logger.LogWarning($"Articolo completo con ID: {articoloId} non trovato");
+                    _logger.LogWarning("Articolo completo con ID: {ArticoloId} non trovato", articoloId);
 
                 return articolo;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero articolo completo con ID: {articoloId}");
+                _logger.LogError(ex, "Errore nel recupero articolo completo con ID: {ArticoloId}", articoloId);
                 return null;
             }
         }
 
-        public async Task<List<VwArticoliCompletiDTO>> GetByTipoAsync(string tipoArticolo)
+        public async Task<IEnumerable<VwArticoliCompletiDTO>> GetByCategoriaAsync(string categoria)
         {
             try
             {
                 var articoli = await _context.VwArticoliCompleti
-                    .Where(a => a.TipoArticolo == tipoArticolo)
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
-                    .ToListAsync();
-
-                _logger.LogInformation($"Recuperati {articoli.Count} articoli completi di tipo: {tipoArticolo}");
-                return articoli;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Errore nel recupero articoli completi di tipo: {tipoArticolo}");
-                return new List<VwArticoliCompletiDTO>();
-            }
-        }
-
-        public async Task<List<VwArticoliCompletiDTO>> GetByCategoriaAsync(string categoria)
-        {
-            try
-            {
-                var articoli = await _context.VwArticoliCompleti
+                    .AsNoTracking()
                     .Where(a => a.Categoria == categoria)
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
+                    .Select(a => MapToDTO(a))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperati {articoli.Count} articoli completi della categoria: {categoria}");
+                _logger.LogInformation("Recuperati {Count} articoli completi della categoria: {Categoria}", articoli.Count, categoria);
                 return articoli;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero articoli completi della categoria: {categoria}");
-                return new List<VwArticoliCompletiDTO>();
+                _logger.LogError(ex, "Errore nel recupero articoli completi della categoria: {Categoria}", categoria);
+                return Enumerable.Empty<VwArticoliCompletiDTO>();
             }
         }
 
-        public async Task<List<VwArticoliCompletiDTO>> GetDisponibiliAsync()
+        public async Task<IEnumerable<VwArticoliCompletiDTO>> GetDisponibiliAsync()
         {
             try
             {
                 var articoli = await _context.VwArticoliCompleti
+                    .AsNoTracking()
                     .Where(a => a.Disponibile == 1)
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
+                    .Select(a => MapToDTO(a))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperati {articoli.Count} articoli completi disponibili");
+                _logger.LogInformation("Recuperati {Count} articoli completi disponibili", articoli.Count);
                 return articoli;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli completi disponibili");
-                return new List<VwArticoliCompletiDTO>();
+                return Enumerable.Empty<VwArticoliCompletiDTO>();
             }
         }
 
-        public async Task<List<VwArticoliCompletiDTO>> SearchByNameAsync(string nome)
+        public async Task<IEnumerable<VwArticoliCompletiDTO>> SearchByNameAsync(string nome)
         {
             try
             {
                 var articoli = await _context.VwArticoliCompleti
+                    .AsNoTracking()
                     .Where(a => a.NomeArticolo != null && a.NomeArticolo.Contains(nome))
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
+                    .Select(a => MapToDTO(a))
                     .ToListAsync();
 
-                _logger.LogInformation($"Trovati {articoli.Count} articoli completi con nome contenente: {nome}");
+                _logger.LogInformation("Trovati {Count} articoli completi con nome contenente: {Nome}", articoli.Count, nome);
                 return articoli;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nella ricerca articoli completi per nome: {nome}");
-                return new List<VwArticoliCompletiDTO>();
+                _logger.LogError(ex, "Errore nella ricerca articoli completi per nome: {Nome}", nome);
+                return Enumerable.Empty<VwArticoliCompletiDTO>();
             }
         }
 
-        public async Task<List<VwArticoliCompletiDTO>> GetByPriceRangeAsync(decimal prezzoMin, decimal prezzoMax)
+        public async Task<IEnumerable<VwArticoliCompletiDTO>> GetByPriceRangeAsync(decimal prezzoMin, decimal prezzoMax)
         {
             try
             {
                 var articoli = await _context.VwArticoliCompleti
+                    .AsNoTracking()
                     .Where(a => a.PrezzoBase >= prezzoMin && a.PrezzoBase <= prezzoMax)
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
+                    .Select(a => MapToDTO(a))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperati {articoli.Count} articoli completi nel range prezzi {prezzoMin}-{prezzoMax}");
+                _logger.LogInformation("Recuperati {Count} articoli completi nel range prezzi {Min}-{Max}", articoli.Count, prezzoMin, prezzoMax);
                 return articoli;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero articoli completi nel range prezzi {prezzoMin}-{prezzoMax}");
-                return new List<VwArticoliCompletiDTO>();
+                _logger.LogError(ex, "Errore nel recupero articoli completi nel range prezzi {Min}-{Max}", prezzoMin, prezzoMax);
+                return Enumerable.Empty<VwArticoliCompletiDTO>();
             }
         }
 
-        public async Task<List<VwArticoliCompletiDTO>> GetArticoliConIvaAsync()
+        public async Task<IEnumerable<VwArticoliCompletiDTO>> GetArticoliConIvaAsync()
         {
             try
             {
                 var articoli = await _context.VwArticoliCompleti
+                    .AsNoTracking()
                     .Where(a => a.AliquotaIva > 0)
-                    .Select(a => new VwArticoliCompletiDTO
-                    {
-                        ArticoloId = a.ArticoloId,
-                        TipoArticolo = a.TipoArticolo,
-                        DataCreazione = a.DataCreazione,
-                        DataAggiornamento = a.DataAggiornamento,
-                        NomeArticolo = a.NomeArticolo,
-                        PrezzoBase = a.PrezzoBase,
-                        AliquotaIva = a.AliquotaIva,
-                        Disponibile = a.Disponibile,
-                        Categoria = a.Categoria
-                    })
+                    .Select(a => MapToDTO(a))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperati {articoli.Count} articoli completi con IVA");
+                _logger.LogInformation("Recuperati {Count} articoli completi con IVA", articoli.Count);
                 return articoli;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli completi con IVA");
-                return new List<VwArticoliCompletiDTO>();
+                return Enumerable.Empty<VwArticoliCompletiDTO>();
             }
         }
 
@@ -279,42 +233,45 @@ namespace Repository.Service
             }
         }
 
-        public async Task<List<string>> GetCategorieAsync()
+        // ✅ METODI AGGREGATI CON IEnumerable
+        public async Task<IEnumerable<string>> GetCategorieAsync()
         {
             try
             {
                 var categorie = await _context.VwArticoliCompleti
+                    .AsNoTracking()
                     .Select(a => a.Categoria)
                     .Distinct()
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperate {categorie.Count} categorie distinte");
+                _logger.LogInformation("Recuperate {Count} categorie distinte", categorie.Count);
                 return categorie;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero categorie");
-                return new List<string>();
+                return Enumerable.Empty<string>();
             }
         }
 
-        public async Task<List<string>> GetTipiArticoloAsync()
+        public async Task<IEnumerable<string>> GetTipiArticoloAsync()
         {
             try
             {
                 var tipi = await _context.VwArticoliCompleti
+                    .AsNoTracking()
                     .Select(a => a.TipoArticolo)
                     .Distinct()
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperati {tipi.Count} tipi articolo distinti");
+                _logger.LogInformation("Recuperati {Count} tipi articolo distinti", tipi.Count);
                 return tipi;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero tipi articolo");
-                return new List<string>();
+                return Enumerable.Empty<string>();
             }
-        }
+        }        
     }
 }

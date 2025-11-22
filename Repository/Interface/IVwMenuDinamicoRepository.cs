@@ -6,15 +6,19 @@ namespace Repository.Interface
 {
     public interface IVwMenuDinamicoRepository
     {
-        Task<List<VwMenuDinamicoDTO>> GetMenuCompletoAsync();
-        Task<List<VwMenuDinamicoDTO>> GetPrimoPianoAsync(int numeroElementi = 6);
-        Task<List<VwMenuDinamicoDTO>> GetBevandeDisponibiliAsync();
-        Task<List<VwMenuDinamicoDTO>> GetBevandePerCategoriaAsync(string categoria);
-        Task<List<VwMenuDinamicoDTO>> GetBevandePerPrioritaAsync(int prioritaMinima, int prioritaMassima);
-        Task<List<VwMenuDinamicoDTO>> GetBevandeConScontoAsync();
+        // ✅ ALLINEATO AL PATTERN - SOLO LETTURA (vista)
+        Task<IEnumerable<VwMenuDinamicoDTO>> GetMenuCompletoAsync();
+        Task<IEnumerable<VwMenuDinamicoDTO>> GetPrimoPianoAsync(int numeroElementi = 6);
+        Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandeDisponibiliAsync();
+        Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandePerCategoriaAsync(string categoria);
+        Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandePerPrioritaAsync(int prioritaMinima, int prioritaMassima);
+        Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandeConScontoAsync();
         Task<VwMenuDinamicoDTO?> GetBevandaByIdAsync(int id, string tipo);
-        Task<List<string>> GetCategorieDisponibiliAsync();
-        Task<List<VwMenuDinamicoDTO>> SearchBevandeAsync(string searchTerm);
+        Task<IEnumerable<string>> GetCategorieDisponibiliAsync();
+        Task<IEnumerable<VwMenuDinamicoDTO>> SearchBevandeAsync(string searchTerm);
         Task<int> GetCountBevandeDisponibiliAsync();
+
+        // ✅ AGGIUNTO PER COMPLETEZZA PATTERN
+        Task<bool> ExistsAsync(int id, string tipo);
     }
 }

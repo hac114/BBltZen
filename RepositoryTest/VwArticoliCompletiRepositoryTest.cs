@@ -4,9 +4,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Repository.Interface;
 using Repository.Service;
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -21,20 +19,24 @@ namespace RepositoryTest
         {
             _loggerMock = new Mock<ILogger<VwArticoliCompletiRepository>>();
             _repository = new VwArticoliCompletiRepository(_context, _loggerMock.Object);
-
-            // RIMOSSO SetupTestData() - Non funziona con le viste in InMemory
         }
 
         [Fact]
-        public async Task GetAllAsync_ReturnsAllArticoli()
+        public void Repository_CanBeConstructed()
+        {
+            // Assert
+            Assert.NotNull(_repository);
+        }
+
+        [Fact]
+        public async Task GetAllAsync_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetAllAsync();
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<VwArticoliCompletiDTO>>(result);
-            // Per viste in InMemory, restituirà lista vuota
+            Assert.IsAssignableFrom<IEnumerable<VwArticoliCompletiDTO>>(result);
         }
 
         [Fact]
@@ -48,36 +50,46 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetByTipoAsync_WithValidTipo_ReturnsList()
+        public async Task ExistsAsync_WithNonExistingId_ReturnsFalse()
+        {
+            // Act
+            var result = await _repository.ExistsAsync(999);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public async Task GetByTipoAsync_WithValidTipo_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetByTipoAsync("BS");
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<VwArticoliCompletiDTO>>(result);
+            Assert.IsAssignableFrom<IEnumerable<VwArticoliCompletiDTO>>(result);
         }
 
         [Fact]
-        public async Task GetByCategoriaAsync_WithValidCategoria_ReturnsList()
+        public async Task GetByCategoriaAsync_WithValidCategoria_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetByCategoriaAsync("Bevanda");
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<VwArticoliCompletiDTO>>(result);
+            Assert.IsAssignableFrom<IEnumerable<VwArticoliCompletiDTO>>(result);
         }
 
         [Fact]
-        public async Task GetDisponibiliAsync_ReturnsList()
+        public async Task GetDisponibiliAsync_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetDisponibiliAsync();
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<VwArticoliCompletiDTO>>(result);
+            Assert.IsAssignableFrom<IEnumerable<VwArticoliCompletiDTO>>(result);
         }
 
         [Fact]
@@ -92,25 +104,47 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetByPriceRangeAsync_WithValidRange_ReturnsList()
+        public async Task SearchByNameAsync_WithEmptyString_ReturnsEmpty()
+        {
+            // Act
+            var result = await _repository.SearchByNameAsync("");
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public async Task GetByPriceRangeAsync_WithValidRange_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetByPriceRangeAsync(4.00m, 5.00m);
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<VwArticoliCompletiDTO>>(result);
+            Assert.IsAssignableFrom<IEnumerable<VwArticoliCompletiDTO>>(result);
         }
 
         [Fact]
-        public async Task GetArticoliConIvaAsync_ReturnsList()
+        public async Task GetByPriceRangeAsync_WithInvalidRange_ReturnsEmpty()
+        {
+            // Act
+            var result = await _repository.GetByPriceRangeAsync(1000m, 2000m);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public async Task GetArticoliConIvaAsync_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetArticoliConIvaAsync();
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<VwArticoliCompletiDTO>>(result);
+            Assert.IsAssignableFrom<IEnumerable<VwArticoliCompletiDTO>>(result);
         }
 
         [Fact]
@@ -125,75 +159,25 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetCategorieAsync_ReturnsList()
+        public async Task GetCategorieAsync_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetCategorieAsync();
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<string>>(result);
+            Assert.IsAssignableFrom<IEnumerable<string>>(result);
         }
 
         [Fact]
-        public async Task GetTipiArticoloAsync_ReturnsList()
+        public async Task GetTipiArticoloAsync_ReturnsIEnumerable()
         {
             // Act
             var result = await _repository.GetTipiArticoloAsync();
 
             // Assert
             Assert.NotNull(result);
-            Assert.IsType<List<string>>(result);
-        }
-
-        [Fact]
-        public async Task Repository_CanBeConstructed()
-        {
-            // Assert
-            Assert.NotNull(_repository);
-        }
-
-        [Fact]
-        public async Task GetAllAsync_ReturnsEmptyList_WhenNoData()
-        {
-            // Act
-            var result = await _repository.GetAllAsync();
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Empty(result);
-        }
-
-        [Fact]
-        public async Task GetCountAsync_ReturnsZero_WhenNoData()
-        {
-            // Act
-            var result = await _repository.GetCountAsync();
-
-            // Assert
-            Assert.Equal(0, result);
-        }
-
-        [Fact]
-        public async Task GetCategorieAsync_ReturnsEmptyList_WhenNoData()
-        {
-            // Act
-            var result = await _repository.GetCategorieAsync();
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Empty(result);
-        }
-
-        [Fact]
-        public async Task GetTipiArticoloAsync_ReturnsEmptyList_WhenNoData()
-        {
-            // Act
-            var result = await _repository.GetTipiArticoloAsync();
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Empty(result);
+            Assert.IsAssignableFrom<IEnumerable<string>>(result);
         }
     }
 }

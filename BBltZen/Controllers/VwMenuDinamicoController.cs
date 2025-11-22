@@ -37,12 +37,12 @@ namespace BBltZen.Controllers
                 var menu = await _repository.GetMenuCompletoAsync();
 
                 // ✅ Audit trail completo
-                LogAuditTrail("GET_MENU_COMPLETO", "VwMenuDinamico", $"Count: {menu?.Count}");
+                LogAuditTrail("GET_MENU_COMPLETO", "VwMenuDinamico", $"Count: {menu?.Count()}");
                 LogSecurityEvent("VwMenuDinamicoAccessed", new
                 {
                     Operation = "GetMenuCompleto",
-                    Count = menu?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
+                    Count = menu?.Count() ?? 0,
+                    User = User.Identity?.Name ?? "Anonymous", 
                     Timestamp = DateTime.UtcNow
                 });
 
@@ -71,10 +71,10 @@ namespace BBltZen.Controllers
                 LogSecurityEvent("VwMenuDinamicoAccessed", new
                 {
                     Operation = "GetPrimoPiano",
-                    NumeroElementi = numeroElementi,
-                    Count = primoPiano?.Count ?? 0,
+                    NumeroElementi = numeroElementi,  
+                    Count = primoPiano?.Count() ?? 0,  
                     User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.UtcNow 
                 });
 
                 return Ok(primoPiano);
@@ -95,11 +95,11 @@ namespace BBltZen.Controllers
                 var bevande = await _repository.GetBevandeDisponibiliAsync();
 
                 // ✅ Audit trail completo
-                LogAuditTrail("GET_BEVANDE_DISPONIBILI", "VwMenuDinamico", $"Count: {bevande?.Count}");
+                LogAuditTrail("GET_BEVANDE_DISPONIBILI", "VwMenuDinamico", $"Count: {bevande?.Count()}");
                 LogSecurityEvent("VwMenuDinamicoAccessed", new
                 {
                     Operation = "GetBevandeDisponibili",
-                    Count = bevande?.Count ?? 0,
+                    Count = bevande?.Count() ?? 0,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -130,7 +130,7 @@ namespace BBltZen.Controllers
                 {
                     Operation = "GetBevandePerCategoria",
                     Categoria = categoria,
-                    Count = bevande?.Count ?? 0,
+                    Count = bevande?.Count() ?? 0,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -167,7 +167,7 @@ namespace BBltZen.Controllers
                     Operation = "GetBevandePerPriorita",
                     PrioritaMinima = prioritaMinima,
                     PrioritaMassima = prioritaMassima,
-                    Count = bevande?.Count ?? 0,
+                    Count = bevande?.Count() ?? 0,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -190,11 +190,11 @@ namespace BBltZen.Controllers
                 var bevande = await _repository.GetBevandeConScontoAsync();
 
                 // ✅ Audit trail completo
-                LogAuditTrail("GET_BEVANDE_CON_SCONTO", "VwMenuDinamico", $"Count: {bevande?.Count}");
+                LogAuditTrail("GET_BEVANDE_CON_SCONTO", "VwMenuDinamico", $"Count: {bevande?.Count()}");
                 LogSecurityEvent("VwMenuDinamicoAccessed", new
                 {
                     Operation = "GetBevandeConSconto",
-                    Count = bevande?.Count ?? 0,
+                    Count = bevande?.Count() ?? 0,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -253,11 +253,11 @@ namespace BBltZen.Controllers
                 var categorie = await _repository.GetCategorieDisponibiliAsync();
 
                 // ✅ Audit trail completo
-                LogAuditTrail("GET_CATEGORIE_DISPONIBILI", "VwMenuDinamico", $"Count: {categorie?.Count}");
+                LogAuditTrail("GET_CATEGORIE_DISPONIBILI", "VwMenuDinamico", $"Count: {categorie?.Count()}");
                 LogSecurityEvent("VwMenuDinamicoAccessed", new
                 {
                     Operation = "GetCategorieDisponibili",
-                    Count = categorie?.Count ?? 0,
+                    Count = categorie?.Count() ?? 0,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -291,7 +291,7 @@ namespace BBltZen.Controllers
                 {
                     Operation = "SearchBevande",
                     SearchTerm = searchTerm,
-                    Count = bevande?.Count ?? 0,
+                    Count = bevande?.Count() ?? 0,
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -347,25 +347,25 @@ namespace BBltZen.Controllers
 
                 var stats = new
                 {
-                    TotaleMenu = menuCompleto.Count,
-                    PrimoPiano = primoPiano.Count,
-                    Disponibili = disponibili.Count,
-                    NonDisponibili = menuCompleto.Count - disponibili.Count,
-                    NumeroCategorie = categorie.Count,
-                    BevandeConSconto = bevandeConSconto.Count,
-                    PercentualeDisponibili = menuCompleto.Count > 0 ?
-                        Math.Round((double)disponibili.Count / menuCompleto.Count * 100, 2) : 0,
+                    TotaleMenu = menuCompleto.Count(),
+                    PrimoPiano = primoPiano.Count(),
+                    Disponibili = disponibili.Count(),
+                    NonDisponibili = menuCompleto.Count() - disponibili.Count(),
+                    NumeroCategorie = categorie.Count(),
+                    BevandeConSconto = bevandeConSconto.Count(),
+                    PercentualeDisponibili = menuCompleto.Count() > 0 ?
+                        Math.Round((double)disponibili.Count() / menuCompleto.Count() * 100, 2) : 0,
                     Categorie = categorie,
                     UltimoAggiornamento = DateTime.UtcNow
                 };
 
                 // ✅ Audit trail completo
-                LogAuditTrail("GET_MENU_STATS", "VwMenuDinamico", $"Totali: {menuCompleto.Count}, Disponibili: {disponibili.Count}");
+                LogAuditTrail("GET_MENU_STATS", "VwMenuDinamico", $"Totali: {menuCompleto.Count()}, Disponibili: {disponibili.Count()}");
                 LogSecurityEvent("VwMenuDinamicoAccessed", new
                 {
                     Operation = "GetStats",
-                    TotalCount = menuCompleto.Count,
-                    DisponibiliCount = disponibili.Count,
+                    TotalCount = menuCompleto.Count(),
+                    DisponibiliCount = disponibili.Count(),
                     User = User.Identity?.Name ?? "Anonymous",
                     Timestamp = DateTime.UtcNow
                 });
@@ -395,9 +395,9 @@ namespace BBltZen.Controllers
                     Timestamp = DateTime.UtcNow,
                     Menu = new
                     {
-                        TotaleElementi = menuCompleto.Count,
+                        TotaleElementi = menuCompleto.Count(),
                         BevandeDisponibili = countDisponibili,
-                        CategorieAttive = categorie.Count
+                        CategorieAttive = categorie.Count()
                     },
                     Database = new
                     {

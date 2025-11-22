@@ -29,29 +29,19 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<VwArticoliCompletiDTO>>> GetAll()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<VwArticoliCompletiDTO>>> GetAll()
         {
             try
             {
                 var articoli = await _repository.GetAllAsync();
-
-                // ✅ Audit trail completo
-                LogAuditTrail("GET_ALL", "VwArticoliCompleti", $"Count: {articoli?.Count}");
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetAll",
-                    Count = articoli?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
+                LogAuditTrail("GET_ALL", "VwArticoliCompleti", $"Count: {articoli?.Count()}");
                 return Ok(articoli);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero di tutti gli articoli completi");
-                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -88,186 +78,119 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("tipo/{tipoArticolo}")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<VwArticoliCompletiDTO>>> GetByTipo(string tipoArticolo)
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<VwArticoliCompletiDTO>>> GetByTipo(string tipoArticolo)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(tipoArticolo))
-                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Tipo articolo non valido");
+                    return SafeBadRequest<IEnumerable<VwArticoliCompletiDTO>>("Tipo articolo non valido");
 
                 var articoli = await _repository.GetByTipoAsync(tipoArticolo);
-
-                // ✅ Audit trail completo
                 LogAuditTrail("GET_BY_TIPO", "VwArticoliCompleti", tipoArticolo);
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetByTipo",
-                    TipoArticolo = tipoArticolo,
-                    Count = articoli?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
                 return Ok(articoli);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli di tipo: {TipoArticolo}", tipoArticolo);
-                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
         [HttpGet("categoria/{categoria}")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<VwArticoliCompletiDTO>>> GetByCategoria(string categoria)
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<VwArticoliCompletiDTO>>> GetByCategoria(string categoria)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(categoria))
-                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Categoria non valida");
+                    return SafeBadRequest<IEnumerable<VwArticoliCompletiDTO>>("Categoria non valida");
 
                 var articoli = await _repository.GetByCategoriaAsync(categoria);
-
-                // ✅ Audit trail completo
                 LogAuditTrail("GET_BY_CATEGORIA", "VwArticoliCompleti", categoria);
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetByCategoria",
-                    Categoria = categoria,
-                    Count = articoli?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
                 return Ok(articoli);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli della categoria: {Categoria}", categoria);
-                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
         [HttpGet("disponibili")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<VwArticoliCompletiDTO>>> GetDisponibili()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<VwArticoliCompletiDTO>>> GetDisponibili()
         {
             try
             {
                 var articoli = await _repository.GetDisponibiliAsync();
-
-                // ✅ Audit trail completo
-                LogAuditTrail("GET_DISPONIBILI", "VwArticoliCompleti", $"Count: {articoli?.Count}");
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetDisponibili",
-                    Count = articoli?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
+                LogAuditTrail("GET_DISPONIBILI", "VwArticoliCompleti", $"Count: {articoli?.Count()}");
                 return Ok(articoli);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli disponibili");
-                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
         [HttpGet("cerca/{nome}")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<VwArticoliCompletiDTO>>> SearchByName(string nome)
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<VwArticoliCompletiDTO>>> SearchByName(string nome)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(nome))
-                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Nome ricerca non valido");
+                    return SafeBadRequest<IEnumerable<VwArticoliCompletiDTO>>("Nome ricerca non valido");
 
                 var articoli = await _repository.SearchByNameAsync(nome);
-
-                // ✅ Audit trail completo
                 LogAuditTrail("SEARCH_BY_NAME", "VwArticoliCompleti", nome);
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "SearchByName",
-                    SearchTerm = nome,
-                    Count = articoli?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
                 return Ok(articoli);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nella ricerca articoli per nome: {Nome}", nome);
-                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
         [HttpGet("prezzo")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<VwArticoliCompletiDTO>>> GetByPriceRange(
-            [FromQuery] decimal prezzoMin,
-            [FromQuery] decimal prezzoMax)
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<VwArticoliCompletiDTO>>> GetByPriceRange([FromQuery] decimal prezzoMin, [FromQuery] decimal prezzoMax)
         {
             try
             {
                 if (prezzoMin < 0 || prezzoMax < 0)
-                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("I prezzi non possono essere negativi");
+                    return SafeBadRequest<IEnumerable<VwArticoliCompletiDTO>>("I prezzi non possono essere negativi");
 
                 if (prezzoMin > prezzoMax)
-                    return SafeBadRequest<List<VwArticoliCompletiDTO>>("Il prezzo minimo non può essere maggiore del prezzo massimo");
+                    return SafeBadRequest<IEnumerable<VwArticoliCompletiDTO>>("Il prezzo minimo non può essere maggiore del prezzo massimo");
 
                 var articoli = await _repository.GetByPriceRangeAsync(prezzoMin, prezzoMax);
-
-                // ✅ Audit trail completo
                 LogAuditTrail("GET_BY_PRICE_RANGE", "VwArticoliCompleti", $"{prezzoMin}-{prezzoMax}");
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetByPriceRange",
-                    PrezzoMin = prezzoMin,
-                    PrezzoMax = prezzoMax,
-                    Count = articoli?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
                 return Ok(articoli);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli nel range prezzi {PrezzoMin}-{PrezzoMax}", prezzoMin, prezzoMax);
-                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
         [HttpGet("con-iva")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<VwArticoliCompletiDTO>>> GetArticoliConIva()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<VwArticoliCompletiDTO>>> GetArticoliConIva()
         {
             try
             {
                 var articoli = await _repository.GetArticoliConIvaAsync();
-
-                // ✅ Audit trail completo
-                LogAuditTrail("GET_CON_IVA", "VwArticoliCompleti", $"Count: {articoli?.Count}");
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetArticoliConIva",
-                    Count = articoli?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
+                LogAuditTrail("GET_CON_IVA", "VwArticoliCompleti", $"Count: {articoli?.Count()}");
                 return Ok(articoli);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero articoli con IVA");
-                return SafeInternalError<List<VwArticoliCompletiDTO>>(ex.Message);
+                return SafeInternalError<IEnumerable<VwArticoliCompletiDTO>>(ex.Message);
             }
         }
 
@@ -297,58 +220,37 @@ namespace BBltZen.Controllers
                 return SafeInternalError<int>(ex.Message);
             }
         }
-
         [HttpGet("categorie")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<string>>> GetCategorie()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<string>>> GetCategorie()
         {
             try
             {
                 var categorie = await _repository.GetCategorieAsync();
-
-                // ✅ Audit trail completo
-                LogAuditTrail("GET_CATEGORIE", "VwArticoliCompleti", $"Count: {categorie?.Count}");
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetCategorie",
-                    Count = categorie?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
+                LogAuditTrail("GET_CATEGORIE", "VwArticoliCompleti", $"Count: {categorie?.Count()}");
                 return Ok(categorie);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero categorie");
-                return SafeInternalError<List<string>>(ex.Message);
+                return SafeInternalError<IEnumerable<string>>(ex.Message);
             }
         }
 
         [HttpGet("tipi-articolo")]
-        [AllowAnonymous] // ✅ VISTA PUBBLICA
-        public async Task<ActionResult<List<string>>> GetTipiArticolo()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<string>>> GetTipiArticolo()
         {
             try
             {
                 var tipi = await _repository.GetTipiArticoloAsync();
-
-                // ✅ Audit trail completo
-                LogAuditTrail("GET_TIPI_ARTICOLO", "VwArticoliCompleti", $"Count: {tipi?.Count}");
-                LogSecurityEvent("VwArticoliCompletiAccessed", new
-                {
-                    Operation = "GetTipiArticolo",
-                    Count = tipi?.Count ?? 0,
-                    User = User.Identity?.Name ?? "Anonymous",
-                    Timestamp = DateTime.UtcNow
-                });
-
+                LogAuditTrail("GET_TIPI_ARTICOLO", "VwArticoliCompleti", $"Count: {tipi?.Count()}");
                 return Ok(tipi);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero tipi articolo");
-                return SafeInternalError<List<string>>(ex.Message);
+                return SafeInternalError<IEnumerable<string>>(ex.Message);
             }
         }
 
@@ -359,7 +261,7 @@ namespace BBltZen.Controllers
             try
             {
                 var totalCount = await _repository.GetCountAsync();
-                var disponibiliCount = (await _repository.GetDisponibiliAsync()).Count;
+                var disponibiliCount = (await _repository.GetDisponibiliAsync()).Count();
                 var categorie = await _repository.GetCategorieAsync();
                 var tipi = await _repository.GetTipiArticoloAsync();
 
@@ -368,8 +270,8 @@ namespace BBltZen.Controllers
                     TotaleArticoli = totalCount,
                     ArticoliDisponibili = disponibiliCount,
                     ArticoliNonDisponibili = totalCount - disponibiliCount,
-                    NumeroCategorie = categorie.Count,
-                    NumeroTipi = tipi.Count,
+                    NumeroCategorie = categorie.Count(),
+                    NumeroTipi = tipi.Count(),
                     UltimoAggiornamento = DateTime.UtcNow
                 };
 
@@ -390,6 +292,27 @@ namespace BBltZen.Controllers
             {
                 _logger.LogError(ex, "Errore nel recupero statistiche articoli");
                 return SafeInternalError<object>(ex.Message);
+            }
+        }
+
+        [HttpGet("exists/{id}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<bool>> Exists(int id)
+        {
+            try
+            {
+                if (id <= 0)
+                    return SafeBadRequest<bool>("ID articolo non valido");
+
+                var exists = await _repository.ExistsAsync(id);
+
+                LogAuditTrail("CHECK_EXISTS", "VwArticoliCompleti", id.ToString());
+                return Ok(exists);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella verifica esistenza articolo con ID: {Id}", id);
+                return SafeInternalError<bool>(ex.Message);
             }
         }
     }

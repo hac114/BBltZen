@@ -6,16 +6,22 @@ namespace Repository.Interface
 {
     public interface IVwArticoliCompletiRepository
     {
-        Task<List<VwArticoliCompletiDTO>> GetAllAsync();
+        // ✅ ALLINEATO AL PATTERN - SOLO LETTURA (vista)
+        Task<IEnumerable<VwArticoliCompletiDTO>> GetAllAsync();
         Task<VwArticoliCompletiDTO?> GetByIdAsync(int articoloId);
-        Task<List<VwArticoliCompletiDTO>> GetByTipoAsync(string tipoArticolo);
-        Task<List<VwArticoliCompletiDTO>> GetByCategoriaAsync(string categoria);
-        Task<List<VwArticoliCompletiDTO>> GetDisponibiliAsync();
-        Task<List<VwArticoliCompletiDTO>> SearchByNameAsync(string nome);
-        Task<List<VwArticoliCompletiDTO>> GetByPriceRangeAsync(decimal prezzoMin, decimal prezzoMax);
-        Task<List<VwArticoliCompletiDTO>> GetArticoliConIvaAsync();
+        Task<bool> ExistsAsync(int articoloId);
+
+        // ✅ METODI SPECIFICI PER LA VISTA
+        Task<IEnumerable<VwArticoliCompletiDTO>> GetByTipoAsync(string tipoArticolo);
+        Task<IEnumerable<VwArticoliCompletiDTO>> GetByCategoriaAsync(string categoria);
+        Task<IEnumerable<VwArticoliCompletiDTO>> GetDisponibiliAsync();
+        Task<IEnumerable<VwArticoliCompletiDTO>> SearchByNameAsync(string nome);
+        Task<IEnumerable<VwArticoliCompletiDTO>> GetByPriceRangeAsync(decimal prezzoMin, decimal prezzoMax);
+        Task<IEnumerable<VwArticoliCompletiDTO>> GetArticoliConIvaAsync();
+
+        // ✅ METODI AGGREGATI
         Task<int> GetCountAsync();
-        Task<List<string>> GetCategorieAsync();
-        Task<List<string>> GetTipiArticoloAsync();
+        Task<IEnumerable<string>> GetCategorieAsync();
+        Task<IEnumerable<string>> GetTipiArticoloAsync();
     }
 }

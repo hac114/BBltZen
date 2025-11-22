@@ -21,201 +21,152 @@ namespace Repository.Service
             _logger = logger;
         }
 
-        public async Task<List<VwMenuDinamicoDTO>> GetMenuCompletoAsync()
+        private VwMenuDinamicoDTO MapToDTO(VwMenuDinamico entity)
+        {
+            return new VwMenuDinamicoDTO
+            {
+                Tipo = entity.Tipo,
+                Id = entity.Id,
+                NomeBevanda = entity.NomeBevanda,
+                Descrizione = entity.Descrizione,
+                PrezzoNetto = entity.PrezzoNetto,
+                PrezzoLordo = entity.PrezzoLordo,
+                TaxRateId = entity.TaxRateId,
+                IvaPercentuale = entity.IvaPercentuale,
+                ImmagineUrl = entity.ImmagineUrl,
+                Priorita = entity.Priorita
+            };
+        }
+
+        public async Task<IEnumerable<VwMenuDinamicoDTO>> GetMenuCompletoAsync()
         {
             try
             {
                 var menu = await _context.VwMenuDinamico
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
+                    .AsNoTracking()
                     .OrderByDescending(m => m.Priorita)
                     .ThenBy(m => m.NomeBevanda)
+                    .Select(m => MapToDTO(m))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperato menu completo con {menu.Count} elementi");
+                _logger.LogInformation("Recuperato menu completo con {Count} elementi", menu.Count);
                 return menu;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero menu completo");
-                return new List<VwMenuDinamicoDTO>();
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
             }
         }
 
-        public async Task<List<VwMenuDinamicoDTO>> GetPrimoPianoAsync(int numeroElementi = 6)
+        public async Task<IEnumerable<VwMenuDinamicoDTO>> GetPrimoPianoAsync(int numeroElementi = 6)
         {
             try
             {
                 var primoPiano = await _context.VwMenuDinamico
-                    .Where(m => m.Priorita >= 1) // Priorità >= 1 significa "in primo piano"
+                    .AsNoTracking()
+                    .Where(m => m.Priorita >= 1)
                     .OrderByDescending(m => m.Priorita)
                     .ThenBy(m => m.NomeBevanda)
                     .Take(numeroElementi)
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
+                    .Select(m => MapToDTO(m))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperati {primoPiano.Count} elementi in primo piano");
+                _logger.LogInformation("Recuperati {Count} elementi in primo piano", primoPiano.Count);
                 return primoPiano;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero elementi primo piano");
-                return new List<VwMenuDinamicoDTO>();
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
             }
         }
 
-        public async Task<List<VwMenuDinamicoDTO>> GetBevandeDisponibiliAsync()
+        public async Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandeDisponibiliAsync()
         {
             try
             {
                 var bevande = await _context.VwMenuDinamico
-                    .Where(m => m.Priorita >= 0) // Priorità >= 0 significa "disponibile"
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
+                    .AsNoTracking()
+                    .Where(m => m.Priorita >= 0)
                     .OrderByDescending(m => m.Priorita)
                     .ThenBy(m => m.NomeBevanda)
+                    .Select(m => MapToDTO(m))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperate {bevande.Count} bevande disponibili");
+                _logger.LogInformation("Recuperate {Count} bevande disponibili", bevande.Count);
                 return bevande;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero bevande disponibili");
-                return new List<VwMenuDinamicoDTO>();
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
             }
         }
 
-        public async Task<List<VwMenuDinamicoDTO>> GetBevandePerCategoriaAsync(string categoria)
+        public async Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandePerCategoriaAsync(string categoria)
         {
             try
             {
                 var bevande = await _context.VwMenuDinamico
+                    .AsNoTracking()
                     .Where(m => m.Tipo == categoria && m.Priorita >= 0)
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
                     .OrderByDescending(m => m.Priorita)
                     .ThenBy(m => m.NomeBevanda)
+                    .Select(m => MapToDTO(m))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperate {bevande.Count} bevande per categoria: {categoria}");
+                _logger.LogInformation("Recuperate {Count} bevande per categoria: {Categoria}", bevande.Count, categoria);
                 return bevande;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero bevande per categoria: {categoria}");
-                return new List<VwMenuDinamicoDTO>();
+                _logger.LogError(ex, "Errore nel recupero bevande per categoria: {Categoria}", categoria);
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
             }
         }
 
-        public async Task<List<VwMenuDinamicoDTO>> GetBevandePerPrioritaAsync(int prioritaMinima, int prioritaMassima)
+        public async Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandePerPrioritaAsync(int prioritaMinima, int prioritaMassima)
         {
             try
             {
                 var bevande = await _context.VwMenuDinamico
+                    .AsNoTracking()
                     .Where(m => m.Priorita >= prioritaMinima && m.Priorita <= prioritaMassima)
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
                     .OrderByDescending(m => m.Priorita)
                     .ThenBy(m => m.NomeBevanda)
+                    .Select(m => MapToDTO(m))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperate {bevande.Count} bevande con priorità {prioritaMinima}-{prioritaMassima}");
+                _logger.LogInformation("Recuperate {Count} bevande con priorità {Min}-{Max}", bevande.Count, prioritaMinima, prioritaMassima);
                 return bevande;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero bevande per priorità {prioritaMinima}-{prioritaMassima}");
-                return new List<VwMenuDinamicoDTO>();
+                _logger.LogError(ex, "Errore nel recupero bevande per priorità {Min}-{Max}", prioritaMinima, prioritaMassima);
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
             }
         }
 
-        public async Task<List<VwMenuDinamicoDTO>> GetBevandeConScontoAsync()
+        public async Task<IEnumerable<VwMenuDinamicoDTO>> GetBevandeConScontoAsync()
         {
             try
             {
                 var bevande = await _context.VwMenuDinamico
+                    .AsNoTracking()
                     .Where(m => m.PrezzoLordo.HasValue && m.PrezzoLordo < m.PrezzoNetto)
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
                     .OrderByDescending(m => m.Priorita)
                     .ThenBy(m => m.NomeBevanda)
+                    .Select(m => MapToDTO(m))
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperate {bevande.Count} bevande con sconto");
+                _logger.LogInformation("Recuperate {Count} bevande con sconto", bevande.Count);
                 return bevande;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero bevande con sconto");
-                return new List<VwMenuDinamicoDTO>();
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
             }
         }
 
@@ -224,86 +175,70 @@ namespace Repository.Service
             try
             {
                 var bevanda = await _context.VwMenuDinamico
+                    .AsNoTracking()
                     .Where(m => m.Id == id && m.Tipo == tipo)
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
+                    .Select(m => MapToDTO(m))
                     .FirstOrDefaultAsync();
 
                 if (bevanda != null)
-                    _logger.LogInformation($"Recuperata bevanda: {bevanda.NomeBevanda} (ID: {id}, Tipo: {tipo})");
+                    _logger.LogInformation("Recuperata bevanda: {Nome} (ID: {Id}, Tipo: {Tipo})", bevanda.NomeBevanda, id, tipo);
                 else
-                    _logger.LogWarning($"Bevanda non trovata (ID: {id}, Tipo: {tipo})");
+                    _logger.LogWarning("Bevanda non trovata (ID: {Id}, Tipo: {Tipo})", id, tipo);
 
                 return bevanda;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nel recupero bevanda ID: {id}, Tipo: {tipo}");
+                _logger.LogError(ex, "Errore nel recupero bevanda ID: {Id}, Tipo: {Tipo}", id, tipo);
                 return null;
             }
         }
 
-        public async Task<List<string>> GetCategorieDisponibiliAsync()
+        public async Task<IEnumerable<string>> GetCategorieDisponibiliAsync()
         {
             try
             {
                 var categorie = await _context.VwMenuDinamico
+                    .AsNoTracking()
                     .Select(m => m.Tipo)
                     .Distinct()
                     .ToListAsync();
 
-                _logger.LogInformation($"Recuperate {categorie.Count} categorie disponibili");
+                _logger.LogInformation("Recuperate {Count} categorie disponibili", categorie.Count);
                 return categorie;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel recupero categorie disponibili");
-                return new List<string>();
+                return Enumerable.Empty<string>();
             }
         }
 
-        public async Task<List<VwMenuDinamicoDTO>> SearchBevandeAsync(string searchTerm)
+        public async Task<IEnumerable<VwMenuDinamicoDTO>> SearchBevandeAsync(string searchTerm)
         {
+            // ✅ HAI AGGIUNTO la validazione del parametro
+            if (string.IsNullOrWhiteSpace(searchTerm))
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
+
             try
             {
                 var bevande = await _context.VwMenuDinamico
-                    .Where(m => m.NomeBevanda.Contains(searchTerm) ||
-                               (m.Descrizione != null && m.Descrizione.Contains(searchTerm)))
-                    .Select(m => new VwMenuDinamicoDTO
-                    {
-                        Tipo = m.Tipo,
-                        Id = m.Id,
-                        NomeBevanda = m.NomeBevanda,
-                        Descrizione = m.Descrizione,
-                        PrezzoNetto = m.PrezzoNetto,
-                        PrezzoLordo = m.PrezzoLordo,
-                        TaxRateId = m.TaxRateId,
-                        IvaPercentuale = m.IvaPercentuale,
-                        ImmagineUrl = m.ImmagineUrl,
-                        Priorita = m.Priorita
-                    })
+                    .AsNoTracking()
+                    // ✅ HAI USATO EF.Functions.Like come suggerito
+                    .Where(m => EF.Functions.Like(m.NomeBevanda, $"%{searchTerm}%") ||
+                               (m.Descrizione != null && EF.Functions.Like(m.Descrizione, $"%{searchTerm}%")))
                     .OrderByDescending(m => m.Priorita)
                     .ThenBy(m => m.NomeBevanda)
+                    .Select(m => MapToDTO(m))
                     .ToListAsync();
 
-                _logger.LogInformation($"Trovate {bevande.Count} bevande per ricerca: '{searchTerm}'");
+                _logger.LogInformation("Trovate {Count} bevande per ricerca: '{SearchTerm}'", bevande.Count, searchTerm);
                 return bevande;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore nella ricerca bevande per: '{searchTerm}'");
-                return new List<VwMenuDinamicoDTO>();
+                _logger.LogError(ex, "Errore nella ricerca bevande per: '{SearchTerm}'", searchTerm);
+                return Enumerable.Empty<VwMenuDinamicoDTO>();
             }
         }
 
@@ -312,16 +247,34 @@ namespace Repository.Service
             try
             {
                 var count = await _context.VwMenuDinamico
+                    .AsNoTracking()
                     .Where(m => m.Priorita >= 0)
                     .CountAsync();
 
-                _logger.LogInformation($"Totale bevande disponibili: {count}");
+                _logger.LogInformation("Totale bevande disponibili: {Count}", count);
                 return count;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore nel conteggio bevande disponibili");
                 return 0;
+            }
+        }
+
+        public async Task<bool> ExistsAsync(int id, string tipo)
+        {
+            try
+            {
+                var exists = await _context.VwMenuDinamico
+                    .AsNoTracking()
+                    .AnyAsync(m => m.Id == id && m.Tipo == tipo);
+
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella verifica esistenza bevanda ID: {Id}, Tipo: {Tipo}", id, tipo);
+                return false;
             }
         }
     }

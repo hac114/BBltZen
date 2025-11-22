@@ -1,5 +1,6 @@
 ﻿using Database;
 using DTO;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Repository.Interface;
@@ -133,10 +134,34 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task Repository_CanBeConstructed()
+        public void Repository_CanBeConstructed()
         {
             // Assert
             Assert.NotNull(_repository);
         }
+        
+        [Fact]
+        public async Task ExistsAsync_WithNonExistingId_ReturnsFalse()
+        {
+            // Act
+            var result = await _repository.ExistsAsync(999, "BS");
+
+            // Assert
+            Assert.False(result);
+        }        
+
+        [Fact]
+        public async Task SearchBevandeAsync_WithEmptyTerm_ReturnsEmpty()
+        {
+            // Act - SOLO stringhe vuote/whitespace (null non permesso dal metodo)
+            var resultEmpty = await _repository.SearchBevandeAsync("");
+            var resultWhitespace = await _repository.SearchBevandeAsync("   ");
+
+            // Assert
+            Assert.NotNull(resultEmpty);
+            Assert.NotNull(resultWhitespace);
+            Assert.Empty(resultEmpty);
+            Assert.Empty(resultWhitespace);
+        }        
     }
 }
