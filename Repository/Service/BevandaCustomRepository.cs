@@ -18,58 +18,38 @@ namespace Repository.Service
             _context = context;
         }
 
+        private BevandaCustomDTO MapToDTO(BevandaCustom bevandaCustom)
+        {
+            return new BevandaCustomDTO
+            {
+                ArticoloId = bevandaCustom.ArticoloId,
+                PersCustomId = bevandaCustom.PersCustomId,
+                Prezzo = bevandaCustom.Prezzo,
+                DataCreazione = bevandaCustom.DataCreazione,
+                DataAggiornamento = bevandaCustom.DataAggiornamento
+            };
+        }
+
         public async Task<IEnumerable<BevandaCustomDTO>> GetAllAsync()
         {
             return await _context.BevandaCustom
                 .AsNoTracking()
-                .Select(bc => new BevandaCustomDTO
-                {
-                    BevandaCustomId = bc.BevandaCustomId,
-                    ArticoloId = bc.ArticoloId,
-                    PersCustomId = bc.PersCustomId,
-                    Prezzo = bc.Prezzo,
-                    DataCreazione = bc.DataCreazione,
-                    DataAggiornamento = bc.DataAggiornamento
-                })
+                .Select(bc => MapToDTO(bc))
                 .ToListAsync();
         }
 
-        public async Task<BevandaCustomDTO?> GetByIdAsync(int bevandaCustomId)
+        public async Task<BevandaCustomDTO?> GetByIdAsync(int id)
         {
             var bevandaCustom = await _context.BevandaCustom
                 .AsNoTracking()
-                .FirstOrDefaultAsync(bc => bc.BevandaCustomId == bevandaCustomId);
+                .FirstOrDefaultAsync(bc => bc.ArticoloId == id);
 
-            if (bevandaCustom == null) return null;
-
-            return new BevandaCustomDTO
-            {
-                BevandaCustomId = bevandaCustom.BevandaCustomId,
-                ArticoloId = bevandaCustom.ArticoloId,
-                PersCustomId = bevandaCustom.PersCustomId,
-                Prezzo = bevandaCustom.Prezzo,
-                DataCreazione = bevandaCustom.DataCreazione,
-                DataAggiornamento = bevandaCustom.DataAggiornamento
-            };
+            return bevandaCustom == null ? null : MapToDTO(bevandaCustom);
         }
 
         public async Task<BevandaCustomDTO?> GetByArticoloIdAsync(int articoloId)
         {
-            var bevandaCustom = await _context.BevandaCustom
-                .AsNoTracking()
-                .FirstOrDefaultAsync(bc => bc.ArticoloId == articoloId);
-
-            if (bevandaCustom == null) return null;
-
-            return new BevandaCustomDTO
-            {
-                BevandaCustomId = bevandaCustom.BevandaCustomId,
-                ArticoloId = bevandaCustom.ArticoloId,
-                PersCustomId = bevandaCustom.PersCustomId,
-                Prezzo = bevandaCustom.Prezzo,
-                DataCreazione = bevandaCustom.DataCreazione,
-                DataAggiornamento = bevandaCustom.DataAggiornamento
-            };
+            return await GetByIdAsync(articoloId);
         }
 
         public async Task<IEnumerable<BevandaCustomDTO>> GetByPersCustomIdAsync(int persCustomId)
@@ -77,24 +57,16 @@ namespace Repository.Service
             return await _context.BevandaCustom
                 .AsNoTracking()
                 .Where(bc => bc.PersCustomId == persCustomId)
-                .Select(bc => new BevandaCustomDTO
-                {
-                    BevandaCustomId = bc.BevandaCustomId,
-                    ArticoloId = bc.ArticoloId,
-                    PersCustomId = bc.PersCustomId,
-                    Prezzo = bc.Prezzo,
-                    DataCreazione = bc.DataCreazione,
-                    DataAggiornamento = bc.DataAggiornamento
-                })
+                .Select(bc => MapToDTO(bc))
                 .ToListAsync();
         }
 
-        public async Task<BevandaCustomDTO> AddAsync(BevandaCustomDTO bevandaCustomDto) // ✅ CORREGGI: ritorna DTO
+        public async Task<BevandaCustomDTO> AddAsync(BevandaCustomDTO dto)
         {
-            if (bevandaCustomDto == null)
-                throw new ArgumentNullException(nameof(bevandaCustomDto));
+            if (dto == null)
+                throw new ArgumentNullException(nameof(dto));
 
-            // ✅ CORREZIONE: Prima crea il record in ARTICOLO
+            // ✅ PATTERN CORRETTO: crea prima Articolo per generare ID automatico
             var articolo = new Articolo
             {
                 Tipo = "BEVANDA_CUSTOM",
@@ -103,55 +75,55 @@ namespace Repository.Service
             };
 
             _context.Articolo.Add(articolo);
-            await _context.SaveChangesAsync(); // Salva per ottenere l'ID generato
+            await _context.SaveChangesAsync();
 
-            // ✅ CORREZIONE: Poi crea la bevanda custom con gli ID generati
+            // ✅ Crea BevandaCustom con ArticoloId generato automaticamente
             var bevandaCustom = new BevandaCustom
             {
-                ArticoloId = articolo.ArticoloId, // ✅ USA ArticoloId generato automaticamente
-                PersCustomId = bevandaCustomDto.PersCustomId,
-                Prezzo = bevandaCustomDto.Prezzo,
-                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
-                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
+                ArticoloId = articolo.ArticoloId, // ✅ ID GENERATO DAL DB
+                PersCustomId = dto.PersCustomId,
+                Prezzo = dto.Prezzo,
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
             };
 
             _context.BevandaCustom.Add(bevandaCustom);
             await _context.SaveChangesAsync();
 
-            // Aggiorna il DTO con i valori del database
-            bevandaCustomDto.BevandaCustomId = bevandaCustom.BevandaCustomId;
-            bevandaCustomDto.ArticoloId = bevandaCustom.ArticoloId;
-            bevandaCustomDto.DataCreazione = bevandaCustom.DataCreazione;
-            bevandaCustomDto.DataAggiornamento = bevandaCustom.DataAggiornamento;
+            // ✅ AGGIORNA DTO con valori dal database (PATTERN STANDARD)
+            dto.ArticoloId = bevandaCustom.ArticoloId;
+            dto.DataCreazione = bevandaCustom.DataCreazione;
+            dto.DataAggiornamento = bevandaCustom.DataAggiornamento;
 
-            return bevandaCustomDto; // ✅ AGGIUNGI return
+            return dto; // ✅ RITORNA DTO AGGIORNATO
         }
 
-        public async Task UpdateAsync(BevandaCustomDTO bevandaCustomDto)
+        public async Task UpdateAsync(BevandaCustomDTO dto)
         {
-            if (bevandaCustomDto == null) // ✅ AGGIUNGI validazione
-                throw new ArgumentNullException(nameof(bevandaCustomDto));
+            if (dto == null)
+                throw new ArgumentNullException(nameof(dto));
 
             var bevandaCustom = await _context.BevandaCustom
-                .FirstOrDefaultAsync(bc => bc.BevandaCustomId == bevandaCustomDto.BevandaCustomId);
+                .FirstOrDefaultAsync(bc => bc.ArticoloId == dto.ArticoloId);
 
             if (bevandaCustom == null)
-                throw new ArgumentException($"BevandaCustom con BevandaCustomId {bevandaCustomDto.BevandaCustomId} non trovata");
+                return; // ✅ SILENT FAIL (PATTERN STANDARD)
 
-            bevandaCustom.ArticoloId = bevandaCustomDto.ArticoloId;
-            bevandaCustom.PersCustomId = bevandaCustomDto.PersCustomId;
-            bevandaCustom.Prezzo = bevandaCustomDto.Prezzo;
-            bevandaCustom.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
+            // ✅ Aggiorna solo i campi modificabili (ArticoloId è PK, non si modifica)
+            bevandaCustom.PersCustomId = dto.PersCustomId;
+            bevandaCustom.Prezzo = dto.Prezzo;
+            bevandaCustom.DataAggiornamento = DateTime.Now;
 
             await _context.SaveChangesAsync();
 
-            bevandaCustomDto.DataAggiornamento = bevandaCustom.DataAggiornamento;
+            // ✅ Aggiorna DTO con valori dal database
+            dto.DataAggiornamento = bevandaCustom.DataAggiornamento;
         }
 
-        public async Task DeleteAsync(int bevandaCustomId)
+        public async Task DeleteAsync(int id)
         {
             var bevandaCustom = await _context.BevandaCustom
-                .FirstOrDefaultAsync(bc => bc.BevandaCustomId == bevandaCustomId);
+                .FirstOrDefaultAsync(bc => bc.ArticoloId == id);
 
             if (bevandaCustom != null)
             {
@@ -160,16 +132,15 @@ namespace Repository.Service
             }
         }
 
-        public async Task<bool> ExistsAsync(int bevandaCustomId)
+        public async Task<bool> ExistsAsync(int id)
         {
             return await _context.BevandaCustom
-                .AnyAsync(bc => bc.BevandaCustomId == bevandaCustomId);
+                .AnyAsync(bc => bc.ArticoloId == id);
         }
 
         public async Task<bool> ExistsByArticoloIdAsync(int articoloId)
         {
-            return await _context.BevandaCustom
-                .AnyAsync(bc => bc.ArticoloId == articoloId);
+            return await ExistsAsync(articoloId);
         }
 
         public async Task<bool> ExistsByPersCustomIdAsync(int persCustomId)

@@ -34,53 +34,36 @@ namespace Database.Configurations
                 .HasDefaultValueSql("GETDATE()");
 
             // ✅ INDICI PER PERFORMANCE
-            builder.HasIndex(a => a.Tipo); // ✅ Ricerche per tipo articolo
+            builder.HasIndex(a => a.Tipo);
             builder.HasIndex(a => a.DataCreazione);
             builder.HasIndex(a => a.DataAggiornamento);
 
-            // ✅ RELAZIONE CON BEVANDE CUSTOM
-            builder.HasMany(a => a.BevandaCustom)
+            // ✅ CORREZIONE: RELAZIONE 1:1 CON BEVANDA CUSTOM
+            builder.HasOne(a => a.BevandaCustom)
                 .WithOne(bc => bc.Articolo)
-                .HasForeignKey(bc => bc.ArticoloId)
-                .OnDelete(DeleteBehavior.Restrict); // ✅ Previene eliminazione articolo con bevande custom
+                .HasForeignKey<BevandaCustom>(bc => bc.ArticoloId)
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // ✅ RELAZIONE 1:1 CON BEVANDA STANDARD (TPH)
+            // ✅ RELAZIONE 1:1 CON BEVANDA STANDARD
             builder.HasOne(a => a.BevandaStandard)
                 .WithOne(bs => bs.Articolo)
                 .HasForeignKey<BevandaStandard>(bs => bs.ArticoloId)
-                .OnDelete(DeleteBehavior.Cascade); // ✅ Elimina bevanda standard se articolo viene eliminato
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // ✅ RELAZIONE 1:1 CON DOLCE (TPH)
+            // ✅ RELAZIONE 1:1 CON DOLCE
             builder.HasOne(a => a.Dolce)
                 .WithOne(d => d.Articolo)
                 .HasForeignKey<Dolce>(d => d.ArticoloId)
-                .OnDelete(DeleteBehavior.Cascade); // ✅ Elimina dolce se articolo viene eliminato
+                .OnDelete(DeleteBehavior.Cascade);
 
             // ✅ RELAZIONE CON ORDER ITEM
             builder.HasMany(a => a.OrderItem)
                 .WithOne(oi => oi.Articolo)
                 .HasForeignKey(oi => oi.ArticoloId)
-                .OnDelete(DeleteBehavior.Restrict); // ✅ Previene eliminazione articolo con ordini
+                .OnDelete(DeleteBehavior.Restrict);
 
-            // ✅ CHECK CONSTRAINTS
-            builder.ToTable(tb =>
-            {
-                tb.HasCheckConstraint("CK_Articolo_Tipo",
-                    "[Tipo] IN ('BEVANDA_STANDARD', 'DOLCE', 'BEVANDA_CUSTOM')"); // ✅ Tipi articolo validi
-
-                tb.HasCheckConstraint("CK_Articolo_DateConsistency",
-                    "[DataAggiornamento] >= [DataCreazione]"); // ✅ Consistenza temporale
-            });
-
-            // ✅ CONFIGURAZIONE TPH (TABLE PER HIERARCHY)
-            // ✅ Articolo è la tabella base per l'ereditarietà
-            // ✅ BevandaStandard e Dolce sono entità derivate che condividono la stessa tabella
-
-            // ✅ CONFIGURAZIONE NOME TABELLA
+            // ✅ CONFIGURAZIONE TABELLA
             builder.ToTable("Articolo");
-
-            // ✅ COMMENTI PER DOCUMENTAZIONE (opzionale)
-            // builder.HasComment("Tabella base per la gestione degli articoli (TPH Pattern)");
         }
     }
 }

@@ -8,8 +8,8 @@ namespace Database.Configurations
     {
         public void Configure(EntityTypeBuilder<BevandaCustom> builder)
         {
-            // ✅ CHIAVE PRIMARIA
-            builder.HasKey(bc => bc.BevandaCustomId);
+            // ✅ CHIAVE PRIMARIA (ArticoloId come PK)
+            builder.HasKey(bc => bc.ArticoloId);
 
             // ✅ PROPRIETÀ OBBLIGATORIE
             builder.Property(bc => bc.ArticoloId)
@@ -20,7 +20,7 @@ namespace Database.Configurations
 
             builder.Property(bc => bc.Prezzo)
                 .IsRequired()
-                .HasColumnType("decimal(10,2)"); // ✅ Formato prezzo
+                .HasColumnType("decimal(10,2)");
 
             builder.Property(bc => bc.DataCreazione)
                 .IsRequired();
@@ -36,42 +36,36 @@ namespace Database.Configurations
                 .HasDefaultValueSql("GETDATE()");
 
             // ✅ INDICI PER PERFORMANCE
-            builder.HasIndex(bc => bc.ArticoloId);
             builder.HasIndex(bc => bc.PersCustomId);
             builder.HasIndex(bc => bc.DataCreazione);
             builder.HasIndex(bc => bc.Prezzo);
 
-            // ✅ INDICE UNIVOCO PER EVITARE DUPLICATI
+            // ✅ INDICE UNIVOCO
             builder.HasIndex(bc => new { bc.ArticoloId, bc.PersCustomId })
-                .IsUnique(); // ✅ Una bevanda custom unica per articolo e personalizzazione
+                .IsUnique();
 
-            // ✅ RELAZIONE CON ARTICOLO
+            // ✅ RELAZIONE 1:1 CON ARTICOLO
             builder.HasOne(bc => bc.Articolo)
-                .WithMany() // ✅ Assumendo che Articolo non abbia navigation property per BevandaCustom
-                .HasForeignKey(bc => bc.ArticoloId)
-                .OnDelete(DeleteBehavior.Cascade); // ✅ Elimina bevanda custom se articolo viene eliminato
+                .WithOne()
+                .HasForeignKey<BevandaCustom>(bc => bc.ArticoloId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // ✅ RELAZIONE CON PERSONALIZZAZIONE CUSTOM
             builder.HasOne(bc => bc.PersCustom)
-                .WithMany() // ✅ Assumendo che PersonalizzazioneCustom non abbia navigation property per BevandaCustom
+                .WithMany()
                 .HasForeignKey(bc => bc.PersCustomId)
-                .OnDelete(DeleteBehavior.Restrict); // ✅ Previene eliminazione personalizzazione con bevande custom
+                .OnDelete(DeleteBehavior.Restrict);
 
             // ✅ CHECK CONSTRAINTS
             builder.ToTable(tb =>
             {
                 tb.HasCheckConstraint("CK_BevandaCustom_Prezzo",
-                    "[Prezzo] >= 0 AND [Prezzo] <= 50"); // ✅ Prezzo tra 0 e 50 euro
-
+                    "[Prezzo] >= 0 AND [Prezzo] <= 50");
                 tb.HasCheckConstraint("CK_BevandaCustom_DateConsistency",
-                    "[DataAggiornamento] >= [DataCreazione]"); // ✅ Consistenza temporale
+                    "[DataAggiornamento] >= [DataCreazione]");
             });
 
-            // ✅ CONFIGURAZIONE NOME TABELLA
             builder.ToTable("BevandaCustom");
-
-            // ✅ COMMENTI PER DOCUMENTAZIONE (opzionale)
-            // builder.HasComment("Tabella per la gestione delle bevande personalizzate create dai clienti");
         }
     }
 }

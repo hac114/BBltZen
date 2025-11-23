@@ -289,14 +289,12 @@ namespace BBltZen.Services
                     Tipo = "BC",
                     DataCreazione = now,
                     DataAggiornamento = now,
-                    BevandaCustom = new List<BevandaCustom>()
+                    BevandaCustom = new BevandaCustom() // ✅ CORRETTO: SINGOLO OGGETTO, NON LISTA
                     {
-                        new BevandaCustom()
-                        {
-                            Prezzo = 6.00m,
-                            DataCreazione = now, // ✅ DATA OBBLIGATORIA
-                            DataAggiornamento = now // ✅ DATA OBBLIGATORIA
-                        }
+                        PersCustomId = 1, // ✅ AGGIUNTO: FK OBBLIGATORIA
+                        Prezzo = 6.00m,
+                        DataCreazione = now, // ✅ DATA OBBLIGATORIA
+                        DataAggiornamento = now // ✅ DATA OBBLIGATORIA
                     }
                 },
                 // ✅ DOLCE - ORDINABILE

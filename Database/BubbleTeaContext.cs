@@ -151,7 +151,7 @@ public partial class BubbleTeaContext : DbContext
 
         modelBuilder.Entity<BevandaCustom>(entity =>
         {
-            entity.HasKey(e => e.BevandaCustomId).HasName("PK__BEVANDA___BE6DF8267D771204");
+            entity.HasKey(e => e.ArticoloId).HasName("PK_BevandaCustom_ARTICOLO");
 
             entity.ToTable("BEVANDA_CUSTOM", tb =>
                 {
@@ -159,8 +159,9 @@ public partial class BubbleTeaContext : DbContext
                     tb.HasTrigger("trg_BEVANDA_CUSTOM_UpdatePrice");
                 });
 
-            entity.Property(e => e.BevandaCustomId).HasColumnName("bevanda_custom_id");
-            entity.Property(e => e.ArticoloId).HasColumnName("articolo_id");
+            entity.Property(e => e.ArticoloId)
+                .ValueGeneratedNever()
+                .HasColumnName("articolo_id");
             entity.Property(e => e.DataAggiornamento)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
@@ -174,8 +175,8 @@ public partial class BubbleTeaContext : DbContext
                 .HasColumnType("decimal(5, 2)")
                 .HasColumnName("prezzo");
 
-            entity.HasOne(d => d.Articolo).WithMany(p => p.BevandaCustom)
-                .HasForeignKey(d => d.ArticoloId)
+            entity.HasOne(d => d.Articolo).WithOne(p => p.BevandaCustom)
+                .HasForeignKey<BevandaCustom>(d => d.ArticoloId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_BEVANDA_CUSTOM_ARTICOLO");
 

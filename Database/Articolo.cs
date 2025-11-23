@@ -13,7 +13,7 @@ public partial class Articolo
 
     public DateTime DataAggiornamento { get; set; }
 
-    public virtual ICollection<BevandaCustom> BevandaCustom { get; set; } = new List<BevandaCustom>();
+    public virtual BevandaCustom? BevandaCustom { get; set; }
 
     public virtual BevandaStandard? BevandaStandard { get; set; }
 

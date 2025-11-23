@@ -9,8 +9,7 @@ namespace DTO
 {
     public class BevandaCustomDTO
     {
-        public int BevandaCustomId { get; set; }
-
+        // ✅ ArticoloId è la PK (0 per Add, >0 per altri metodi)
         public int ArticoloId { get; set; }
 
         [Required(ErrorMessage = "L'ID personalizzazione custom è obbligatorio")]

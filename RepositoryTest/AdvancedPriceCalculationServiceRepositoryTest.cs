@@ -750,8 +750,7 @@ namespace RepositoryTest
             {
                 _context.BevandaCustom.AddRange(
                     new BevandaCustom
-                    {
-                        BevandaCustomId = 4,
+                    {                        
                         ArticoloId = 4,  // ✅ USA ARTICOLO DEDICATO BC (non 1 che è BS)
                         PersCustomId = 1,
                         Prezzo = 5.50m,
@@ -759,8 +758,7 @@ namespace RepositoryTest
                         DataAggiornamento = now
                     },
                     new BevandaCustom
-                    {
-                        BevandaCustomId = 5,
+                    {                       
                         ArticoloId = 5,  // ✅ USA ARTICOLO DEDICATO BC (non 2 che è D)
                         PersCustomId = 2,
                         Prezzo = 5.50m,
@@ -768,8 +766,7 @@ namespace RepositoryTest
                         DataAggiornamento = now
                     },
                     new BevandaCustom
-                    {
-                        BevandaCustomId = 6,
+                    {                        
                         ArticoloId = 9,  // ✅ USA ARTICOLO DEDICATO BC (non 2 che è D)
                         PersCustomId = 2,
                         Prezzo = 5.50m,
@@ -2017,6 +2014,7 @@ namespace RepositoryTest
             // ✅ VERIFICA IL MESSAGGIO DELL'ECCEZIONE
             Assert.Contains("non supportato", exception.Message);
         }
+
         [Fact]
         public async Task CalculateCompletePriceAsync_WithBevandaCustom_ReturnsCompleteCalculation()
         {
@@ -2026,13 +2024,17 @@ namespace RepositoryTest
             // ✅ INIZIALIZZA I DATI
             InitializeTestData();
 
-            // ✅ ASSICURATI CHE ESISTA LA PERSONALIZZAZIONE CUSTOM CON ID 1
-            var personalizzazioneCustom = await _context.PersonalizzazioneCustom.FindAsync(1);
+            // ✅ USA UN ARTICOLO ID DIVERSO PER EVITARE CONFLITTI
+            var articoloId = 999; // ✅ USA UN ID CHE NON ESISTE NEL InitializeTestData
+            var persCustomId = 999;
+
+            // ✅ ASSICURATI CHE ESISTA LA PERSONALIZZAZIONE CUSTOM
+            var personalizzazioneCustom = await _context.PersonalizzazioneCustom.FindAsync(persCustomId);
             if (personalizzazioneCustom == null)
             {
                 personalizzazioneCustom = new PersonalizzazioneCustom
                 {
-                    PersCustomId = 1,
+                    PersCustomId = persCustomId,
                     Nome = "Test Custom",
                     GradoDolcezza = 3,
                     DimensioneBicchiereId = 1,
@@ -2045,69 +2047,31 @@ namespace RepositoryTest
 
             // ✅ ASSICURATI CHE ESISTANO GLI INGREDIENTI PER LA PERSONALIZZAZIONE
             var ingredientiPersonalizzazione = await _context.IngredientiPersonalizzazione
-                .Where(ip => ip.PersCustomId == 1)
+                .Where(ip => ip.PersCustomId == persCustomId)
                 .ToListAsync();
 
             if (!ingredientiPersonalizzazione.Any())
             {
-                // ✅ CREA ALCUNI INGREDIENTI PER LA PERSONALIZZAZIONE
+                // ✅ CREA INGREDIENTI PER LA PERSONALIZZAZIONE
                 _context.IngredientiPersonalizzazione.AddRange(
                     new IngredientiPersonalizzazione
                     {
-                        IngredientePersId = 1,
-                        PersCustomId = 1,
+                        IngredientePersId = 999,
+                        PersCustomId = persCustomId,
                         IngredienteId = 1, // Tea Nero Premium
-                        DataCreazione = now
-                    },
-                    new IngredientiPersonalizzazione
-                    {
-                        IngredientePersId = 2,
-                        PersCustomId = 1,
-                        IngredienteId = 2, // Altro ingrediente (assicurati che esista)
                         DataCreazione = now
                     }
                 );
-
-                // ✅ CREA UN SECONDO INGREDIENTE SE NON ESISTE
-                if (!await _context.Ingrediente.AnyAsync(i => i.IngredienteId == 2))
-                {
-                    _context.Ingrediente.Add(new Ingrediente
-                    {
-                        IngredienteId = 2,
-                        Ingrediente1 = "Latte Condensato",
-                        CategoriaId = 1,
-                        PrezzoAggiunto = 0.50m,
-                        Disponibile = true
-                    });
-                }
-
                 await _context.SaveChangesAsync();
             }
 
-            // ✅ ASSICURATI CHE ESISTA LA BEVANDA CUSTOM CON ARTICOLO ID 4
-            var bevandaCustom = await _context.BevandaCustom.FindAsync(1);
-            if (bevandaCustom == null)
+            // ✅ VERIFICA SE L'ARTICOLO ESISTE GIÀ PRIMA DI CREARLO
+            var articoloEsistente = await _context.Articolo.FindAsync(articoloId);
+            if (articoloEsistente == null)
             {
-                bevandaCustom = new BevandaCustom
+                var articolo = new Articolo
                 {
-                    BevandaCustomId = 1,
-                    ArticoloId = 4,
-                    PersCustomId = 1,
-                    Prezzo = 5.50m,
-                    DataCreazione = now,
-                    DataAggiornamento = now
-                };
-                _context.BevandaCustom.Add(bevandaCustom);
-                await _context.SaveChangesAsync();
-            }
-
-            // ✅ ASSICURATI CHE ESISTA L'ARTICOLO CON ID 4
-            var articolo = await _context.Articolo.FindAsync(4);
-            if (articolo == null)
-            {
-                articolo = new Articolo
-                {
-                    ArticoloId = 4,
+                    ArticoloId = articoloId,
                     Tipo = "BC",
                     DataCreazione = now,
                     DataAggiornamento = now
@@ -2116,11 +2080,27 @@ namespace RepositoryTest
                 await _context.SaveChangesAsync();
             }
 
+            // ✅ VERIFICA SE LA BEVANDA CUSTOM ESISTE GIÀ PRIMA DI CREARLA
+            var bevandaCustomEsistente = await _context.BevandaCustom.FindAsync(articoloId);
+            if (bevandaCustomEsistente == null)
+            {
+                var bevandaCustom = new BevandaCustom
+                {
+                    ArticoloId = articoloId, // ✅ USA LO STESSO ARTICOLO ID
+                    PersCustomId = persCustomId,
+                    Prezzo = 5.50m,
+                    DataCreazione = now,
+                    DataAggiornamento = now
+                };
+                _context.BevandaCustom.Add(bevandaCustom);
+                await _context.SaveChangesAsync();
+            }
+
             var request = new PriceCalculationRequestDTO
             {
-                ArticoloId = 4, // ✅ BevandaCustom con ID 4
+                ArticoloId = articoloId, // ✅ USA L'ID UNIVOCO
                 TipoArticolo = "BC",
-                PersonalizzazioneCustomId = 1, // ✅ Corrisponde a PersCustomId = 1
+                PersonalizzazioneCustomId = persCustomId, // ✅ USA L'ID UNIVOCO
                 Quantita = 1,
                 TaxRateId = 1
             };
@@ -2129,10 +2109,10 @@ namespace RepositoryTest
             var result = await _advancedPriceService.CalculateCompletePriceAsync(request);
 
             // Assert
-            Assert.Equal(4, result.ArticoloId);
+            Assert.Equal(articoloId, result.ArticoloId);
             Assert.Equal("BC", result.TipoArticolo);
 
-            // ✅ VERIFICA CHE I PREZZI SIANO > 0 (potrebbero essere diversi da 5.50m a seconda del calcolo)
+            // ✅ VERIFICA CHE I PREZZI SIANO > 0
             Assert.True(result.PrezzoBase > 0, $"PrezzoBase: {result.PrezzoBase}");
             Assert.True(result.PrezzoUnitario > 0, $"PrezzoUnitario: {result.PrezzoUnitario}");
             Assert.True(result.TotaleIvato > 0, $"TotaleIvato: {result.TotaleIvato}");
@@ -2145,6 +2125,7 @@ namespace RepositoryTest
 
             // ✅ DEBUG: MOSTRA I VALORI CALCOLATI
             Console.WriteLine($"DEBUG BevandaCustom Calculation:");
+            Console.WriteLine($"  ArticoloId: {result.ArticoloId}");
             Console.WriteLine($"  PrezzoBase: {result.PrezzoBase}");
             Console.WriteLine($"  PrezzoUnitario: {result.PrezzoUnitario}");
             Console.WriteLine($"  Imponibile: {result.Imponibile}");

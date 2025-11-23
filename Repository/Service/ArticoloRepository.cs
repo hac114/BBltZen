@@ -18,28 +18,8 @@ namespace Repository.Service
             _context = context;
         }
 
-        public async Task<IEnumerable<ArticoloDTO>> GetAllAsync()
+        private ArticoloDTO MapToDTO(Articolo articolo)
         {
-            return await _context.Articolo
-                .AsNoTracking()
-                .Select(a => new ArticoloDTO
-                {
-                    ArticoloId = a.ArticoloId,
-                    Tipo = a.Tipo,
-                    DataCreazione = a.DataCreazione,
-                    DataAggiornamento = a.DataAggiornamento
-                })
-                .ToListAsync();
-        }
-
-        public async Task<ArticoloDTO?> GetByIdAsync(int articoloId)
-        {
-            var articolo = await _context.Articolo
-                .AsNoTracking()
-                .FirstOrDefaultAsync(a => a.ArticoloId == articoloId);
-
-            if (articolo == null) return null;
-
             return new ArticoloDTO
             {
                 ArticoloId = articolo.ArticoloId,
@@ -49,61 +29,44 @@ namespace Repository.Service
             };
         }
 
+        public async Task<IEnumerable<ArticoloDTO>> GetAllAsync()
+        {
+            return await _context.Articolo
+                .AsNoTracking()
+                .Select(a => MapToDTO(a)) // ✅ USA MapToDTO
+                .ToListAsync();
+        }
+
+        public async Task<ArticoloDTO?> GetByIdAsync(int articoloId)
+        {
+            var articolo = await _context.Articolo
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.ArticoloId == articoloId);
+
+            return articolo != null ? MapToDTO(articolo) : null; // ✅ CHECK NULL + MapToDTO
+        }
+
         public async Task<IEnumerable<ArticoloDTO>> GetByTipoAsync(string tipo)
         {
             return await _context.Articolo
                 .AsNoTracking()
                 .Where(a => a.Tipo == tipo)
-                .Select(a => new ArticoloDTO
-                {
-                    ArticoloId = a.ArticoloId,
-                    Tipo = a.Tipo,
-                    DataCreazione = a.DataCreazione,
-                    DataAggiornamento = a.DataAggiornamento
-                })
+                .Select(a => MapToDTO(a)) // ✅ USA MapToDTO
                 .ToListAsync();
         }
 
         public async Task<IEnumerable<ArticoloDTO>> GetArticoliOrdinabiliAsync()
         {
-            // ✅ SOLUZIONE COMPATIBILE: USA SINGOLA QUERY CON OR invece di UNION + INCLUDE
-            // Elimina il problema InMemory ma mantiene le relazioni per la produzione
-
             return await _context.Articolo
-                .Include(a => a.BevandaStandard)  // ✅ MANTIENI per produzione
-                .Include(a => a.BevandaCustom)    // ✅ MANTIENI per produzione  
-                .Include(a => a.Dolce)            // ✅ MANTIENI per produzione
+                .Include(a => a.BevandaStandard)
+                .Include(a => a.Dolce)
                 .Where(a =>
-                    // ✅ BEVANDE STANDARD - Solo se SempreDisponibile = true
-                    (a.Tipo == "BS" && a.BevandaStandard != null && a.BevandaStandard.SempreDisponibile) ||
-
-                    // ✅ BEVANDE CUSTOM - Sempre ordinabili
-                    (a.Tipo == "BC" && a.BevandaCustom != null && a.BevandaCustom.Any()) ||
-
-                    // ✅ DOLCI - Solo se disponibili
-                    (a.Tipo == "D" && a.Dolce != null && a.Dolce.Disponibile)
+                    (a.Tipo == "BS" && a.BevandaStandard != null) || // ✅ Bevanda Standard sempre disponibile
+                    (a.Tipo == "BC" && a.BevandaCustom != null) ||   // ✅ Bevanda Custom sempre disponibile
+                    (a.Tipo == "D" && a.Dolce != null && a.Dolce.Disponibile) // ✅ Solo dolci disponibili
                 )
                 .AsNoTracking()
-                .Select(a => new ArticoloDTO
-                {
-                    ArticoloId = a.ArticoloId,
-                    Tipo = a.Tipo,
-                    DataCreazione = a.DataCreazione,
-                    DataAggiornamento = a.DataAggiornamento
-                    // ✅ Aggiungi altri campi necessari per il frontend
-                    //Nome = a.Tipo == "BS" ? a.BevandaStandard.Personalizzazione.Nome :
-                    //       a.Tipo == "D" ? a.Dolce.Nome :
-                    //       "Bevanda Personalizzata",
-                    //Prezzo = a.Tipo == "BS" ? a.BevandaStandard.Prezzo :
-                    //        a.Tipo == "D" ? a.Dolce.Prezzo :
-                    //        a.Tipo == "BC" ? a.BevandaCustom.First().Prezzo : 0m,
-                    //Descrizione = a.Tipo == "BS" ? a.BevandaStandard.Personalizzazione.Descrizione :
-                    //             a.Tipo == "D" ? a.Dolce.Descrizione :
-                    //             "Crea la tua bevanda personalizzata",
-                    //ImmagineUrl = a.Tipo == "BS" ? a.BevandaStandard.ImmagineUrl :
-                    //             a.Tipo == "D" ? a.Dolce.ImmagineUrl :
-                    //             null
-                })
+                .Select(a => MapToDTO(a))
                 .ToListAsync();
         }
 
@@ -111,21 +74,9 @@ namespace Repository.Service
         {
             return await _context.Articolo
                 .Include(a => a.Dolce)
-                .Where(a => a.Tipo == "D" &&
-                           a.Dolce != null &&
-                           a.Dolce.Disponibile)
+                .Where(a => a.Tipo == "D" && a.Dolce != null && a.Dolce.Disponibile)
                 .AsNoTracking()
-                .Select(a => new ArticoloDTO
-                {
-                    ArticoloId = a.ArticoloId,
-                    Tipo = a.Tipo,
-                    DataCreazione = a.DataCreazione,
-                    DataAggiornamento = a.DataAggiornamento,
-                    //Nome = a.Dolce.Nome,
-                    //Prezzo = a.Dolce.Prezzo,
-                    //Descrizione = a.Dolce.Descrizione,
-                    //ImmagineUrl = a.Dolce.ImmagineUrl
-                })
+                .Select(a => MapToDTO(a))
                 .ToListAsync();
         }
 
@@ -133,24 +84,9 @@ namespace Repository.Service
         {
             return await _context.Articolo
                 .Include(a => a.BevandaStandard)
-                .Where(a => a.Tipo == "BS" &&
-                           a.BevandaStandard != null &&
-                           a.BevandaStandard.SempreDisponibile)
+                .Where(a => a.Tipo == "BS" && a.BevandaStandard != null)
                 .AsNoTracking()
-                .Select(a => new ArticoloDTO
-                {
-                    ArticoloId = a.ArticoloId,
-                    Tipo = a.Tipo,
-                    DataCreazione = a.DataCreazione,
-                    DataAggiornamento = a.DataAggiornamento,
-                    //Nome = a.BevandaStandard.Personalizzazione.Nome,
-                    //Prezzo = a.BevandaStandard.Prezzo,
-                    //Descrizione = a.BevandaStandard.Personalizzazione.Descrizione,
-                    //PersonalizzazioneId = a.BevandaStandard.PersonalizzazioneId,
-                    //ImmagineUrl = a.BevandaStandard.ImmagineUrl,
-                    //DimensioneBicchiereId = a.BevandaStandard.DimensioneBicchiereId,
-                    //DimensioneBicchiere = a.BevandaStandard.DimensioneBicchiere.Nome // Se serve
-                })
+                .Select(a => MapToDTO(a))
                 .ToListAsync();
         }
 
@@ -160,7 +96,7 @@ namespace Repository.Service
                 .Include(i => i.Categoria)
                 .Where(i => i.Disponibile)
                 .AsNoTracking()
-                .Select(i => new IngredienteDTO
+                .Select(i => new IngredienteDTO // ✅ CORRETTO: DTO diverso
                 {
                     IngredienteId = i.IngredienteId,
                     Nome = i.Ingrediente1,
@@ -169,7 +105,6 @@ namespace Repository.Service
                     Disponibile = i.Disponibile,
                     DataInserimento = i.DataInserimento,
                     DataAggiornamento = i.DataAggiornamento
-                    // ✅ Se non hai la proprietà Categoria nel DTO, la omettiamo
                 })
                 .OrderBy(i => i.CategoriaId)
                 .ThenBy(i => i.Nome)
@@ -179,50 +114,19 @@ namespace Repository.Service
         public async Task<IEnumerable<ArticoloDTO>> GetBevandeCustomBaseAsync()
         {
             return await _context.Articolo
-                .Include(a => a.BevandaCustom)
-                .Where(a => a.Tipo == "BC" &&
-                           a.BevandaCustom != null &&
-                           a.BevandaCustom.Any())
+                .Where(a => a.Tipo == "BC" && a.BevandaCustom != null)
                 .AsNoTracking()
-                .Select(a => new ArticoloDTO
-                {
-                    ArticoloId = a.ArticoloId,
-                    Tipo = a.Tipo,
-                    DataCreazione = a.DataCreazione,
-                    DataAggiornamento = a.DataAggiornamento,
-                    //Nome = "Bevanda Personalizzata",
-                    //Prezzo = a.BevandaCustom.First().Prezzo, // Prezzo base
-                    //Descrizione = "Crea la tua bevanda personalizzata"
-                })
+                .Select(a => MapToDTO(a))
                 .ToListAsync();
         }
 
         public async Task<IEnumerable<ArticoloDTO>> GetAllArticoliCompletoAsync()
         {
             return await _context.Articolo
-                .Where(a => a.BevandaStandard == null || a.BevandaStandard.Personalizzazione != null) // ✅ Filtro sicurezza
                 .Include(a => a.BevandaStandard)
-                    .ThenInclude(bs => bs.Personalizzazione) // ✅ Ora è sicuro
-                .Include(a => a.BevandaCustom)
                 .Include(a => a.Dolce)
                 .AsNoTracking()
-                .Select(a => new ArticoloDTO
-                {
-                    ArticoloId = a.ArticoloId,
-                    Tipo = a.Tipo,
-                    DataCreazione = a.DataCreazione,
-                    DataAggiornamento = a.DataAggiornamento
-                    //Nome = a.Tipo == "BS" ? a.BevandaStandard.Personalizzazione.Nome :
-                    //       a.Tipo == "D" ? a.Dolce.Nome :
-                    //       "Bevanda Personalizzata",
-                    //Prezzo = a.Tipo == "BS" ? a.BevandaStandard.Prezzo :
-                    //        a.Tipo == "D" ? a.Dolce.Prezzo :
-                    //        a.Tipo == "BC" ? a.BevandaCustom.First().Prezzo : 0m,
-                    //Disponibile = a.Tipo == "BS" ? a.BevandaStandard.Disponibile :
-                    //             a.Tipo == "D" ? a.Dolce.Disponibile :
-                    //             true, // BC sempre disponibile
-                    //SempreDisponibile = a.Tipo == "BS" ? a.BevandaStandard.SempreDisponibile : true
-                })
+                .Select(a => MapToDTO(a))
                 .ToListAsync();
         }
 
@@ -270,7 +174,6 @@ namespace Repository.Service
             var articolo = await _context.Articolo
                 .Include(a => a.BevandaStandard)
                 .Include(a => a.Dolce)
-                .Include(a => a.BevandaCustom)
                 .FirstOrDefaultAsync(a => a.ArticoloId == articoloId);
 
             if (articolo != null)
@@ -282,9 +185,7 @@ namespace Repository.Service
                 if (articolo.Dolce != null)
                     _context.Dolce.Remove(articolo.Dolce);
 
-                if (articolo.BevandaCustom != null && articolo.BevandaCustom.Any())
-                    _context.BevandaCustom.RemoveRange(articolo.BevandaCustom);
-
+                // ✅ BevandaCustom viene eliminata automaticamente per CASCADE
                 _context.Articolo.Remove(articolo);
                 await _context.SaveChangesAsync();
             }

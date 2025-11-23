@@ -5,8 +5,6 @@ namespace Database;
 
 public partial class BevandaCustom
 {
-    public int BevandaCustomId { get; set; }
-
     public int ArticoloId { get; set; }
 
     public int PersCustomId { get; set; }

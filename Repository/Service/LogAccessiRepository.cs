@@ -19,9 +19,7 @@ namespace Repository.Service
         }
 
         private LogAccessiDTO MapToDTO(LogAccessi logAccessi)
-        {
-            if (logAccessi == null) return null;
-
+        {            
             return new LogAccessiDTO
             {
                 LogId = logAccessi.LogId,
@@ -51,7 +49,8 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(l => l.LogId == logId);
 
-            return logAccessi == null ? null : MapToDTO(logAccessi); // ✅ USA MapToDTO
+            // ✅ CHECK NULL PRIMA di chiamare MapToDTO
+            return logAccessi != null ? MapToDTO(logAccessi) : null;
         }
 
         public async Task<IEnumerable<LogAccessiDTO>> GetByUtenteIdAsync(int utenteId)
@@ -198,7 +197,7 @@ namespace Repository.Service
 
             var statistiche = await query
                 .GroupBy(l => l.Esito)
-                .Select(g => new { Esito = g.Key, Count = g.Count() })
+                .Select(g => new { Esito = g.Key ?? "Sconosciuto", Count = g.Count() })
                 .ToDictionaryAsync(x => x.Esito, x => x.Count);
 
             return statistiche;
