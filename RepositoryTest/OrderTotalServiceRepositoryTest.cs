@@ -45,6 +45,12 @@ namespace RepositoryTest
             Assert.Equal(9.00m, result.SubTotale);
             Assert.Equal(1.98m, result.TotaleIVA);
             Assert.Equal(10.98m, result.TotaleGenerale);
+
+            // ✅ VERIFICA IL PRIMO ITEM
+            var firstItem = result.Items.First();
+            Assert.Equal(orderItem.OrderItemId, firstItem.OrderItemId);
+            Assert.Equal(9.00m, firstItem.Imponibile);
+            Assert.Equal(10.98m, firstItem.TotaleIVATO);
         }
 
         [Fact]
@@ -64,9 +70,11 @@ namespace RepositoryTest
             Assert.Equal(ordine.OrdineId, result.OrderId);
             Assert.True(result.NuovoTotale > 0);
 
+            // ✅ CORREZIONE: Gestione caso null
             // Verifica che l'ordine sia stato aggiornato nel database
             var updatedOrder = _context.Ordine.Find(ordine.OrdineId);
-            Assert.Equal(result.NuovoTotale, updatedOrder.Totale);
+            Assert.NotNull(updatedOrder); // ✅ VERIFICA NON NULL
+            Assert.Equal(result.NuovoTotale, updatedOrder!.Totale); // ✅ USA ! per dire al compilatore che non è null
         }
 
         [Fact]
@@ -146,6 +154,49 @@ namespace RepositoryTest
             _context.OrderItem.Add(orderItem);
             _context.SaveChanges();
             return orderItem;
+        }
+
+        [Fact]
+        public async Task ExistsAsync_WithExistingOrder_ReturnsTrue()
+        {
+            // Arrange
+            var ordine = CreateTestOrdine();
+
+            // Act
+            var result = await _service.ExistsAsync(ordine.OrdineId);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task ExistsAsync_WithNonExistingOrder_ReturnsFalse()
+        {
+            // Act
+            var result = await _service.ExistsAsync(999);
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public async Task GetOrdersWithInvalidTotalsAsync_WithValidOrders_ReturnsEmpty()
+        {
+            // Arrange
+            var ordine = CreateTestOrdine();
+            var taxRate = CreateTestTaxRate(22.00m);
+            var articolo = CreateTestArticolo("BS");
+
+            var orderItem = CreateTestOrderItem(ordine.OrdineId, articolo.ArticoloId, "BS", 2, 5.00m, 1.00m, taxRate.TaxRateId);
+
+            // Aggiorna il totale per renderlo valido
+            await _service.UpdateOrderTotalAsync(ordine.OrdineId);
+
+            // Act
+            var result = await _service.GetOrdersWithInvalidTotalsAsync();
+
+            // Assert
+            Assert.Empty(result);
         }
     }
 }

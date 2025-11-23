@@ -6,17 +6,20 @@ namespace Repository.Interface
 {
     public interface IOrderTotalServiceRepository
     {
-        // Calcolo totali
+        // ✅ CALCOLO TOTALI - ALLINEATO
         Task<OrderTotalDTO> CalculateOrderTotalAsync(int orderId);
         Task<OrderUpdateTotalDTO> UpdateOrderTotalAsync(int orderId);
 
-        // Gestione IVA e tasse
+        // ✅ GESTIONE IVA E TASSE - ALLINEATO
         Task<decimal> CalculateItemTaxAsync(int orderItemId);
         Task<decimal> GetTaxRateAsync(int taxRateId);
 
-        // Utility
+        // ✅ UTILITY - ALLINEATO
         Task<bool> ValidateOrderForCalculationAsync(int orderId);
         Task<decimal> RecalculateOrderTotalFromScratchAsync(int orderId);
-        Task<List<int>> GetOrdersWithInvalidTotalsAsync();
+        Task<IEnumerable<int>> GetOrdersWithInvalidTotalsAsync();
+
+        // ✅ AGGIUNTO PER COMPLETEZZA PATTERN
+        Task<bool> ExistsAsync(int orderId);
     }
 }

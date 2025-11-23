@@ -6,20 +6,21 @@ namespace DTO
 {
     public class OrderTotalDTO
     {
+        [Range(1, int.MaxValue, ErrorMessage = "ID ordine non valido")]
         public int OrderId { get; set; }
 
-        [Range(0, 10000)]
+        [Range(0, 10000, ErrorMessage = "Subtotale non valido")]
         public decimal SubTotale { get; set; }
 
-        [Range(0, 5000)]
+        [Range(0, 5000, ErrorMessage = "Totale IVA non valido")]
         public decimal TotaleIVA { get; set; }
 
-        [Range(0, 15000)]
+        [Range(0, 15000, ErrorMessage = "Totale generale non valido")]
         public decimal TotaleGenerale { get; set; }
 
-        public DateTime DataCalcolo { get; set; }
+        public DateTime DataCalcolo { get; set; } = DateTime.UtcNow; // ✅ Default value
 
-        public List<OrderItemTotalDTO> Items { get; set; } = new List<OrderItemTotalDTO>();
+        public List<OrderItemTotalDTO> Items { get; set; } = new();
     }
 
     public class OrderItemTotalDTO
@@ -51,16 +52,17 @@ namespace DTO
 
     public class OrderUpdateTotalDTO
     {
+        [Range(1, int.MaxValue, ErrorMessage = "ID ordine non valido")]
         public int OrderId { get; set; }
 
-        [Range(0, 15000)]
+        [Range(0, 15000, ErrorMessage = "Vecchio totale non valido")]
         public decimal VecchioTotale { get; set; }
 
-        [Range(0, 15000)]
+        [Range(0, 15000, ErrorMessage = "Nuovo totale non valido")]
         public decimal NuovoTotale { get; set; }
 
         public decimal Differenza { get; set; }
 
-        public DateTime DataAggiornamento { get; set; }
-    }    
+        public DateTime DataAggiornamento { get; set; } = DateTime.UtcNow; // ✅ Default value
+    }
 }

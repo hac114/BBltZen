@@ -23,11 +23,60 @@ namespace Repository.Service
             _logger = logger;
         }
 
+        private async Task<OrderTotalDTO> MapToOrderTotalDTO(int orderId, List<OrderItem> orderItems)
+        {
+            var result = new OrderTotalDTO
+            {
+                OrderId = orderId,
+                DataCalcolo = DateTime.UtcNow
+            };
+
+            foreach (var item in orderItems)
+            {
+                var itemTotal = await CalculateOrderItemTotalAsync(item);
+                result.Items.Add(itemTotal);
+
+                result.SubTotale += itemTotal.Imponibile;
+                result.TotaleIVA += (itemTotal.TotaleIVATO - itemTotal.Imponibile);
+            }
+
+            result.TotaleGenerale = result.SubTotale + result.TotaleIVA;
+            return result;
+        }
+
+        private OrderUpdateTotalDTO MapToOrderUpdateTotalDTO(int orderId, decimal oldTotal, decimal newTotal)
+        {
+            return new OrderUpdateTotalDTO
+            {
+                OrderId = orderId,
+                VecchioTotale = oldTotal,
+                NuovoTotale = newTotal,
+                Differenza = newTotal - oldTotal,
+                DataAggiornamento = DateTime.UtcNow
+            };
+        }
+
+        private OrderItemTotalDTO MapToOrderItemTotalDTO(OrderItem item, decimal taxRate, decimal imponibile, decimal totaleIvato)
+        {
+            return new OrderItemTotalDTO
+            {
+                OrderItemId = item.OrderItemId,
+                ArticoloId = item.ArticoloId,
+                TipoArticolo = item.TipoArticolo,
+                Quantita = item.Quantita,
+                PrezzoUnitario = item.PrezzoUnitario,
+                ScontoApplicato = item.ScontoApplicato,
+                Imponibile = Math.Round(imponibile, 2),
+                TotaleIVATO = Math.Round(totaleIvato, 2),
+                AliquotaIVA = taxRate
+            };
+        }
+
         public async Task<OrderTotalDTO> CalculateOrderTotalAsync(int orderId)
         {
             try
             {
-                _logger.LogInformation($"Calcolo totale ordine: {orderId}");
+                _logger.LogInformation("Calcolo totale ordine: {OrderId}", orderId);
 
                 if (!await ValidateOrderForCalculationAsync(orderId))
                     throw new ArgumentException($"Ordine non valido per il calcolo: {orderId}");
@@ -40,29 +89,17 @@ namespace Repository.Service
                     .Where(oi => oi.OrdineId == orderId)
                     .ToListAsync();
 
-                var result = new OrderTotalDTO
-                {
-                    OrderId = orderId,
-                    DataCalcolo = DateTime.Now
-                };
+                // ✅ USA MapDTO INVECE DI COSTRUTTORE DIRETTO
+                var result = await MapToOrderTotalDTO(orderId, orderItems);
 
-                foreach (var item in orderItems)
-                {
-                    var itemTotal = await CalculateOrderItemTotalAsync(item);
-                    result.Items.Add(itemTotal);
+                _logger.LogInformation("Ordine {OrderId}: SubTotale={SubTotale:C}, IVA={TotaleIVA:C}, Totale={TotaleGenerale:C}",
+                    orderId, result.SubTotale, result.TotaleIVA, result.TotaleGenerale);
 
-                    result.SubTotale += itemTotal.Imponibile;
-                    result.TotaleIVA += (itemTotal.TotaleIVATO - itemTotal.Imponibile);
-                }
-
-                result.TotaleGenerale = result.SubTotale + result.TotaleIVA;
-
-                _logger.LogInformation($"Ordine {orderId}: SubTotale={result.SubTotale:C}, IVA={result.TotaleIVA:C}, Totale={result.TotaleGenerale:C}");
                 return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore calcolo totale ordine: {orderId}");
+                _logger.LogError(ex, "Errore calcolo totale ordine: {OrderId}", orderId);
                 throw;
             }
         }
@@ -71,7 +108,7 @@ namespace Repository.Service
         {
             try
             {
-                _logger.LogInformation($"Aggiornamento totale ordine: {orderId}");
+                _logger.LogInformation("Aggiornamento totale ordine: {OrderId}", orderId);
 
                 var order = await _context.Ordine.FindAsync(orderId);
                 if (order == null)
@@ -81,25 +118,21 @@ namespace Repository.Service
                 var calculation = await CalculateOrderTotalAsync(orderId);
 
                 order.Totale = calculation.TotaleGenerale;
-                order.DataAggiornamento = DateTime.Now;
+                order.DataAggiornamento = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
-                var result = new OrderUpdateTotalDTO
-                {
-                    OrderId = orderId,
-                    VecchioTotale = oldTotal,
-                    NuovoTotale = calculation.TotaleGenerale,
-                    Differenza = calculation.TotaleGenerale - oldTotal,
-                    DataAggiornamento = DateTime.Now
-                };
+                // ✅ USA MapDTO INVECE DI COSTRUTTORE DIRETTO
+                var result = MapToOrderUpdateTotalDTO(orderId, oldTotal, calculation.TotaleGenerale);
 
-                _logger.LogInformation($"Ordine {orderId} aggiornato: {oldTotal:C} -> {calculation.TotaleGenerale:C} (diff: {result.Differenza:C})");
+                _logger.LogInformation("Ordine {OrderId} aggiornato: {OldTotal:C} -> {NewTotal:C} (diff: {Difference:C})",
+                    orderId, oldTotal, calculation.TotaleGenerale, result.Differenza);
+
                 return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore aggiornamento totale ordine: {orderId}");
+                _logger.LogError(ex, "Errore aggiornamento totale ordine: {OrderId}", orderId);
                 throw;
             }
         }
@@ -182,33 +215,32 @@ namespace Repository.Service
             }
         }
 
-        public async Task<List<int>> GetOrdersWithInvalidTotalsAsync()
+        public async Task<IEnumerable<int>> GetOrdersWithInvalidTotalsAsync()
         {
             try
             {
                 var ordersWithIssues = new List<int>();
 
-                // Trova ordini dove il totale non corrisponde alla somma degli items
                 var orders = await _context.Ordine
-                    .Where(o => o.StatoOrdineId != 5) // Escludi ordini annullati
+                    .Where(o => o.StatoOrdineId != 5)
                     .ToListAsync();
 
                 foreach (var order in orders)
                 {
                     var calculatedTotal = await RecalculateOrderTotalFromScratchAsync(order.OrdineId);
-                    if (Math.Abs(order.Totale - calculatedTotal) > 0.01m) // Tolleranza 1 centesimo
+                    if (Math.Abs(order.Totale - calculatedTotal) > 0.01m)
                     {
                         ordersWithIssues.Add(order.OrdineId);
                     }
                 }
 
-                _logger.LogInformation($"Trovati {ordersWithIssues.Count} ordini con totali non validi");
+                _logger.LogInformation("Trovati {Count} ordini con totali non validi", ordersWithIssues.Count);
                 return ordersWithIssues;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore ricerca ordini con totali non validi");
-                return new List<int>();
+                return Enumerable.Empty<int>();
             }
         }
 
@@ -218,18 +250,23 @@ namespace Repository.Service
             var imponibile = (item.PrezzoUnitario * item.Quantita) - item.ScontoApplicato;
             var totaleIvato = imponibile * (1 + (taxRate / 100));
 
-            return new OrderItemTotalDTO
+            // ✅ USA MapDTO INVECE DI COSTRUTTORE DIRETTO
+            return MapToOrderItemTotalDTO(item, taxRate, imponibile, totaleIvato);
+        }
+
+        public async Task<bool> ExistsAsync(int orderId)
+        {
+            try
             {
-                OrderItemId = item.OrderItemId,
-                ArticoloId = item.ArticoloId,
-                TipoArticolo = item.TipoArticolo,
-                Quantita = item.Quantita,
-                PrezzoUnitario = item.PrezzoUnitario,
-                ScontoApplicato = item.ScontoApplicato,
-                Imponibile = Math.Round(imponibile, 2),
-                TotaleIVATO = Math.Round(totaleIvato, 2),
-                AliquotaIVA = taxRate
-            };
+                var exists = await _context.Ordine
+                    .AnyAsync(o => o.OrdineId == orderId);
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore verifica esistenza ordine: {OrderId}", orderId);
+                return false;
+            }
         }
     }
 }

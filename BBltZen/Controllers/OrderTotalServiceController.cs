@@ -32,7 +32,7 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("calculate/{orderId}")]
-        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
+        [AllowAnonymous]
         public async Task<ActionResult<OrderTotalDTO>> CalculateOrderTotal(int orderId)
         {
             try
@@ -40,22 +40,20 @@ namespace BBltZen.Controllers
                 if (orderId <= 0)
                     return SafeBadRequest<OrderTotalDTO>("ID ordine non valido");
 
-                // ✅ Controllo esistenza ordine con BubbleTeaContext
                 var orderExists = await _context.Ordine.AnyAsync(o => o.OrdineId == orderId);
                 if (!orderExists)
                     return SafeNotFound<OrderTotalDTO>("Ordine non trovato");
 
-                _logger.LogInformation($"Calcolo totale ordine: {orderId}");
+                _logger.LogInformation("Calcolo totale ordine: {OrderId}", orderId);
                 var result = await _orderTotalService.CalculateOrderTotalAsync(orderId);
 
-                // ✅ Log per audit
                 LogAuditTrail("CALCULATE_ORDER_TOTAL", "OrderTotalService", orderId.ToString());
                 LogSecurityEvent("OrderTotalCalculated", new
                 {
-                    OrderId = orderId,
-                    SubTotale = result.SubTotale,
-                    TotaleIVA = result.TotaleIVA,
-                    TotaleGenerale = result.TotaleGenerale,
+                    orderId, // ✅ SEMPLIFICATO
+                    result.SubTotale, // ✅ SEMPLIFICATO
+                    result.TotaleIVA, // ✅ SEMPLIFICATO
+                    result.TotaleGenerale, // ✅ SEMPLIFICATO
                     User = User.Identity?.Name ?? "System",
                     Timestamp = DateTime.UtcNow
                 });
@@ -64,7 +62,7 @@ namespace BBltZen.Controllers
             }
             catch (ArgumentException argEx)
             {
-                _logger.LogWarning(argEx, $"Ordine non valido per calcolo: {orderId}");
+                _logger.LogWarning(argEx, "Ordine non valido per calcolo: {OrderId}", orderId);
                 return SafeBadRequest<OrderTotalDTO>(
                     _environment.IsDevelopment()
                         ? argEx.Message
@@ -73,7 +71,7 @@ namespace BBltZen.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore calcolo totale ordine: {orderId}");
+                _logger.LogError(ex, "Errore calcolo totale ordine: {OrderId}", orderId);
                 return SafeInternalError<OrderTotalDTO>(
                     _environment.IsDevelopment()
                         ? $"Errore calcolo totale ordine {orderId}: {ex.Message}"
@@ -91,22 +89,20 @@ namespace BBltZen.Controllers
                 if (orderId <= 0)
                     return SafeBadRequest<OrderUpdateTotalDTO>("ID ordine non valido");
 
-                // ✅ Controllo esistenza ordine con BubbleTeaContext
                 var orderExists = await _context.Ordine.AnyAsync(o => o.OrdineId == orderId);
                 if (!orderExists)
                     return SafeNotFound<OrderUpdateTotalDTO>("Ordine non trovato");
 
-                _logger.LogInformation($"Aggiornamento totale ordine: {orderId}");
+                _logger.LogInformation("Aggiornamento totale ordine: {OrderId}", orderId);
                 var result = await _orderTotalService.UpdateOrderTotalAsync(orderId);
 
-                // ✅ Log per audit
                 LogAuditTrail("UPDATE_ORDER_TOTAL", "OrderTotalService", orderId.ToString());
                 LogSecurityEvent("OrderTotalUpdated", new
                 {
-                    OrderId = orderId,
-                    VecchioTotale = result.VecchioTotale,
-                    NuovoTotale = result.NuovoTotale,
-                    Differenza = result.Differenza,
+                    orderId, // ✅ SEMPLIFICATO
+                    result.VecchioTotale, // ✅ SEMPLIFICATO
+                    result.NuovoTotale, // ✅ SEMPLIFICATO
+                    result.Differenza, // ✅ SEMPLIFICATO
                     User = User.Identity?.Name ?? "System",
                     Timestamp = DateTime.UtcNow,
                     IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
@@ -116,7 +112,7 @@ namespace BBltZen.Controllers
             }
             catch (ArgumentException argEx)
             {
-                _logger.LogWarning(argEx, $"Ordine non trovato per aggiornamento: {orderId}");
+                _logger.LogWarning(argEx, "Ordine non trovato per aggiornamento: {OrderId}", orderId);
                 return SafeNotFound<OrderUpdateTotalDTO>(
                     _environment.IsDevelopment()
                         ? argEx.Message
@@ -125,7 +121,7 @@ namespace BBltZen.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore aggiornamento totale ordine: {orderId}");
+                _logger.LogError(ex, "Errore aggiornamento totale ordine: {OrderId}", orderId);
                 return SafeInternalError<OrderUpdateTotalDTO>(
                     _environment.IsDevelopment()
                         ? $"Errore aggiornamento totale ordine {orderId}: {ex.Message}"
@@ -289,17 +285,16 @@ namespace BBltZen.Controllers
 
         [HttpGet("invalid-totals")]
         //[Authorize(Roles = "admin,manager")] // ✅ COMMENTATO PER TEST
-        public async Task<ActionResult<List<int>>> GetOrdersWithInvalidTotals()
+        public async Task<ActionResult<IEnumerable<int>>> GetOrdersWithInvalidTotals()
         {
             try
             {
                 var orders = await _orderTotalService.GetOrdersWithInvalidTotalsAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_ORDERS_INVALID_TOTALS", "OrderTotalService", $"Count: {orders.Count}");
+                LogAuditTrail("GET_ORDERS_INVALID_TOTALS", "OrderTotalService", $"Count: {orders.Count()}");
                 LogSecurityEvent("InvalidTotalsChecked", new
                 {
-                    Count = orders.Count,
+                    Count = orders.Count(),
                     User = User.Identity?.Name ?? "System",
                     Timestamp = DateTime.UtcNow
                 });
@@ -309,7 +304,7 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore ricerca ordini con totali non validi");
-                return SafeInternalError<List<int>>(
+                return SafeInternalError<IEnumerable<int>>(
                     _environment.IsDevelopment()
                         ? $"Errore ricerca ordini con totali non validi: {ex.Message}"
                         : "Errore interno nella ricerca ordini con totali non validi"
@@ -375,6 +370,25 @@ namespace BBltZen.Controllers
                         ? $"Errore ricalcolo di massa ordini: {ex.Message}"
                         : "Errore interno nel ricalcolo di massa ordini"
                 );
+            }
+        }
+
+        [HttpGet("exists/{orderId}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<bool>> Exists(int orderId)
+        {
+            try
+            {
+                if (orderId <= 0)
+                    return SafeBadRequest<bool>("ID ordine non valido");
+
+                var exists = await _orderTotalService.ExistsAsync(orderId);
+                return Ok(exists);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore verifica esistenza ordine: {OrderId}", orderId);
+                return SafeInternalError<bool>("Errore durante la verifica esistenza");
             }
         }
     }
