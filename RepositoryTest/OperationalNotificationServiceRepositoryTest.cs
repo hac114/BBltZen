@@ -26,7 +26,7 @@ namespace RepositoryTest
         {
             // Arrange
             var categoria = CreateTestCategoriaIngrediente();
-            var ingrediente = CreateTestIngrediente(categoria.CategoriaId, false); // Non disponibile
+            var ingrediente = CreateTestIngrediente(categoria.CategoriaId, false);
             var personalizzazione = CreateTestPersonalizzazione();
             CreateTestPersonalizzazioneIngrediente(personalizzazione.PersonalizzazioneId, ingrediente.IngredienteId, 1);
 
@@ -35,10 +35,9 @@ namespace RepositoryTest
 
             // Assert
             Assert.Single(result);
-            Assert.Equal(ingrediente.IngredienteId, result[0].IngredienteId);
-            Assert.Equal(1, result[0].BevandeAffette);
+            Assert.Equal(ingrediente.IngredienteId, result.First().IngredienteId); // ✅ CAMBIA: [0] → First()
+            Assert.Equal(1, result.First().BevandeAffette); // ✅ CAMBIA: [0] → First()
 
-            // Verifica che sia stata creata una notifica
             var notifiche = await _service.GetUnreadNotificationsAsync();
             Assert.NotEmpty(notifiche);
         }
@@ -96,6 +95,7 @@ namespace RepositoryTest
             Assert.True(summary.NotificheNonLette >= 3);
             Assert.True(summary.NotificheAltaPriorita >= 1);
             Assert.NotNull(summary.UltimeNotifiche);
+            Assert.True(summary.UltimeNotifiche.Count <= 5);
         }
 
         [Fact]
@@ -139,6 +139,29 @@ namespace RepositoryTest
             Assert.True(count >= 2);
         }
 
+        [Fact]
+        public async Task ExistsAsync_WithExistingNotification_ReturnsTrue()
+        {
+            // Arrange
+            var notifica = await _service.CreateNotificationAsync("TEST", "Test", "Message", "Media");
+
+            // Act
+            var result = await _service.ExistsAsync(notifica.NotificationId);
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task ExistsAsync_WithNonExistingNotification_ReturnsFalse()
+        {
+            // Act
+            var result = await _service.ExistsAsync(999);
+
+            // Assert
+            Assert.False(result);
+        }
+
         // Helper methods corretti
         private CategoriaIngrediente CreateTestCategoriaIngrediente()
         {
@@ -173,7 +196,7 @@ namespace RepositoryTest
             {
                 Nome = "Test Personalizzazione",
                 Descrizione = "Descrizione test",
-                DtCreazione = DateTime.Now                
+                DtCreazione = DateTime.Now
             };
             _context.Personalizzazione.Add(personalizzazione);
             _context.SaveChanges();

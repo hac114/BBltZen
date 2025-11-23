@@ -6,23 +6,26 @@ namespace Repository.Interface
 {
     public interface IOperationalNotificationServiceRepository
     {
-        // Notifiche automatiche
-        Task<List<LowStockNotificationDTO>> NotifyLowStockAsync();
+        // ✅ NOTIFICHE AUTOMATICHE - ALLINEATO
+        Task<IEnumerable<LowStockNotificationDTO>> NotifyLowStockAsync();
         Task<OrderStatusNotificationDTO> NotifyOrderStatusChangeAsync(int orderId, string nuovoStato);
 
-        // Gestione notifiche
+        // ✅ GESTIONE NOTIFICHE - ALLINEATO
         Task<NotificationDTO> CreateNotificationAsync(string tipo, string titolo, string messaggio, string priorita);
-        Task<List<NotificationDTO>> GetUnreadNotificationsAsync();
+        Task<IEnumerable<NotificationDTO>> GetUnreadNotificationsAsync();
         Task<bool> MarkNotificationAsReadAsync(int notificationId);
         Task<NotificationSummaryDTO> GetNotificationSummaryAsync();
 
-        // Notifiche specifiche
+        // ✅ NOTIFICHE SPECIFICHE - ALLINEATO
         Task NotifySystemAlertAsync(string messaggio, string priorita = "Media");
         Task NotifyNewOrderAsync(int orderId);
         Task NotifyPaymentIssueAsync(int orderId);
 
-        // Utility
+        // ✅ UTILITY - ALLINEATO
         Task CleanOldNotificationsAsync(int giorni = 30);
         Task<int> GetPendingNotificationsCountAsync();
+
+        // ✅ AGGIUNTO PER COMPLETEZZA PATTERN
+        Task<bool> ExistsAsync(int notificationId);
     }
 }

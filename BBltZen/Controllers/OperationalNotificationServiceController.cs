@@ -32,19 +32,18 @@ namespace BBltZen.Controllers
         }
 
         [HttpPost("low-stock")]
-        //[Authorize(Roles = "admin,manager,system")] // ✅ COMMENTATO PER TEST
-        public async Task<ActionResult<List<LowStockNotificationDTO>>> NotifyLowStock()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<LowStockNotificationDTO>>> NotifyLowStock()
         {
             try
             {
                 _logger.LogInformation("Notifica ingredienti in esaurimento");
                 var result = await _notificationService.NotifyLowStockAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("NOTIFY_LOW_STOCK", "NotificationService", $"Found: {result.Count} items");
+                LogAuditTrail("NOTIFY_LOW_STOCK", "NotificationService", $"Found: {result.Count()} items");
                 LogSecurityEvent("LowStockNotificationTriggered", new
                 {
-                    Count = result.Count,
+                    Count = result.Count(),
                     User = User.Identity?.Name ?? "System",
                     Timestamp = DateTime.UtcNow
                 });
@@ -54,7 +53,7 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore notifica ingredienti esauriti");
-                return SafeInternalError<List<LowStockNotificationDTO>>(
+                return SafeInternalError<IEnumerable<LowStockNotificationDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore notifica ingredienti esauriti: {ex.Message}"
                         : "Errore interno nel controllo ingredienti"
@@ -117,16 +116,15 @@ namespace BBltZen.Controllers
         }
 
         [HttpPost("create")]
-        //[Authorize(Roles = "admin,manager,system")] // ✅ COMMENTATO PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<NotificationDTO>> CreateNotification([FromBody] CreateNotificationRequestDTO request)
         {
             try
             {
-                // ✅ Validazione del DTO della richiesta
                 if (!IsModelValid(request))
                     return SafeBadRequest<NotificationDTO>("Dati notifica non validi");
 
-                _logger.LogInformation($"Creazione notifica: {request.Titolo}");
+                _logger.LogInformation("Creazione notifica: {Titolo}", request.Titolo);
                 var result = await _notificationService.CreateNotificationAsync(
                     request.Tipo,
                     request.Titolo,
@@ -134,13 +132,12 @@ namespace BBltZen.Controllers
                     request.Priorita
                 );
 
-                // ✅ Log per audit
                 LogAuditTrail("CREATE_NOTIFICATION", "NotificationService", result.NotificationId.ToString());
                 LogSecurityEvent("NotificationCreated", new
                 {
-                    NotificationId = result.NotificationId,
-                    Type = request.Tipo,
-                    Priority = request.Priorita,
+                    result.NotificationId, // ✅ SEMPLIFICATO
+                    request.Tipo, // ✅ SEMPLIFICATO
+                    request.Priorita, // ✅ SEMPLIFICATO
                     User = User.Identity?.Name ?? "System",
                     Timestamp = DateTime.UtcNow,
                     IPAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
@@ -150,7 +147,7 @@ namespace BBltZen.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore creazione notifica: {request.Titolo}");
+                _logger.LogError(ex, "Errore creazione notifica: {Titolo}", request.Titolo);
                 return SafeInternalError<NotificationDTO>(
                     _environment.IsDevelopment()
                         ? $"Errore creazione notifica: {ex.Message}"
@@ -160,22 +157,21 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("unread")]
-        [AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
-        public async Task<ActionResult<List<NotificationDTO>>> GetUnreadNotifications()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<NotificationDTO>>> GetUnreadNotifications()
         {
             try
             {
                 var result = await _notificationService.GetUnreadNotificationsAsync();
 
-                // ✅ Log per audit
-                LogAuditTrail("GET_UNREAD_NOTIFICATIONS", "NotificationService", $"Count: {result.Count}");
+                LogAuditTrail("GET_UNREAD_NOTIFICATIONS", "NotificationService", $"Count: {result.Count()}");
 
                 return Ok(result);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore recupero notifiche non lette");
-                return SafeInternalError<List<NotificationDTO>>(
+                return SafeInternalError<IEnumerable<NotificationDTO>>(
                     _environment.IsDevelopment()
                         ? $"Errore recupero notifiche non lette: {ex.Message}"
                         : "Errore interno nel recupero notifiche"
@@ -411,6 +407,25 @@ namespace BBltZen.Controllers
                         ? $"Errore conteggio notifiche pendenti: {ex.Message}"
                         : "Errore interno nel conteggio notifiche"
                 );
+            }
+        }
+
+        [HttpGet("exists/{notificationId}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<bool>> Exists(int notificationId)
+        {
+            try
+            {
+                if (notificationId <= 0)
+                    return SafeBadRequest<bool>("ID notifica non valido");
+
+                var exists = await _notificationService.ExistsAsync(notificationId);
+                return Ok(exists);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore verifica esistenza notifica: {NotificationId}", notificationId);
+                return SafeInternalError<bool>("Errore durante la verifica esistenza");
             }
         }
     }

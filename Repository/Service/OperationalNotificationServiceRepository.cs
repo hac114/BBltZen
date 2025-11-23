@@ -23,7 +23,33 @@ namespace Repository.Service
             _logger = logger;
         }
 
-        public async Task<List<LowStockNotificationDTO>> NotifyLowStockAsync()
+        private NotificationDTO MapToNotificationDTO(NotificheOperative notifica)
+        {
+            return new NotificationDTO
+            {
+                NotificationId = notifica.NotificaId,
+                TipoNotifica = "SISTEMA",
+                Titolo = $"Notifica #{notifica.NotificaId}",
+                Messaggio = notifica.Messaggio,
+                Priorita = ConvertIntToPriorita(notifica.Priorita),
+                Letta = notifica.Stato == "Gestita",
+                DataCreazione = notifica.DataCreazione
+            };
+        }
+
+        private LowStockNotificationDTO MapToLowStockNotificationDTO(int ingredienteId, string nomeIngrediente, string categoria, int bevandeAffette)
+        {
+            return new LowStockNotificationDTO
+            {
+                IngredienteId = ingredienteId,
+                NomeIngrediente = nomeIngrediente,
+                Categoria = categoria,
+                BevandeAffette = bevandeAffette,
+                DataRilevamento = DateTime.UtcNow
+            };
+        }
+
+        public async Task<IEnumerable<LowStockNotificationDTO>> NotifyLowStockAsync()
         {
             try
             {
@@ -31,11 +57,12 @@ namespace Repository.Service
 
                 var ingredientiNonDisponibili = await _context.Ingrediente
                     .Where(i => !i.Disponibile)
+                    .Include(i => i.Categoria)
                     .Select(i => new
                     {
                         i.IngredienteId,
                         i.Ingrediente1,
-                        Categoria = i.Categoria.Categoria,
+                        i.Categoria,
                         BevandeAffette = _context.PersonalizzazioneIngrediente
                             .Count(pi => pi.IngredienteId == i.IngredienteId)
                     })
@@ -45,18 +72,16 @@ namespace Repository.Service
 
                 foreach (var ingrediente in ingredientiNonDisponibili)
                 {
-                    var notifica = new LowStockNotificationDTO
-                    {
-                        IngredienteId = ingrediente.IngredienteId,
-                        NomeIngrediente = ingrediente.Ingrediente1,
-                        Categoria = ingrediente.Categoria,
-                        BevandeAffette = ingrediente.BevandeAffette,
-                        DataRilevamento = DateTime.Now
-                    };
+                    // ✅ USA SOLO QUESTO MapToDTO - UNICO E CORRETTO
+                    var notifica = MapToLowStockNotificationDTO(
+                        ingrediente.IngredienteId,
+                        ingrediente.Ingrediente1,
+                        ingrediente.Categoria.Categoria,
+                        ingrediente.BevandeAffette
+                    );
 
                     notifiche.Add(notifica);
 
-                    // Crea notifica nel sistema
                     await CreateNotificationAsync(
                         "LOW_STOCK",
                         $"Ingrediente Esaurito: {ingrediente.Ingrediente1}",
@@ -65,13 +90,13 @@ namespace Repository.Service
                     );
                 }
 
-                _logger.LogInformation($"Trovati {notifiche.Count} ingredienti esauriti");
+                _logger.LogInformation("Trovati {Count} ingredienti esauriti", notifiche.Count);
                 return notifiche;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore controllo ingredienti esauriti");
-                return new List<LowStockNotificationDTO>();
+                return Enumerable.Empty<LowStockNotificationDTO>();
             }
         }
 
@@ -79,7 +104,7 @@ namespace Repository.Service
         {
             try
             {
-                _logger.LogInformation($"Notifica cambio stato ordine: {orderId} -> {nuovoStato}");
+                _logger.LogInformation("Notifica cambio stato ordine: {OrderId} -> {NuovoStato}", orderId, nuovoStato);
 
                 var order = await _context.Ordine
                     .FirstOrDefaultAsync(o => o.OrdineId == orderId);
@@ -87,16 +112,16 @@ namespace Repository.Service
                 if (order == null)
                     throw new ArgumentException($"Ordine non trovato: {orderId}");
 
+                // ✅ USA COSTRUTTORE DIRETTO - NIENTE MapDTO
                 var notifica = new OrderStatusNotificationDTO
                 {
                     OrderId = orderId,
                     VecchioStato = order.StatoOrdineId.ToString(),
                     NuovoStato = nuovoStato,
                     ClienteId = order.ClienteId,
-                    DataCambiamento = DateTime.Now
+                    DataCambiamento = DateTime.UtcNow
                 };
 
-                // Crea notifica nel sistema
                 await CreateNotificationAsync(
                     "ORDER_STATUS_CHANGE",
                     $"Ordine {orderId} Aggiornato",
@@ -104,12 +129,12 @@ namespace Repository.Service
                     "Media"
                 );
 
-                _logger.LogInformation($"Notifica cambio stato ordine {orderId} creata");
+                _logger.LogInformation("Notifica cambio stato ordine {OrderId} creata", orderId);
                 return notifica;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore notifica cambio stato ordine: {orderId}");
+                _logger.LogError(ex, "Errore notifica cambio stato ordine: {OrderId}", orderId);
                 throw;
             }
         }
@@ -120,53 +145,42 @@ namespace Repository.Service
             {
                 var notifica = new NotificheOperative
                 {
-                    DataCreazione = DateTime.Now,
-                    OrdiniCoinvolti = "", // Campo obbligatorio ma può essere vuoto
+                    DataCreazione = DateTime.UtcNow,
+                    OrdiniCoinvolti = "",
                     Messaggio = messaggio,
-                    Stato = "Attiva", // Stato iniziale
+                    Stato = "Attiva",
                     Priorita = ConvertPrioritaToInt(priorita)
                 };
 
                 _context.NotificheOperative.Add(notifica);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Notifica creata: {titolo}");
+                _logger.LogInformation("Notifica creata: {Titolo}", titolo);
 
-                return new NotificationDTO
-                {
-                    NotificationId = notifica.NotificaId,
-                    TipoNotifica = tipo,
-                    Titolo = titolo,
-                    Messaggio = notifica.Messaggio,
-                    Priorita = priorita,
-                    Letta = notifica.Stato == "Gestita", // Consideriamo "Gestita" come letta
-                    DataCreazione = notifica.DataCreazione
-                };
+                // ✅ USA MapToNotificationDTO CHE HAI GIÀ - MA ORA CREA UNA NOTIFICA PERSONALIZZATA
+                var result = MapToNotificationDTO(notifica);
+
+                // ✅ SOVRASCRIVI I CAMPI CHE VOGLIAMO PERSONALIZZARE
+                result.TipoNotifica = tipo; // "TEST" invece di "SISTEMA"
+                result.Titolo = titolo;     // "Test Notification" invece di "Notifica #{id}"
+
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Errore creazione notifica: {titolo}");
+                _logger.LogError(ex, "Errore creazione notifica: {Titolo}", titolo);
                 throw;
             }
         }
 
-        public async Task<List<NotificationDTO>> GetUnreadNotificationsAsync()
+        public async Task<IEnumerable<NotificationDTO>> GetUnreadNotificationsAsync()
         {
             try
             {
                 var notifiche = await _context.NotificheOperative
-                    .Where(n => n.Stato != "Gestita") // Non gestite = non lette
+                    .Where(n => n.Stato != "Gestita")
                     .OrderByDescending(n => n.DataCreazione)
-                    .Select(n => new NotificationDTO
-                    {
-                        NotificationId = n.NotificaId,
-                        TipoNotifica = "SISTEMA", // Tipo generico
-                        Titolo = $"Notifica #{n.NotificaId}",
-                        Messaggio = n.Messaggio,
-                        Priorita = ConvertIntToPriorita(n.Priorita),
-                        Letta = n.Stato == "Gestita",
-                        DataCreazione = n.DataCreazione
-                    })
+                    .Select(n => MapToNotificationDTO(n)) // ✅ USA SOLO MapToNotificationDTO CHE HAI GIÀ
                     .ToListAsync();
 
                 return notifiche;
@@ -174,7 +188,7 @@ namespace Repository.Service
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore recupero notifiche non lette");
-                return new List<NotificationDTO>();
+                return Enumerable.Empty<NotificationDTO>();
             }
         }
 
@@ -216,16 +230,7 @@ namespace Repository.Service
                     .Where(n => n.Stato != "Gestita")
                     .OrderByDescending(n => n.DataCreazione)
                     .Take(5)
-                    .Select(n => new NotificationDTO
-                    {
-                        NotificationId = n.NotificaId,
-                        TipoNotifica = "SISTEMA",
-                        Titolo = $"Notifica #{n.NotificaId}",
-                        Messaggio = n.Messaggio,
-                        Priorita = ConvertIntToPriorita(n.Priorita),
-                        Letta = n.Stato == "Gestita",
-                        DataCreazione = n.DataCreazione
-                    })
+                    .Select(n => MapToNotificationDTO(n)) // ✅ USA SOLO MapToNotificationDTO CHE HAI GIÀ
                     .ToListAsync();
 
                 return new NotificationSummaryDTO
@@ -234,7 +239,7 @@ namespace Repository.Service
                     NotificheNonLette = notificheNonLette,
                     NotificheAltaPriorita = notificheAltaPriorita,
                     UltimeNotifiche = ultimeNotifiche,
-                    DataAggiornamento = DateTime.Now
+                    DataAggiornamento = DateTime.UtcNow
                 };
             }
             catch (Exception ex)
@@ -369,6 +374,21 @@ namespace Repository.Service
                 3 => "Bassa",
                 _ => "Media"
             };
+        }
+
+        public async Task<bool> ExistsAsync(int notificationId)
+        {
+            try
+            {
+                var exists = await _context.NotificheOperative
+                    .AnyAsync(n => n.NotificaId == notificationId);
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore verifica esistenza notifica: {NotificationId}", notificationId);
+                return false;
+            }
         }
     }
 }

@@ -6,12 +6,15 @@ namespace DTO
 {
     public class NotificationDTO
     {
+        [Range(1, int.MaxValue, ErrorMessage = "ID notifica non valido")]
         public int NotificationId { get; set; }
 
-        [StringLength(50)]
+        [Required(ErrorMessage = "Tipo notifica obbligatorio")]
+        [StringLength(50, ErrorMessage = "Tipo notifica non può superare 50 caratteri")]
         public string TipoNotifica { get; set; } = null!;
 
-        [StringLength(200)]
+        [Required(ErrorMessage = "Titolo obbligatorio")]
+        [StringLength(200, ErrorMessage = "Titolo non può superare 200 caratteri")]
         public string Titolo { get; set; } = null!;
 
         [StringLength(1000)]
@@ -67,9 +70,9 @@ namespace DTO
         [Range(0, int.MaxValue)]
         public int NotificheAltaPriorita { get; set; }
 
-        public List<NotificationDTO> UltimeNotifiche { get; set; } = new List<NotificationDTO>();
+        public List<NotificationDTO> UltimeNotifiche { get; set; } = new();
 
-        public DateTime DataAggiornamento { get; set; }
+        public DateTime DataAggiornamento { get; set; } = DateTime.UtcNow;
     }
 
     public class StatusChangeRequestDTO

@@ -6,22 +6,26 @@ namespace DTO
 {
     public class BeverageAvailabilityDTO
     {
+        [Range(1, int.MaxValue, ErrorMessage = "ID articolo non valido")]
         public int ArticoloId { get; set; }
 
-        [StringLength(2)]
+        [Required(ErrorMessage = "Tipo articolo obbligatorio")]
+        [StringLength(2, ErrorMessage = "Tipo articolo deve essere di 2 caratteri")]
+        [RegularExpression("^(BS|BC|D)$", ErrorMessage = "Tipo articolo non valido")]
         public string TipoArticolo { get; set; } = null!;
 
-        [StringLength(100)]
+        [Required(ErrorMessage = "Nome obbligatorio")]
+        [StringLength(100, ErrorMessage = "Nome non può superare 100 caratteri")]
         public string Nome { get; set; } = null!;
 
         public bool Disponibile { get; set; }
 
-        [StringLength(500)]
+        [StringLength(500, ErrorMessage = "Motivo non può superare 500 caratteri")]
         public string? MotivoNonDisponibile { get; set; }
 
         public List<IngredienteMancanteDTO> IngredientiMancanti { get; set; } = new();
 
-        public DateTime DataVerifica { get; set; }
+        public DateTime DataVerifica { get; set; } = DateTime.UtcNow; // ✅ Valore di default
     }
 
     public class IngredienteMancanteDTO

@@ -132,7 +132,7 @@ namespace RepositoryTest
             var results = await _service.CheckMultipleBeveragesAvailabilityAsync(articoliIds);
 
             // Assert
-            Assert.Equal(2, results.Count);
+            Assert.Equal(2, results.Count());
             Assert.All(results, r => Assert.True(r.Disponibile));
         }
 
@@ -270,8 +270,8 @@ namespace RepositoryTest
 
             // Assert
             Assert.Single(result);
-            Assert.Equal(ingrediente1.IngredienteId, result[0].IngredienteId);
-            Assert.True(result[0].Critico);
+            Assert.Equal(ingrediente1.IngredienteId, result.First().IngredienteId);
+            Assert.True(result.First().Critico);
         }
 
         // Helper methods for test data creation

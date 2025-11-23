@@ -53,12 +53,12 @@ namespace BBltZen.Controllers
 
         [HttpPost("check-multiple")]
         [AllowAnonymous]
-        public async Task<ActionResult<List<BeverageAvailabilityDTO>>> CheckMultipleBeveragesAvailability([FromBody] List<int> articoliIds)
+        public async Task<ActionResult<IEnumerable<BeverageAvailabilityDTO>>> CheckMultipleBeveragesAvailability([FromBody] List<int> articoliIds)
         {
             try
             {
                 if (articoliIds == null || articoliIds.Count == 0)
-                    return SafeBadRequest<List<BeverageAvailabilityDTO>>("Lista articoli non valida");
+                    return SafeBadRequest<IEnumerable<BeverageAvailabilityDTO>>("Lista articoli non valida");
 
                 var results = await _repository.CheckMultipleBeveragesAvailabilityAsync(articoliIds);
 
@@ -69,7 +69,7 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore verifica disponibilità multipla per {Count} bevande", articoliIds?.Count);
-                return SafeInternalError<List<BeverageAvailabilityDTO>>("Errore durante la verifica disponibilità multipla");
+                return SafeInternalError<IEnumerable<BeverageAvailabilityDTO>>("Errore durante la verifica disponibilità multipla");
             }
         }
 
@@ -93,8 +93,7 @@ namespace BBltZen.Controllers
         }
 
         [HttpPost("update/{articoloId}")]
-        //[Authorize(Roles = "admin,system")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult<AvailabilityUpdateDTO>> UpdateBeverageAvailability(int articoloId)
         {
             try
@@ -107,9 +106,9 @@ namespace BBltZen.Controllers
                 LogAuditTrail("UPDATE_BEVERAGE_AVAILABILITY", "BeverageAvailability", articoloId.ToString());
                 LogSecurityEvent("BeverageAvailabilityUpdated", new
                 {
-                    ArticoloId = articoloId,
-                    NuovoStato = result.NuovoStatoDisponibilita,
-                    Motivo = result.Motivo,
+                    articoloId, // ✅ SEMPLIFICATO
+                    result.NuovoStatoDisponibilita, // ✅ SEMPLIFICATO
+                    result.Motivo, // ✅ SEMPLIFICATO
                     User = User.Identity?.Name ?? "Unknown",
                     Timestamp = DateTime.UtcNow
                 });
@@ -129,9 +128,8 @@ namespace BBltZen.Controllers
         }
 
         [HttpPost("update-all")]
-        //[Authorize(Roles = "admin,system")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
-        public async Task<ActionResult<List<AvailabilityUpdateDTO>>> UpdateAllBeveragesAvailability()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<AvailabilityUpdateDTO>>> UpdateAllBeveragesAvailability()
         {
             try
             {
@@ -140,7 +138,7 @@ namespace BBltZen.Controllers
                 LogAuditTrail("UPDATE_ALL_BEVERAGES", "BeverageAvailability", "All");
                 LogSecurityEvent("AllBeveragesAvailabilityUpdated", new
                 {
-                    Count = results.Count,
+                    Count = results.Count(),
                     User = User.Identity?.Name ?? "Unknown",
                     Timestamp = DateTime.UtcNow
                 });
@@ -150,13 +148,12 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore aggiornamento massa disponibilità bevande");
-                return SafeInternalError<List<AvailabilityUpdateDTO>>("Errore durante l'aggiornamento massa disponibilità");
+                return SafeInternalError<IEnumerable<AvailabilityUpdateDTO>>("Errore durante l'aggiornamento massa disponibilità");
             }
         }
 
         [HttpPost("force-availability/{articoloId}")]
-        //[Authorize(Roles = "admin")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
+        [AllowAnonymous]
         public async Task<ActionResult> ForceBeverageAvailability(int articoloId, [FromBody] ForceAvailabilityRequest request)
         {
             try
@@ -172,9 +169,9 @@ namespace BBltZen.Controllers
                 LogAuditTrail("FORCE_BEVERAGE_AVAILABILITY", "BeverageAvailability", articoloId.ToString());
                 LogSecurityEvent("BeverageAvailabilityForced", new
                 {
-                    ArticoloId = articoloId,
-                    ForzatoA = request.Disponibile,
-                    Motivo = request.Motivo,
+                    articoloId, // ✅ SEMPLIFICATO
+                    request.Disponibile, // ✅ SEMPLIFICATO  
+                    request.Motivo, // ✅ SEMPLIFICATO
                     User = User.Identity?.Name ?? "Unknown",
                     Timestamp = DateTime.UtcNow
                 });
@@ -214,12 +211,12 @@ namespace BBltZen.Controllers
 
         [HttpGet("primo-piano")]
         [AllowAnonymous]
-        public async Task<ActionResult<List<BeverageAvailabilityDTO>>> GetAvailableBeveragesForPrimoPiano([FromQuery] int numeroElementi = 6)
+        public async Task<ActionResult<IEnumerable<BeverageAvailabilityDTO>>> GetAvailableBeveragesForPrimoPiano([FromQuery] int numeroElementi = 6)
         {
             try
             {
                 if (numeroElementi <= 0 || numeroElementi > 20)
-                    return SafeBadRequest<List<BeverageAvailabilityDTO>>("Numero elementi non valido (1-20)");
+                    return SafeBadRequest<IEnumerable<BeverageAvailabilityDTO>>("Numero elementi non valido (1-20)");
 
                 var bevande = await _repository.GetAvailableBeveragesForPrimoPianoAsync(numeroElementi);
                 return Ok(bevande);
@@ -227,18 +224,18 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore recupero bevande per primo piano");
-                return SafeInternalError<List<BeverageAvailabilityDTO>>("Errore durante il recupero primo piano");
+                return SafeInternalError<IEnumerable<BeverageAvailabilityDTO>>("Errore durante il recupero primo piano");
             }
         }
 
         [HttpGet("sostituti-primo-piano")]
         [AllowAnonymous]
-        public async Task<ActionResult<List<BeverageAvailabilityDTO>>> FindSostitutiPrimoPiano([FromQuery] int numeroRichieste = 3)
+        public async Task<ActionResult<IEnumerable<BeverageAvailabilityDTO>>> FindSostitutiPrimoPiano([FromQuery] int numeroRichieste = 3)
         {
             try
             {
                 if (numeroRichieste <= 0 || numeroRichieste > 10)
-                    return SafeBadRequest<List<BeverageAvailabilityDTO>>("Numero richieste non valido (1-10)");
+                    return SafeBadRequest<IEnumerable<BeverageAvailabilityDTO>>("Numero richieste non valido (1-10)");
 
                 var sostituti = await _repository.FindSostitutiPrimoPianoAsync(numeroRichieste);
                 return Ok(sostituti);
@@ -246,27 +243,26 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore ricerca sostituti primo piano");
-                return SafeInternalError<List<BeverageAvailabilityDTO>>("Errore durante la ricerca sostituti");
+                return SafeInternalError<IEnumerable<BeverageAvailabilityDTO>>("Errore durante la ricerca sostituti");
             }
         }
 
         [HttpGet("ingredienti-critici")]
-        //[Authorize(Roles = "admin,barista")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
-        public async Task<ActionResult<List<IngredienteMancanteDTO>>> GetIngredientiCritici()
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<IngredienteMancanteDTO>>> GetIngredientiCritici()
         {
             try
             {
                 var ingredientiCritici = await _repository.GetIngredientiCriticiAsync();
 
-                LogAuditTrail("GET_CRITICAL_INGREDIENTS", "BeverageAvailability", $"Count:{ingredientiCritici.Count}");
+                LogAuditTrail("GET_CRITICAL_INGREDIENTS", "BeverageAvailability", $"Count:{ingredientiCritici.Count()}");
 
                 return Ok(ingredientiCritici);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore recupero ingredienti critici");
-                return SafeInternalError<List<IngredienteMancanteDTO>>("Errore durante il recupero ingredienti critici");
+                return SafeInternalError<IEnumerable<IngredienteMancanteDTO>>("Errore durante il recupero ingredienti critici");
             }
         }
 
@@ -310,14 +306,13 @@ namespace BBltZen.Controllers
         }
 
         [HttpGet("affected-by-ingredient/{ingredienteId}")]
-        //[Authorize(Roles = "admin,barista")]
-        [AllowAnonymous] // ✅ TEMPORANEAMENTE PER TEST
-        public async Task<ActionResult<List<int>>> GetBeveragesAffectedByIngredient(int ingredienteId)
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<int>>> GetBeveragesAffectedByIngredient(int ingredienteId)
         {
             try
             {
                 if (ingredienteId <= 0)
-                    return SafeBadRequest<List<int>>("ID ingrediente non valido");
+                    return SafeBadRequest<IEnumerable<int>>("ID ingrediente non valido");
 
                 var bevandeAffected = await _repository.GetBeveragesAffectedByIngredientAsync(ingredienteId);
 
@@ -328,7 +323,26 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore recupero bevande affette da ingrediente: {IngredienteId}", ingredienteId);
-                return SafeInternalError<List<int>>("Errore durante il recupero bevande affette");
+                return SafeInternalError<IEnumerable<int>>("Errore durante il recupero bevande affette");
+            }
+        }
+
+        [HttpGet("exists/{articoloId}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<bool>> Exists(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SafeBadRequest<bool>("ID articolo non valido");
+
+                var exists = await _repository.ExistsAsync(articoloId);
+                return Ok(exists);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore verifica esistenza articolo: {ArticoloId}", articoloId);
+                return SafeInternalError<bool>("Errore durante la verifica esistenza");
             }
         }
     }
