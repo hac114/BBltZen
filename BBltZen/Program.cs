@@ -1,4 +1,5 @@
 using BBltZen.Services;
+using BBltZen.Services.Background;
 using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,9 @@ namespace BBltZen
             // Add services to the container.
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
+            
+            // Per statistiche carrello scheduling
+            builder.Services.AddHostedService<CacheBackgroundService>();
 
             // ✅ SWAGGER SEMPLICE (senza autenticazione Keycloak)
             builder.Services.AddSwaggerGen(c =>

@@ -599,5 +599,42 @@ namespace RepositoryTest
             Assert.False(ultimoPeriodoExists);
             Assert.False(metricheRapideExists);
         }
+
+        [Fact]
+        public async Task GetCacheMetricsAsync_ShouldReturnValidMetrics()
+        {
+            // Act
+            var result = await _cacheRepository.GetCacheMetricsAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.HitRate >= 0 && result.HitRate <= 100);
+            Assert.True(result.MissRate >= 0 && result.MissRate <= 100);
+            Assert.True(result.HitRatePercentuale >= 0 && result.HitRatePercentuale <= 100);
+            Assert.True(result.EntryAttive >= 0);
+            Assert.True(result.EntryScadute >= 0);
+            Assert.True(result.RequestsTotali >= 0);
+            Assert.True(result.TempoMedioRisposta >= TimeSpan.Zero);
+            Assert.NotNull(result.StatoBackgroundService);
+            Assert.True(result.UltimaEsecuzione <= DateTime.UtcNow);
+            Assert.True(result.IntervalloEsecuzione >= TimeSpan.Zero);
+        }
+
+        [Fact]
+        public async Task GetBackgroundServiceStatusAsync_ShouldReturnValidStatus()
+        {
+            // Act
+            var result = await _cacheRepository.GetBackgroundServiceStatusAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal("CacheBackgroundService", result.ServiceName);
+            Assert.NotNull(result.Status);
+            Assert.True(result.LastExecution <= DateTime.UtcNow);
+            Assert.True(result.Uptime >= TimeSpan.Zero);
+            Assert.True(result.ExecutionCount >= 0);
+            Assert.True(result.ErrorCount >= 0);
+            // LastError può essere null (nessun errore)
+        }
     }
 }

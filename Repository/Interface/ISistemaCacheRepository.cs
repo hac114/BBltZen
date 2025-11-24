@@ -1,4 +1,5 @@
 ﻿using DTO;
+using DTO.Monitoring;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -59,5 +60,9 @@ namespace Repository.Interface
         Task<bool> IsCacheValidAsync(string tipoCache);
         Task<CacheOperationResultDTO> PreloadCommonDataAsync();
         Task ClearAllAsync();
+
+        // Methods per Monitoring
+        Task<CacheMetricsDTO> GetCacheMetricsAsync();
+        Task<BackgroundServiceStatusDTO> GetBackgroundServiceStatusAsync();
     }
 }
