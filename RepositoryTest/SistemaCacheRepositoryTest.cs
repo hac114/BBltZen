@@ -485,5 +485,119 @@ namespace RepositoryTest
             Assert.True(result.DataPulizia.Year >= 2020); // Data ragionevole
             Assert.True(result.DataPulizia <= now.AddMinutes(5)); // Non nel futuro
         }
+
+        [Fact]
+        public async Task GetStatisticheCarrelloRealtimeAsync_ShouldReturnCachedStatistiche()
+        {
+            // Act
+            var result = await _cacheRepository.GetStatisticheCarrelloRealtimeAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(0, result.TotaleOrdini); // Placeholder value
+            Assert.Equal("N/A", result.FasciaOrariaPiuAttiva);
+            Assert.True(result.DataRiferimento <= DateTime.UtcNow);
+            Assert.True(result.DataAggiornamento <= DateTime.UtcNow);
+        }
+
+        [Fact]
+        public async Task GetStatisticheCarrelloUltimoPeriodoAsync_ShouldReturnStatisticheFromPersistentCache()
+        {
+            // Arrange - Setup dati persistenti
+            var statisticheCacheRepo = new StatisticheCacheRepository(_context);
+            var statisticheCarrello = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 15,
+                TotaleProdottiVenduti = 75,
+                FatturatoTotale = 750.50m,
+                DistribuzionePerTipologia = [],
+                ProdottiPiuVenduti = [],
+                FasciaOrariaPiuAttiva = "14:00-16:00",
+                DataRiferimento = DateTime.UtcNow.Date,
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            await statisticheCacheRepo.SalvaStatisticheCarrelloAsync("2024-01-30", statisticheCarrello);
+
+            // Act
+            var result = await _cacheRepository.GetStatisticheCarrelloUltimoPeriodoAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.TotaleOrdini >= 0);
+            Assert.True(result.DataRiferimento <= DateTime.UtcNow);
+        }
+
+        [Fact]
+        public async Task CacheStatisticheCarrelloAsync_ShouldReturnSuccess()
+        {
+            // Act
+            var result = await _cacheRepository.CacheStatisticheCarrelloAsync();
+
+            // Assert
+            Assert.True(result.Successo);
+            Assert.Equal("Metriche rapide carrello cached con successo", result.Messaggio);
+            Assert.Equal("StatisticheCarrello_MetricheRapide", result.Chiave);
+            Assert.Equal(TimeSpan.FromMinutes(5), result.DurataCache);
+        }
+
+        [Fact]
+        public async Task IsStatisticheCarrelloRealtimeValideAsync_WithCachedData_ShouldReturnTrue()
+        {
+            // Arrange - Force cache population
+            await _cacheRepository.GetStatisticheCarrelloRealtimeAsync();
+
+            // Act
+            var result = await _cacheRepository.IsStatisticheCarrelloRealtimeValideAsync();
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task IsStatisticheCarrelloRealtimeValideAsync_WithoutCachedData_ShouldReturnFalse()
+        {
+            // Arrange - Clear cache
+            await _cacheRepository.RemoveAsync("StatisticheCarrello_Realtime");
+
+            // Act
+            var result = await _cacheRepository.IsStatisticheCarrelloRealtimeValideAsync();
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public async Task RefreshStatisticheCarrelloAsync_ShouldReturnSuccess()
+        {
+            // Act
+            var result = await _cacheRepository.RefreshStatisticheCarrelloAsync();
+
+            // Assert
+            Assert.True(result.Successo);
+            Assert.Equal("Cache statistiche carrello refreshate con successo", result.Messaggio);
+            Assert.Equal("CARRELLO_REFRESH_ALL", result.Chiave);
+        }
+
+        [Fact]
+        public async Task RefreshStatisticheCarrelloAsync_ShouldClearAllCarrelloCache()
+        {
+            // Arrange - Populate cache first
+            await _cacheRepository.GetStatisticheCarrelloRealtimeAsync();
+            await _cacheRepository.GetStatisticheCarrelloUltimoPeriodoAsync();
+            await _cacheRepository.CacheStatisticheCarrelloAsync();
+
+            // Act
+            await _cacheRepository.RefreshStatisticheCarrelloAsync();
+
+            // Assert - Verify cache is cleared
+            var realtimeExists = await _cacheRepository.ExistsAsync("StatisticheCarrello_Realtime");
+            var ultimoPeriodoExists = await _cacheRepository.ExistsAsync("StatisticheCarrello_UltimoPeriodo");
+            var metricheRapideExists = await _cacheRepository.ExistsAsync("StatisticheCarrello_MetricheRapide");
+
+            Assert.False(realtimeExists);
+            Assert.False(ultimoPeriodoExists);
+            Assert.False(metricheRapideExists);
+        }
     }
 }

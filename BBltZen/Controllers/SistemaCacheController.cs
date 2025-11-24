@@ -646,5 +646,111 @@ namespace BBltZen.Controllers
                 return SafeInternalError<object>("Errore nel pattern get-or-set cache");
             }
         }
+
+        [HttpGet("carrello/realtime")]
+        //[Authorize(Roles = "admin,manager,user")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<StatisticheCarrelloDTO>> GetStatisticheCarrelloRealtime()
+        {
+            try
+            {
+                var statistiche = await _cacheRepository.GetStatisticheCarrelloRealtimeAsync();
+
+                LogAuditTrail("GET_STATISTICHE_CARRELLO_REALTIME", "SistemaCache", "CarrelloRealtime");
+                return Ok(statistiche);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero statistiche carrello realtime");
+                return SafeInternalError<StatisticheCarrelloDTO>("Errore nel recupero statistiche carrello realtime");
+            }
+        }
+
+        [HttpGet("carrello/ultimo-periodo")]
+        //[Authorize(Roles = "admin,manager,user")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<StatisticheCarrelloDTO>> GetStatisticheCarrelloUltimoPeriodo()
+        {
+            try
+            {
+                var statistiche = await _cacheRepository.GetStatisticheCarrelloUltimoPeriodoAsync();
+
+                LogAuditTrail("GET_STATISTICHE_CARRELLO_ULTIMO_PERIODO", "SistemaCache", "CarrelloUltimoPeriodo");
+                return Ok(statistiche);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero statistiche carrello ultimo periodo");
+                return SafeInternalError<StatisticheCarrelloDTO>("Errore nel recupero statistiche carrello ultimo periodo");
+            }
+        }
+
+        [HttpPost("carrello/cache-metriche")]
+        //[Authorize(Roles = "admin,manager")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<CacheOperationResultDTO>> CacheStatisticheCarrello()
+        {
+            try
+            {
+                var risultato = await _cacheRepository.CacheStatisticheCarrelloAsync();
+
+                LogAuditTrail("CACHE_STATISTICHE_CARRELLO", "SistemaCache", risultato.Successo.ToString());
+                LogSecurityEvent("StatisticheCarrelloCached", new
+                {
+                    risultato.Successo,
+                    risultato.Messaggio,
+                    UserId = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
+                });
+
+                return risultato.Successo ? Ok(risultato) : SafeBadRequest(risultato);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel caching metriche carrello");
+                return SafeInternalError<CacheOperationResultDTO>("Errore nel caching metriche carrello");
+            }
+        }
+
+        [HttpGet("carrello/valida-realtime")]
+        //[Authorize(Roles = "admin,manager,user")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<bool>> IsStatisticheCarrelloRealtimeValide()
+        {
+            try
+            {
+                var isValid = await _cacheRepository.IsStatisticheCarrelloRealtimeValideAsync();
+
+                LogAuditTrail("VALIDATE_STATISTICHE_CARRELLO_REALTIME", "SistemaCache", isValid.ToString());
+                return Ok(isValid);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nella validazione statistiche carrello realtime");
+                return SafeInternalError<bool>("Errore nella validazione statistiche carrello realtime");
+            }
+        }
+
+        [HttpPost("carrello/refresh")]
+        //[Authorize(Roles = "admin,manager")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<CacheOperationResultDTO>> RefreshStatisticheCarrello()
+        {
+            try
+            {
+                var risultato = await _cacheRepository.RefreshStatisticheCarrelloAsync();
+
+                LogAuditTrail("REFRESH_STATISTICHE_CARRELLO", "SistemaCache", risultato.Successo.ToString());
+                LogSecurityEvent("StatisticheCarrelloRefreshed", new
+                {
+                    risultato.Successo,
+                    risultato.Messaggio,
+                    UserId = GetCurrentUserIdOrDefault(),
+                    Timestamp = DateTime.UtcNow
+                });
+
+                return risultato.Successo ? Ok(risultato) : SafeBadRequest(risultato);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel refresh statistiche carrello");
+                return SafeInternalError<CacheOperationResultDTO>("Errore nel refresh statistiche carrello");
+            }
+        }
     }
 }

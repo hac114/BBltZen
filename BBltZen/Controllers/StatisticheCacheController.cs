@@ -299,5 +299,101 @@ namespace BBltZen.Controllers
                 return SafeInternalError<StatisticheCacheDTO>("Errore durante la creazione");
             }
         }
+
+        [HttpGet("carrello/periodo/{periodo}")]
+        //[Authorize(Roles = "admin,manager,user")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<StatisticheCarrelloDTO>> GetStatisticheCarrelloByPeriodo(string periodo)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(periodo))
+                    return SafeBadRequest<StatisticheCarrelloDTO>("Periodo non valido");
+
+                var result = await _repository.GetStatisticheCarrelloByPeriodoAsync(periodo);
+
+                if (result == null)
+                    return SafeNotFound<StatisticheCarrelloDTO>("Statistiche carrello");
+
+                LogAuditTrail("GET_STATISTICHE_CARRELLO_BY_PERIODO", "StatisticheCarrello", periodo);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero statistiche carrello per periodo {Periodo}", periodo);
+                return SafeInternalError<StatisticheCarrelloDTO>("Errore nel recupero statistiche carrello");
+            }
+        }
+
+        [HttpPost("carrello/periodo/{periodo}")]
+        //[Authorize(Roles = "admin,manager")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult> SalvaStatisticheCarrello(string periodo, [FromBody] StatisticheCarrelloDTO statistiche)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(periodo))
+                    return SafeBadRequest("Periodo non valido");
+
+                await _repository.SalvaStatisticheCarrelloAsync(periodo, statistiche);
+
+                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                LogAuditTrail("SALVA_STATISTICHE_CARRELLO", "StatisticheCarrello", periodo);
+                LogSecurityEvent("StatisticheCarrelloSalvate", new
+                {
+                    Periodo = periodo,
+                    statistiche.TotaleOrdini,
+                    statistiche.FatturatoTotale,
+                    UserId = GetCurrentUserIdOrDefault()
+                });
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel salvataggio statistiche carrello per periodo {Periodo}", periodo);
+                return SafeInternalError("Errore nel salvataggio statistiche carrello");
+            }
+        }
+
+        [HttpGet("carrello/valida/periodo/{periodo}")]
+        //[Authorize(Roles = "admin,manager,user")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<bool>> IsStatisticheCarrelloValide(string periodo, [FromQuery] int oreValidita = 24)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(periodo))
+                    return SafeBadRequest<bool>("Periodo non valido");
+
+                if (oreValidita <= 0)
+                    return SafeBadRequest<bool>("Ore validità deve essere maggiore di 0");
+
+                var validita = TimeSpan.FromHours(oreValidita);
+                var result = await _repository.IsStatisticheCarrelloValideAsync(periodo, validita);
+
+                LogAuditTrail("CHECK_VALIDITY_CARRELLO", "StatisticheCarrello", periodo);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel controllo validità statistiche carrello per periodo {Periodo}", periodo);
+                return SafeInternalError<bool>("Errore nel controllo validità statistiche carrello");
+            }
+        }
+
+        [HttpGet("carrello/periodi")]
+        //[Authorize(Roles = "admin,manager,user")] // ✅ COMMENTATO PER TEST
+        public async Task<ActionResult<IEnumerable<string>>> GetPeriodiDisponibiliCarrello()
+        {
+            try
+            {
+                var result = await _repository.GetPeriodiDisponibiliCarrelloAsync();
+                LogAuditTrail("GET_PERIODI_CARRELLO", "StatisticheCarrello", "All");
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero periodi disponibili carrello");
+                return SafeInternalError<IEnumerable<string>>("Errore nel recupero periodi carrello");
+            }
+        }
     }    
 }

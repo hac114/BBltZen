@@ -411,5 +411,152 @@ namespace RepositoryTest
 
             Assert.Contains("esiste già", exception.Message.ToLower());
         }
+
+        [Fact]
+        public async Task GetStatisticheCarrelloByPeriodoAsync_WithValidPeriodo_ShouldReturnStatisticheCarrello()
+        {
+            // Arrange
+            var statisticheCarrello = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 10,
+                TotaleProdottiVenduti = 50,
+                FatturatoTotale = 500.75m,
+                DistribuzionePerTipologia =
+                [
+                    new() { TipoArticolo = "BS", Descrizione = "Bevanda Standard", QuantitaTotale = 30 }
+                ],
+                ProdottiPiuVenduti =
+                [
+                    new() { TipoArticolo = "BS", ArticoloId = 1, NomeProdotto = "Bubble Tea Classico", QuantitaVenduta = 15 }
+                ],
+                FasciaOrariaPiuAttiva = "14:00-16:00",
+                DataRiferimento = DateTime.UtcNow.Date,
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            await _repository.SalvaStatisticheCarrelloAsync("2024-01-25", statisticheCarrello);
+
+            // Act
+            var result = await _repository.GetStatisticheCarrelloByPeriodoAsync("2024-01-25");
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(10, result.TotaleOrdini);
+            Assert.Equal(50, result.TotaleProdottiVenduti);
+            Assert.Equal(500.75m, result.FatturatoTotale);
+            Assert.Single(result.DistribuzionePerTipologia);
+            Assert.Single(result.ProdottiPiuVenduti);
+        }
+
+        [Fact]
+        public async Task GetStatisticheCarrelloByPeriodoAsync_WithInvalidPeriodo_ShouldReturnNull()
+        {
+            // Act
+            var result = await _repository.GetStatisticheCarrelloByPeriodoAsync("PeriodoInesistente");
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task SalvaStatisticheCarrelloAsync_ShouldSaveAndRetrieveStatistiche()
+        {
+            // Arrange
+            var statisticheCarrello = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 5,
+                TotaleProdottiVenduti = 25,
+                FatturatoTotale = 250.50m,
+                DistribuzionePerTipologia =
+                [
+                    new() { TipoArticolo = "D", Descrizione = "Dolce", QuantitaTotale = 10 }
+                ],
+                ProdottiPiuVenduti =
+                [
+                    new() { TipoArticolo = "D", ArticoloId = 2, NomeProdotto = "Tiramisù", QuantitaVenduta = 8 }
+                ],
+                FasciaOrariaPiuAttiva = "18:00-20:00",
+                DataRiferimento = DateTime.UtcNow.Date.AddDays(-1),
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            // Act
+            await _repository.SalvaStatisticheCarrelloAsync("2024-01-26", statisticheCarrello);
+
+            // Assert
+            var result = await _repository.GetStatisticheCarrelloByPeriodoAsync("2024-01-26");
+            Assert.NotNull(result);
+            Assert.Equal(5, result.TotaleOrdini);
+            Assert.Equal(25, result.TotaleProdottiVenduti);
+            Assert.Equal("D", result.DistribuzionePerTipologia[0].TipoArticolo);
+            Assert.Equal("Tiramisù", result.ProdottiPiuVenduti[0].NomeProdotto);
+        }
+
+        [Fact]
+        public async Task IsStatisticheCarrelloValideAsync_WithValidCache_ShouldReturnTrue()
+        {
+            // Arrange
+            var statisticheCarrello = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 3,
+                TotaleProdottiVenduti = 12,
+                FatturatoTotale = 120.00m,
+                DistribuzionePerTipologia = [],
+                ProdottiPiuVenduti = [],
+                FasciaOrariaPiuAttiva = "12:00-14:00",
+                DataRiferimento = DateTime.UtcNow.Date,
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            await _repository.SalvaStatisticheCarrelloAsync("2024-01-27", statisticheCarrello);
+
+            // Act
+            var result = await _repository.IsStatisticheCarrelloValideAsync("2024-01-27", TimeSpan.FromHours(1));
+
+            // Assert
+            Assert.True(result);
+        }
+
+        [Fact]
+        public async Task IsStatisticheCarrelloValideAsync_WithExpiredCache_ShouldReturnFalse()
+        {
+            // Arrange - Simula cache scaduta usando un periodo esistente dai dati di test
+            // "ProdottiPopolari" ha DataAggiornamento = DateTime.Now.AddDays(-1)
+
+            // Act
+            var result = await _repository.IsStatisticheCarrelloValideAsync("2024-01", TimeSpan.FromHours(12));
+
+            // Assert
+            Assert.False(result);
+        }
+
+        [Fact]
+        public async Task GetPeriodiDisponibiliCarrelloAsync_ShouldReturnAllCarrelloPeriods()
+        {
+            // Arrange
+            var statisticheCarrello = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 1,
+                TotaleProdottiVenduti = 5,
+                FatturatoTotale = 50.00m,
+                DistribuzionePerTipologia = [],
+                ProdottiPiuVenduti = [],
+                FasciaOrariaPiuAttiva = "10:00-12:00",
+                DataRiferimento = DateTime.UtcNow.Date,
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            await _repository.SalvaStatisticheCarrelloAsync("2024-01-28", statisticheCarrello);
+            await _repository.SalvaStatisticheCarrelloAsync("2024-01-29", statisticheCarrello);
+
+            // Act
+            var result = await _repository.GetPeriodiDisponibiliCarrelloAsync();
+
+            // Assert
+            var periodi = result.ToList();
+            Assert.Contains("2024-01-28", periodi);
+            Assert.Contains("2024-01-29", periodi);
+            Assert.All(periodi, p => Assert.NotNull(p));
+        }
     }
 }

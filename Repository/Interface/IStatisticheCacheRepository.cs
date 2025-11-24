@@ -1,4 +1,5 @@
 ﻿using DTO;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -22,5 +23,11 @@ namespace Repository.Interface
         Task<IEnumerable<StatisticheCacheDTO>> GetByTipoAsync(string tipoStatistica);
         Task AggiornaCacheAsync(string tipoStatistica, string periodo, string metriche);
         Task<bool> IsCacheValidaAsync(string tipoStatistica, string periodo, TimeSpan validita);
+
+        // ✅ NUOVI METODI PER STATISTICHE CARRELLO
+        Task<StatisticheCarrelloDTO?> GetStatisticheCarrelloByPeriodoAsync(string periodo);
+        Task SalvaStatisticheCarrelloAsync(string periodo, StatisticheCarrelloDTO statistiche);
+        Task<bool> IsStatisticheCarrelloValideAsync(string periodo, TimeSpan validita);
+        Task<IEnumerable<string>> GetPeriodiDisponibiliCarrelloAsync();
     }
 }

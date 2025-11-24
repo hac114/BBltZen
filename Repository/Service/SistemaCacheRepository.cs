@@ -711,5 +711,148 @@ namespace Repository.Service
             await ResetStatisticsAsync();
             _logger.LogInformation("Cache pulita completamente");
         }
+
+        // Cache keys per statistiche carrello
+        private const string CARRELLO_REALTIME_KEY = "StatisticheCarrello_Realtime";
+        private const string CARRELLO_ULTIMO_PERIODO_KEY = "StatisticheCarrello_UltimoPeriodo";
+        private const string CARRELLO_METRICHE_RAPIDE_KEY = "StatisticheCarrello_MetricheRapide";
+
+        public async Task<StatisticheCarrelloDTO> GetStatisticheCarrelloRealtimeAsync()
+        {
+            return await GetOrSetAsync(
+                CARRELLO_REALTIME_KEY,
+                () => {
+                    // Factory method per dati freschi - da implementare con repository statistiche live
+                    _logger.LogInformation("Calcolo statistiche carrello realtime...");
+
+                    // Placeholder - qui verrà injectato il repository che calcola le statistiche live
+                    return Task.FromResult(new StatisticheCarrelloDTO
+                    {
+                        TotaleOrdini = 0,
+                        TotaleProdottiVenduti = 0,
+                        FatturatoTotale = 0,
+                        ValoreMedioOrdine = 0,
+                        ProdottiPerOrdineMedio = 0,
+                        DistribuzionePerTipologia = [],
+                        ProdottiPiuVenduti = [],
+                        FasciaOrariaPiuAttiva = "N/A",
+                        OrdiniOggi = 0,
+                        FatturatoOggi = 0,
+                        DataRiferimento = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    });
+                },
+                TimeSpan.FromMinutes(2) // Refresh ogni 2 minuti per dati realtime
+            );
+        }
+
+        public async Task<StatisticheCarrelloDTO> GetStatisticheCarrelloUltimoPeriodoAsync()
+        {
+            return await GetOrSetAsync(
+                CARRELLO_ULTIMO_PERIODO_KEY,
+                async () => {
+                    // Recupera dati dall'ultimo periodo disponibile dalla cache persistente
+                    var statisticheCacheRepo = new StatisticheCacheRepository(_context);
+                    var ultimiPeriodi = await statisticheCacheRepo.GetPeriodiDisponibiliCarrelloAsync();
+                    var ultimoPeriodo = ultimiPeriodi.FirstOrDefault();
+
+                    if (ultimoPeriodo != null)
+                    {
+                        var statistiche = await statisticheCacheRepo.GetStatisticheCarrelloByPeriodoAsync(ultimoPeriodo);
+                        if (statistiche != null)
+                        {
+                            _logger.LogInformation("Recuperate statistiche carrello per periodo: {Periodo}", ultimoPeriodo);
+                            return statistiche;
+                        }
+                    }
+
+                    _logger.LogWarning("Nessuna statistica carrello trovata in cache persistente");
+                    return new StatisticheCarrelloDTO
+                    {
+                        TotaleOrdini = 0,
+                        TotaleProdottiVenduti = 0,
+                        FatturatoTotale = 0,
+                        DistribuzionePerTipologia = [],
+                        ProdottiPiuVenduti = [],
+                        FasciaOrariaPiuAttiva = "N/A",
+                        DataRiferimento = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+                },
+                TimeSpan.FromMinutes(10) // Refresh ogni 10 minuti per dati periodo
+            );
+        }
+
+        public async Task<CacheOperationResultDTO> CacheStatisticheCarrelloAsync()
+        {
+            try
+            {
+                // Calcola e cache metriche rapide carrello per dashboard
+                var metricheRapide = new
+                {
+                    UltimoAggiornamento = DateTime.UtcNow,
+                    OrdiniOggi = 0, // Placeholder - da calcolare
+                    FatturatoOggi = 0m, // Placeholder - da calcolare
+                    CarrelliAttivi = 0, // Placeholder - da calcolare
+                    TassoConversione = 0m // Placeholder - da calcolare
+                };
+
+                await SetAsync(CARRELLO_METRICHE_RAPIDE_KEY, metricheRapide, TimeSpan.FromMinutes(5));
+
+                return new CacheOperationResultDTO
+                {
+                    Successo = true,
+                    Messaggio = "Metriche rapide carrello cached con successo",
+                    Chiave = CARRELLO_METRICHE_RAPIDE_KEY,
+                    Scadenza = DateTime.UtcNow.AddMinutes(5),
+                    DurataCache = TimeSpan.FromMinutes(5)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel caching metriche rapide carrello");
+                return new CacheOperationResultDTO
+                {
+                    Successo = false,
+                    Messaggio = $"Errore: {ex.Message}",
+                    Chiave = CARRELLO_METRICHE_RAPIDE_KEY
+                };
+            }
+        }
+
+        public async Task<bool> IsStatisticheCarrelloRealtimeValideAsync()
+        {
+            return await ExistsAsync(CARRELLO_REALTIME_KEY);
+        }
+
+        public async Task<CacheOperationResultDTO> RefreshStatisticheCarrelloAsync()
+        {
+            try
+            {
+                // Force refresh di tutte le cache carrello
+                await RemoveAsync(CARRELLO_REALTIME_KEY);
+                await RemoveAsync(CARRELLO_ULTIMO_PERIODO_KEY);
+                await RemoveAsync(CARRELLO_METRICHE_RAPIDE_KEY);
+
+                _logger.LogInformation("Cache statistiche carrello refreshate forzatamente");
+
+                return new CacheOperationResultDTO
+                {
+                    Successo = true,
+                    Messaggio = "Cache statistiche carrello refreshate con successo",
+                    Chiave = "CARRELLO_REFRESH_ALL"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel refresh cache statistiche carrello");
+                return new CacheOperationResultDTO
+                {
+                    Successo = false,
+                    Messaggio = $"Errore: {ex.Message}",
+                    Chiave = "CARRELLO_REFRESH_ALL"
+                };
+            }
+        }
     }
 }

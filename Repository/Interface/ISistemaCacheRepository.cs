@@ -38,6 +38,13 @@ namespace Repository.Interface
         Task<CacheOperationResultDTO> CachePrezziAsync();
         Task<CacheOperationResultDTO> CacheConfigurazioniAsync();
 
+        // ✅ NUOVI METODI PER STATISTICHE CARRELLO - CACHE MEMORIA
+        Task<StatisticheCarrelloDTO> GetStatisticheCarrelloRealtimeAsync();
+        Task<StatisticheCarrelloDTO> GetStatisticheCarrelloUltimoPeriodoAsync();
+        Task<CacheOperationResultDTO> CacheStatisticheCarrelloAsync();
+        Task<bool> IsStatisticheCarrelloRealtimeValideAsync();
+        Task<CacheOperationResultDTO> RefreshStatisticheCarrelloAsync();
+
         // Statistiche e Monitoring
         Task<CachePerformanceDTO> GetPerformanceStatsAsync();
         Task<List<CacheStatisticheDTO>> GetCacheStatisticsAsync();

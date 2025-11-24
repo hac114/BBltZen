@@ -2,10 +2,7 @@
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace Repository.Service
 {
@@ -186,6 +183,33 @@ namespace Repository.Service
 
             var tempoTrascorso = DateTime.UtcNow - cache.DataAggiornamento; // ✅ UTC
             return tempoTrascorso <= validita;
+        }
+
+        // Metodi specifici per statistiche carrello - CACHE PERSISTENTE
+        public async Task<StatisticheCarrelloDTO?> GetStatisticheCarrelloByPeriodoAsync(string periodo)
+        {
+            var cache = await GetByTipoAndPeriodoAsync("CarrelloComprehensive", periodo);
+            return cache == null ? null : JsonSerializer.Deserialize<StatisticheCarrelloDTO>(cache.Metriche);
+        }
+
+        public async Task SalvaStatisticheCarrelloAsync(string periodo, StatisticheCarrelloDTO statistiche)
+        {
+            var metricheJson = JsonSerializer.Serialize(statistiche);
+            await AggiornaCacheAsync("CarrelloComprehensive", periodo, metricheJson);
+        }
+
+        public async Task<bool> IsStatisticheCarrelloValideAsync(string periodo, TimeSpan validita)
+        {
+            return await IsCacheValidaAsync("CarrelloComprehensive", periodo, validita);
+        }
+
+        public async Task<IEnumerable<string>> GetPeriodiDisponibiliCarrelloAsync()
+        {
+            return await _context.StatisticheCache
+                .Where(s => s.TipoStatistica == "CarrelloComprehensive")
+                .Select(s => s.Periodo)
+                .OrderByDescending(p => p)
+                .ToListAsync();
         }
     }
 }
