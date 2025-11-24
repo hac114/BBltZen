@@ -158,6 +158,7 @@ namespace Repository.Service
             return await _context.SessioniQr.AnyAsync(s => s.SessioneId == sessioneId);
         }
 
+        [System.Runtime.Versioning.SupportedOSPlatform("windows")]
         public async Task<SessioniQrDTO> GeneraSessioneQrAsync(int tavoloId, string frontendUrl)
         {
             // Verifica che il tavolo esista
@@ -190,6 +191,7 @@ namespace Repository.Service
             return sessioneDto;
         }
 
+        [System.Runtime.Versioning.SupportedOSPlatform("windows")]
         private string GenerateQRCode(string data)
         {
             using var qrGenerator = new QRCodeGenerator();

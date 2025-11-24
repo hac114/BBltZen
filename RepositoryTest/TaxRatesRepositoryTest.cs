@@ -134,8 +134,10 @@ namespace RepositoryTest
             Assert.NotNull(savedTaxRate);
             Assert.Equal(5.00m, savedTaxRate.Aliquota);
             Assert.Equal("IVA Speciale", savedTaxRate.Descrizione);
-            Assert.NotNull(savedTaxRate.DataCreazione);
-            Assert.NotNull(savedTaxRate.DataAggiornamento);
+
+            // ✅ VERIFICA CHE LE DATE SIANO STATE IMPOSTATE
+            Assert.NotEqual(default(DateTime), savedTaxRate.DataCreazione);
+            Assert.NotEqual(default(DateTime), savedTaxRate.DataAggiornamento);
         }
 
         [Fact]

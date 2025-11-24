@@ -176,8 +176,10 @@ namespace RepositoryTest
             Assert.Equal("Nuova Personalizzazione", savedPersonalizzazione.Nome);
             Assert.Equal(4, savedPersonalizzazione.GradoDolcezza);
             Assert.Equal(2, savedPersonalizzazione.DimensioneBicchiereId);
-            Assert.NotNull(savedPersonalizzazione.DataCreazione);
-            Assert.NotNull(savedPersonalizzazione.DataAggiornamento);
+            
+            // ✅ VERIFICA CHE LE DATE SIANO STATE IMPOSTATE
+            Assert.NotEqual(default(DateTime), savedPersonalizzazione.DataCreazione);
+            Assert.NotEqual(default(DateTime), savedPersonalizzazione.DataAggiornamento);
         }
 
         [Fact]
@@ -201,7 +203,9 @@ namespace RepositoryTest
             Assert.Equal("Dolce Leggero Modificato", result.Nome);
             Assert.Equal(1, result.GradoDolcezza);
             Assert.Equal(2, result.DimensioneBicchiereId);
-            Assert.NotNull(result.DataAggiornamento); // ✅ Verifica data aggiornamento
+            
+            // ✅ VERIFICA CHE LA DATA SIA STATA AGGIORNATA
+            Assert.NotEqual(default(DateTime), result.DataAggiornamento);
         }
 
         [Fact]

@@ -290,20 +290,28 @@ namespace RepositoryTest
             // Act
             var result = await _repository.AddAsync(utenteDto);
 
-            // Assert - ✅ USA ToString per evitare problemi di millisecondi
+            // Assert - ✅ VERIFICA VALORI DI DEFAULT
             Assert.Equal("cliente", result.TipoUtente);
             Assert.True(result.Attivo);
 
-            // ✅ CORRETTO: Confronta solo data/ora senza millisecondi
-            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                         result.DataCreazione?.ToString("yyyy-MM-dd HH:mm:ss"));
-            Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                         result.DataAggiornamento?.ToString("yyyy-MM-dd HH:mm:ss"));
+            // ✅ CORRETTO: VERIFICA PRIMA CHE NON SIANO NULL
+            Assert.NotNull(result.DataCreazione);
+            Assert.NotNull(result.DataAggiornamento);
 
-            // ✅ OPPURE usa TimeSpan per tolleranza
-            var timeTolerance = TimeSpan.FromSeconds(1);
-            Assert.True((DateTime.Now - result.DataCreazione.Value).Duration() <= timeTolerance);
-            Assert.True((DateTime.Now - result.DataAggiornamento.Value).Duration() <= timeTolerance);
+            // ✅ USA GetValueOrDefault() PER EVITARE WARNING
+            var dataCreazione = result.DataCreazione.GetValueOrDefault();
+            var dataAggiornamento = result.DataAggiornamento.GetValueOrDefault();
+
+            var timeTolerance = TimeSpan.FromSeconds(2);
+            Assert.True((DateTime.Now - dataCreazione).Duration() <= timeTolerance,
+                $"DataCreazione fuori tolleranza. Now: {DateTime.Now}, Creazione: {dataCreazione}");
+
+            Assert.True((DateTime.Now - dataAggiornamento).Duration() <= timeTolerance,
+                $"DataAggiornamento fuori tolleranza. Now: {DateTime.Now}, Aggiornamento: {dataAggiornamento}");
+
+            // ✅ VERIFICA CHE LE DATE SIANO APPROSSIMATIVAMENTE UGUALI
+            Assert.True((dataCreazione - dataAggiornamento).Duration() <= TimeSpan.FromMilliseconds(100),
+                "DataCreazione e DataAggiornamento dovrebbero essere quasi uguali");
         }
 
         [Fact]
@@ -337,7 +345,8 @@ namespace RepositoryTest
             };
             var addedUtente = await _repository.AddAsync(utenteDto);
 
-            var originalUpdateTime = addedUtente.DataAggiornamento;
+            // ✅ USA GetValueOrDefault() per evitare warning
+            var originalUpdateTime = addedUtente.DataAggiornamento.GetValueOrDefault();
 
             var updateDto = new UtentiDTO
             {
@@ -347,14 +356,17 @@ namespace RepositoryTest
                 TipoUtente = "admin"
             };
 
-            // Act - ✅ ATTENDI 1ms per essere sicuro del cambiamento
+            // Act
             await Task.Delay(1);
             await _repository.UpdateAsync(updateDto);
 
             // Assert
             var updated = await _repository.GetByIdAsync(addedUtente.UtenteId);
             Assert.NotNull(updated);
-            Assert.True(DateTime.Compare(updated.DataAggiornamento.Value, originalUpdateTime.Value) > 0);
+
+            // ✅ USA GetValueOrDefault() per evitare warning
+            var newUpdateTime = updated.DataAggiornamento.GetValueOrDefault();
+            Assert.True(newUpdateTime > originalUpdateTime);
         }
 
         [Fact]

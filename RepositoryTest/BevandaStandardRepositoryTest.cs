@@ -268,9 +268,11 @@ namespace RepositoryTest
             Assert.Equal(7.00m, savedBevanda.Prezzo);
             Assert.True(savedBevanda.Disponibile);
             Assert.False(savedBevanda.SempreDisponibile);
-            Assert.Equal(4, savedBevanda.Priorita); // ✅ Verifica priorità
-            Assert.NotNull(savedBevanda.DataCreazione);
-            Assert.NotNull(savedBevanda.DataAggiornamento);
+            Assert.Equal(4, savedBevanda.Priorita); // ✅ Verifica priorità            
+
+            // ✅ VERIFICA CHE LE DATE SIANO STATE IMPOSTATE
+            Assert.NotEqual(default(DateTime), savedBevanda.DataCreazione);
+            Assert.NotEqual(default(DateTime), savedBevanda.DataAggiornamento);
         }
 
         [Fact]
@@ -299,7 +301,9 @@ namespace RepositoryTest
             Assert.False(result.Disponibile);
             Assert.Equal(5, result.Priorita); // ✅ Verifica priorità aggiornata
             Assert.Equal("url_updated.jpg", result.ImmagineUrl);
-            Assert.NotNull(result.DataAggiornamento); // ✅ Verifica data aggiornamento
+
+            // ✅ VERIFICA CHE LA DATA SIA STATA AGGIORNATA
+            Assert.NotEqual(default(DateTime), result.DataAggiornamento);
         }
 
         [Fact]

@@ -166,9 +166,11 @@ namespace RepositoryTest
             Assert.Equal("Torta al Cioccolato", savedDolce.Nome);
             Assert.Equal(4.00m, savedDolce.Prezzo);
             Assert.True(savedDolce.Disponibile);
-            Assert.Equal(4, savedDolce.Priorita); // ✅ Verifica priorità
-            Assert.NotNull(savedDolce.DataCreazione);
-            Assert.NotNull(savedDolce.DataAggiornamento);
+            Assert.Equal(4, savedDolce.Priorita);
+
+            // ✅ OPZIONALE: Verifica che le date siano state impostate
+            Assert.NotEqual(default(DateTime), savedDolce.DataCreazione);
+            Assert.NotEqual(default(DateTime), savedDolce.DataAggiornamento);
         }
 
         [Fact]
@@ -196,7 +198,9 @@ namespace RepositoryTest
             Assert.Equal(5.00m, result.Prezzo);
             Assert.False(result.Disponibile);
             Assert.Equal(5, result.Priorita);
-            Assert.NotNull(result.DataAggiornamento); // ✅ Verifica data aggiornamento
+            
+            // ✅ VERIFICA CHE LA DATA SIA STATA AGGIORNATA
+            Assert.NotEqual(default(DateTime), result.DataAggiornamento);
         }
 
         [Fact]

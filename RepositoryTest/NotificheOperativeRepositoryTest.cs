@@ -195,7 +195,9 @@ namespace RepositoryTest
             Assert.Equal("Nuova notifica di test", result.Messaggio);
             Assert.Equal("Pendente", result.Stato);
             Assert.Equal(2, result.Priorita);
-            Assert.NotNull(result.DataCreazione);
+            
+            // ✅ VERIFICA CHE LA DATA SIA STATA IMPOSTATA
+            Assert.NotEqual(default(DateTime), result.DataCreazione);
         }
 
         [Fact]
@@ -220,8 +222,10 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.Equal("Ritardo nella preparazione - AGGIORNATO", result.Messaggio);
             Assert.Equal("Gestita", result.Stato);
-            Assert.Equal("testuser", result.UtenteGestione);
-            Assert.NotNull(result.DataGestione);
+            Assert.Equal("testuser", result.UtenteGestione);            
+
+            // ✅ VERIFICA CHE LA DATA GESTIONE SIA STATA IMPOSTATA
+            Assert.NotEqual(default(DateTime), result.DataGestione);
         }
 
         [Fact]
@@ -298,8 +302,8 @@ namespace RepositoryTest
             // Act
             var result = await _repository.AddAsync(newNotifica);
 
-            // Assert
-            Assert.NotNull(result.DataCreazione);
+            // Assert            
+            // ✅ VERIFICA DIRETTAMENTE IL RANGE
             Assert.InRange(result.DataCreazione, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
         }
 

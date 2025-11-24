@@ -356,9 +356,8 @@ namespace RepositoryTest
 
             // Act
             var result = await _repository.AddAsync(newStatoStorico);
-
-            // Assert
-            Assert.NotNull(result.Inizio);
+            
+            // ✅ VERIFICA DIRETTAMENTE IL RANGE
             Assert.InRange(result.Inizio, DateTime.Now.AddMinutes(-1), DateTime.Now.AddMinutes(1));
         }
 

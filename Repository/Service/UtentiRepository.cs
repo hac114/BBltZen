@@ -130,7 +130,7 @@ namespace Repository.Service
             // ✅ Aggiorna DTO con DataAggiornamento
             utente.DataAggiornamento = utenti.DataAggiornamento;
         }
-        private async Task<Utenti> GetEntityByIdAsync(int utenteId)
+        private async Task<Utenti?> GetEntityByIdAsync(int utenteId)
         {
             return await _context.Utenti.FindAsync(utenteId);
         }

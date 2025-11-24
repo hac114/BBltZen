@@ -283,8 +283,10 @@ namespace RepositoryTest
             Assert.Equal(2, result.ArticoloId);
             Assert.Equal(2, result.Quantita);
             Assert.Equal("BC", result.TipoArticolo);
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
+
+            // ✅ VERIFICA CHE LE DATE SIANO STATE IMPOSTATE
+            Assert.NotEqual(default(DateTime), result.DataCreazione);
+            Assert.NotEqual(default(DateTime), result.DataAggiornamento);
         }
 
         [Fact]
@@ -394,8 +396,6 @@ namespace RepositoryTest
 
             // Assert - ✅ VERIFICA CHE I VALORI DEFAULT SIANO APPLICATI
             Assert.Equal("BS", result.TipoArticolo); // ✅ DEFAULT dal repository
-            Assert.NotNull(result.DataCreazione);
-            Assert.NotNull(result.DataAggiornamento);
 
             // ✅ CORRETTO: Confronta solo data/ora senza millisecondi
             Assert.Equal(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),

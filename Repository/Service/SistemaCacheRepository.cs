@@ -156,29 +156,33 @@ namespace Repository.Service
 
             try
             {
-                foreach (var chiave in chiavi)
+                // ✅ AGGIUNTO: Operazione asincrona per risolvere il warning
+                await Task.Run(() =>
                 {
-                    try
+                    foreach (var chiave in chiavi)
                     {
-                        if (_memoryCache.TryGetValue(chiave, out var valore))
+                        try
                         {
-                            risultato.Risultati[chiave] = valore ?? "null";
-                            risultato.OperazioniCompletate++;
+                            if (_memoryCache.TryGetValue(chiave, out var valore))
+                            {
+                                risultato.Risultati[chiave] = valore ?? "null";
+                                risultato.OperazioniCompletate++;
+                            }
+                            else
+                            {
+                                risultato.Risultati[chiave] = "MISS";
+                                risultato.OperazioniFallite++;
+                            }
+                            risultato.ChiaviProcessate.Add(chiave);
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            risultato.Risultati[chiave] = "MISS";
+                            _logger.LogError(ex, $"Errore nel bulk get per chiave: {chiave}");
+                            risultato.Risultati[chiave] = $"ERROR: {ex.Message}";
                             risultato.OperazioniFallite++;
                         }
-                        risultato.ChiaviProcessate.Add(chiave);
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, $"Errore nel bulk get per chiave: {chiave}");
-                        risultato.Risultati[chiave] = $"ERROR: {ex.Message}";
-                        risultato.OperazioniFallite++;
-                    }
-                }
+                });
 
                 risultato.TempoEsecuzione = DateTime.Now - startTime;
                 _logger.LogInformation($"Bulk GET completato: {risultato.OperazioniCompletate} successi, {risultato.OperazioniFallite} falliti");

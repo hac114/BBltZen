@@ -233,11 +233,19 @@ namespace RepositoryTest
             // Assert
             Assert.True(result.OrdineId > 0);
             var savedOrdine = await _repository.GetByIdAsync(result.OrdineId);
+
             Assert.NotNull(savedOrdine);
             Assert.Equal(2, savedOrdine.ClienteId);
             Assert.Equal(18.75m, savedOrdine.Totale);
-            Assert.NotNull(savedOrdine.DataCreazione);
-            Assert.NotNull(savedOrdine.DataAggiornamento);
+
+            // ✅ RIMUOVI Assert.NotNull() SU DateTime - SONO VALUE TYPE!
+            // Assert.NotNull(savedOrdine.DataCreazione); // ❌ RIMUOVI
+            // Assert.NotNull(savedOrdine.DataAggiornamento); // ❌ RIMUOVI
+
+            // ✅ VERIFICA CHE LE DATE SIANO STATE IMPOSTATE
+            Assert.NotEqual(default(DateTime), savedOrdine.DataCreazione);
+            Assert.NotEqual(default(DateTime), savedOrdine.DataAggiornamento);
+
             Assert.Equal(newOrdine.SessioneId, savedOrdine.SessioneId); // ✅ VERIFICA SESSIONE ID
         }
 
@@ -263,9 +271,9 @@ namespace RepositoryTest
             var savedOrdine = await _repository.GetByIdAsync(result.OrdineId);
             Assert.NotNull(savedOrdine);
             Assert.Equal(2, savedOrdine.ClienteId);
-            Assert.Equal(18.75m, savedOrdine.Totale);
-            Assert.NotNull(savedOrdine.DataCreazione);
-            Assert.NotNull(savedOrdine.DataAggiornamento);
+            Assert.Equal(18.75m, savedOrdine.Totale);           
+            Assert.NotEqual(default(DateTime), savedOrdine.DataCreazione);
+            Assert.NotEqual(default(DateTime), savedOrdine.DataAggiornamento);
             Assert.Null(savedOrdine.SessioneId); // ✅ VERIFICA SESSIONE ID NULL
         }
 
@@ -379,6 +387,9 @@ namespace RepositoryTest
         {
             // Arrange - Ottieni una sessioneId esistente
             var ordineConSessione = await _repository.GetByIdAsync(1);
+
+            // ✅ VERIFICA CHE NON SIA NULL PRIMA DI ACCEDERE ALLE PROPRIETÀ
+            Assert.NotNull(ordineConSessione);
             var sessioneId = ordineConSessione.SessioneId;
             Assert.NotNull(sessioneId);
 

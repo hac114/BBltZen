@@ -311,6 +311,9 @@ namespace RepositoryTest
 
             // Partiamo come disponibile (Disponibile = true)
             var initial = await _ingredienteRepository.GetByIdAsync(ingredienteDto.IngredienteId);
+
+            // ✅ VERIFICA CHE NON SIA NULL PRIMA DI ACCEDERE ALLE PROPRIETÀ
+            Assert.NotNull(initial);
             Assert.True(initial.Disponibile);
 
             // Act - Toggle per disabilitare
