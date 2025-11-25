@@ -18,7 +18,7 @@ namespace BBltZen
             // Add services to the container.
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
-            
+
             // Per statistiche carrello scheduling
             builder.Services.AddHostedService<CacheBackgroundService>();
 

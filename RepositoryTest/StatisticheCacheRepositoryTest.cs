@@ -558,5 +558,158 @@ namespace RepositoryTest
             Assert.Contains("2024-01-29", periodi);
             Assert.All(periodi, p => Assert.NotNull(p));
         }
+
+        // ✅ TEST PER STATISTICHE CACHE CONTROLLER - INTEGRATION
+        [Fact]
+        public async Task GetAllStatisticheCache_ShouldReturnAllRecords()
+        {
+            // Act
+            var result = await _repository.GetAllAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Any());
+            Console.WriteLine($"✅ GetAllStatisticheCache: {result.Count()} records");
+        }
+
+        [Fact]
+        public async Task GetStatisticheCacheById_WithValidId_ShouldReturnRecord()
+        {
+            // Arrange - Crea un record di test
+            var testCache = new StatisticheCacheDTO
+            {
+                TipoStatistica = "TestIntegration",
+                Periodo = "2024-01-30",
+                Metriche = "{\"test\": \"integration\"}"
+            };
+            var addedCache = await _repository.AddAsync(testCache);
+
+            // Act
+            var result = await _repository.GetByIdAsync(addedCache.Id);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(addedCache.Id, result.Id);
+            Assert.Equal("TestIntegration", result.TipoStatistica);
+            Console.WriteLine($"✅ GetStatisticheCacheById: ID={result.Id}, Tipo={result.TipoStatistica}");
+        }
+
+        [Fact]
+        public async Task GetStatisticheCacheByTipo_ShouldReturnFilteredRecords()
+        {
+            // Act
+            var result = await _repository.GetByTipoAsync("VenditeGiornaliere");
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.All(result, item => Assert.Equal("VenditeGiornaliere", item.TipoStatistica));
+            Console.WriteLine($"✅ GetStatisticheCacheByTipo: {result.Count()} records VenditeGiornaliere");
+        }
+
+        [Fact]
+        public async Task GetStatisticheCarrelloByPeriodo_ShouldReturnCarrelloStats()
+        {
+            // Arrange - Prepara dati carrello
+            var carrelloStats = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 8,
+                TotaleProdottiVenduti = 40,
+                FatturatoTotale = 400.25m,
+                DistribuzionePerTipologia = new List<DistribuzioneProdottoDTO>(),
+                ProdottiPiuVenduti = new List<ProdottoTopDTO>(),
+                FasciaOrariaPiuAttiva = "16:00-18:00",
+                DataRiferimento = DateTime.UtcNow.Date,
+                DataAggiornamento = DateTime.UtcNow
+            };
+            await _repository.SalvaStatisticheCarrelloAsync("2024-01-31", carrelloStats);
+
+            // Act
+            var result = await _repository.GetStatisticheCarrelloByPeriodoAsync("2024-01-31");
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(8, result.TotaleOrdini);
+            Assert.Equal(400.25m, result.FatturatoTotale);
+            Console.WriteLine($"✅ GetStatisticheCarrelloByPeriodo: {result.TotaleOrdini} ordini");
+        }
+
+        [Fact]
+        public async Task SalvaStatisticheCarrello_ShouldPersistData()
+        {
+            // Arrange
+            var carrelloStats = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 12,
+                TotaleProdottiVenduti = 60,
+                FatturatoTotale = 650.80m,
+                DistribuzionePerTipologia = new List<DistribuzioneProdottoDTO>(),
+                ProdottiPiuVenduti = new List<ProdottoTopDTO>(),
+                FasciaOrariaPiuAttiva = "19:00-21:00",
+                DataRiferimento = DateTime.UtcNow.Date,
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            // Act
+            await _repository.SalvaStatisticheCarrelloAsync("2024-02-01", carrelloStats);
+
+            // Assert
+            var result = await _repository.GetStatisticheCarrelloByPeriodoAsync("2024-02-01");
+            Assert.NotNull(result);
+            Assert.Equal(12, result.TotaleOrdini);
+            Console.WriteLine($"✅ SalvaStatisticheCarrello: {result.TotaleOrdini} ordini salvati");
+        }
+
+        [Fact]
+        public async Task IsStatisticheCarrelloValide_WithFreshData_ShouldReturnTrue()
+        {
+            // Arrange
+            var carrelloStats = new StatisticheCarrelloDTO
+            {
+                TotaleOrdini = 3,
+                TotaleProdottiVenduti = 15,
+                FatturatoTotale = 150.00m,
+                DistribuzionePerTipologia = new List<DistribuzioneProdottoDTO>(),
+                ProdottiPiuVenduti = new List<ProdottoTopDTO>(),
+                FasciaOrariaPiuAttiva = "11:00-13:00",
+                DataRiferimento = DateTime.UtcNow.Date,
+                DataAggiornamento = DateTime.UtcNow
+            };
+            await _repository.SalvaStatisticheCarrelloAsync("2024-02-02", carrelloStats);
+
+            // Act
+            var result = await _repository.IsStatisticheCarrelloValideAsync("2024-02-02", TimeSpan.FromHours(24));
+
+            // Assert
+            Assert.True(result);
+            Console.WriteLine($"✅ IsStatisticheCarrelloValide: Cache valida = {result}");
+        }
+
+        [Fact]
+        public async Task GetPeriodiDisponibiliCarrello_ShouldReturnPeriodsList()
+        {
+            // Act
+            var result = await _repository.GetPeriodiDisponibiliCarrelloAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.IsAssignableFrom<IEnumerable<string>>(result);
+            Console.WriteLine($"✅ GetPeriodiDisponibiliCarrello: {result.Count()} periodi disponibili");
+        }
+
+        [Fact]
+        public async Task AggiornaCacheStatistiche_ShouldUpdateExisting()
+        {
+            // Arrange
+            var nuoveMetriche = "{\"test\": \"aggiornamento\", \"valore\": 999}";
+
+            // Act
+            await _repository.AggiornaCacheAsync("VenditeGiornaliere", "2024-01-16", nuoveMetriche);
+
+            // Assert
+            var result = await _repository.GetByTipoAndPeriodoAsync("VenditeGiornaliere", "2024-01-16");
+            Assert.NotNull(result);
+            Assert.Contains("999", result.Metriche);
+            Console.WriteLine($"✅ AggiornaCacheStatistiche: Metriche aggiornate");
+        }
     }
 }
