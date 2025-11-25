@@ -167,6 +167,9 @@ namespace RepositoryTest.IntegrationTests
             _context?.Dispose();
             _memoryCache?.Dispose();
 
+            // ✅ AGGIUNGI QUESTA RIGA PER ELIMINARE IL WARNING
+            GC.SuppressFinalize(this);
+
             Console.WriteLine("✅ Dispose completato per SistemaCacheRepositoryIntegrationTest");
         }
     }

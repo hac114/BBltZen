@@ -114,6 +114,9 @@ namespace RepositoryTest
         public void Dispose()
         {
             _context?.Dispose();
+
+            // ✅ AGGIUNGI QUESTA RIGA
+            GC.SuppressFinalize(this);
         }
     }
 }
