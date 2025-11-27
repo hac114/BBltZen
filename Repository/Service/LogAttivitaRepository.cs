@@ -18,7 +18,7 @@ namespace Repository.Service
             _context = context;
         }
 
-        private LogAttivitaDTO MapToDTO(LogAttivita logAttivita)
+        private static LogAttivitaDTO MapToDTO(LogAttivita logAttivita)
         {
             return new LogAttivitaDTO
             {
@@ -91,37 +91,7 @@ namespace Repository.Service
             logAttivitaDto.DataEsecuzione = logAttivita.DataEsecuzione;
 
             return logAttivitaDto; // ✅ IMPORTANTE: ritorna DTO
-        }
-
-        public async Task UpdateAsync(LogAttivitaDTO logAttivitaDto)
-        {
-            var logAttivita = await _context.LogAttivita
-                .FirstOrDefaultAsync(l => l.LogId == logAttivitaDto.LogId);
-
-            if (logAttivita == null)
-                return; // ✅ SILENT FAIL - Non lanciare eccezione
-
-            // ✅ AGGIORNA SOLO SE ESISTE
-            logAttivita.TipoAttivita = logAttivitaDto.TipoAttivita;
-            logAttivita.Descrizione = logAttivitaDto.Descrizione;
-            logAttivita.DataEsecuzione = logAttivitaDto.DataEsecuzione;
-            logAttivita.Dettagli = logAttivitaDto.Dettagli;
-            logAttivita.UtenteId = logAttivitaDto.UtenteId;
-
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task DeleteAsync(int logId)
-        {
-            var logAttivita = await _context.LogAttivita
-                .FirstOrDefaultAsync(l => l.LogId == logId);
-
-            if (logAttivita != null)
-            {
-                _context.LogAttivita.Remove(logAttivita);
-                await _context.SaveChangesAsync();
-            }
-        }
+        }        
 
         public async Task<bool> ExistsAsync(int logId)
         {
@@ -172,6 +142,155 @@ namespace Repository.Service
                 .ToDictionaryAsync(x => x.TipoAttivita, x => x.Count);
 
             return statistiche;
+        }
+
+        // ✅ METODO CLEANUP CORRETTO
+        public async Task<int> CleanupOldLogsAsync(int giorniRitenzione = 90)
+        {
+            var cutoffDate = DateTime.Now.AddDays(-giorniRitenzione);
+
+            // ✅ PER INMEMORY: usa ToListAsync() + RemoveRange()
+            var oldLogs = await _context.LogAttivita
+                .Where(l => l.DataEsecuzione < cutoffDate)
+                .ToListAsync();
+
+            int deletedCount = oldLogs.Count;
+
+            if (deletedCount > 0)
+            {
+                _context.LogAttivita.RemoveRange(oldLogs);
+                await _context.SaveChangesAsync();
+            }
+
+            // ✅ LOG DELLA PULIZIA
+            var cleanupLog = new LogAttivita
+            {
+                TipoAttivita = "manutenzione",
+                Descrizione = $"Puliti {deletedCount} log vecchi di {giorniRitenzione} giorni",
+                DataEsecuzione = DateTime.Now,
+                Dettagli = $"Cutoff date: {cutoffDate:yyyy-MM-dd}",
+                UtenteId = null
+            };
+
+            _context.LogAttivita.Add(cleanupLog);
+            await _context.SaveChangesAsync();
+
+            return deletedCount;
+        }
+
+        // ✅ METODI FRONTEND AGGIORNATI CON JOIN E TIPO_UTENTE
+
+        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetAllPerFrontendAsync()
+        {
+            return await _context.LogAttivita
+                .AsNoTracking()
+                .Include(l => l.Utente) // ✅ JOIN CON UTENTI
+                .OrderByDescending(l => l.DataEsecuzione)
+                .Select(l => new LogAttivitaFrontendDTO
+                {
+                    LogId = l.LogId,
+                    TipoAttivita = l.TipoAttivita,
+                    Descrizione = l.Descrizione,
+                    DataEsecuzione = l.DataEsecuzione,
+                    Dettagli = l.Dettagli,
+                    UtenteId = l.UtenteId,
+                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null // ✅ TIPO UTENTE
+                })
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetByPeriodoPerFrontendAsync(DateTime dataInizio, DateTime dataFine)
+        {
+            return await _context.LogAttivita
+                .AsNoTracking()
+                .Include(l => l.Utente) // ✅ JOIN CON UTENTI
+                .Where(l => l.DataEsecuzione >= dataInizio && l.DataEsecuzione <= dataFine)
+                .OrderByDescending(l => l.DataEsecuzione)
+                .Select(l => new LogAttivitaFrontendDTO
+                {
+                    LogId = l.LogId,
+                    TipoAttivita = l.TipoAttivita,
+                    Descrizione = l.Descrizione,
+                    DataEsecuzione = l.DataEsecuzione,
+                    Dettagli = l.Dettagli,
+                    UtenteId = l.UtenteId,
+                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null // ✅ TIPO UTENTE
+                })
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetByTipoAttivitaPerFrontendAsync(string tipoAttivita)
+        {
+            return await _context.LogAttivita
+                .AsNoTracking()
+                .Include(l => l.Utente) // ✅ JOIN CON UTENTI
+                .Where(l => l.TipoAttivita == tipoAttivita)
+                .OrderByDescending(l => l.DataEsecuzione)
+                .Select(l => new LogAttivitaFrontendDTO
+                {
+                    LogId = l.LogId,
+                    TipoAttivita = l.TipoAttivita,
+                    Descrizione = l.Descrizione,
+                    DataEsecuzione = l.DataEsecuzione,
+                    Dettagli = l.Dettagli,
+                    UtenteId = l.UtenteId,
+                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null // ✅ TIPO UTENTE
+                })
+                .ToListAsync();
+        }
+
+        // ✅ NUOVI METODI INTELLIGENTI NEL REPOSITORY
+        public async Task<IEnumerable<LogAttivitaFrontendDTO>> SearchIntelligenteAsync(string searchTerm)
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+                return await GetAllPerFrontendAsync();
+
+            searchTerm = searchTerm.Trim().ToLower();
+
+            return await _context.LogAttivita
+                .AsNoTracking()
+                .Include(l => l.Utente)
+                .Where(l =>
+                    l.TipoAttivita.ToLower().Contains(searchTerm) ||
+                    l.Descrizione.ToLower().Contains(searchTerm) ||
+                    (l.Dettagli != null && l.Dettagli.ToLower().Contains(searchTerm)) ||
+                    (l.Utente != null && l.Utente.TipoUtente.ToLower().Contains(searchTerm))
+                )
+                .OrderByDescending(l => l.DataEsecuzione)
+                .Select(l => new LogAttivitaFrontendDTO
+                {
+                    LogId = l.LogId,
+                    TipoAttivita = l.TipoAttivita,
+                    Descrizione = l.Descrizione,
+                    DataEsecuzione = l.DataEsecuzione,
+                    Dettagli = l.Dettagli,
+                    UtenteId = l.UtenteId,
+                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
+                })
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetByTipoAttivitaIntelligenteAsync(string tipoAttivita)
+        {
+            if (string.IsNullOrWhiteSpace(tipoAttivita))
+                return await GetAllPerFrontendAsync();
+
+            return await _context.LogAttivita
+                .AsNoTracking()
+                .Include(l => l.Utente)
+                .Where(l => l.TipoAttivita.ToLower().Contains(tipoAttivita.Trim().ToLower()))
+                .OrderByDescending(l => l.DataEsecuzione)
+                .Select(l => new LogAttivitaFrontendDTO
+                {
+                    LogId = l.LogId,
+                    TipoAttivita = l.TipoAttivita,
+                    Descrizione = l.Descrizione,
+                    DataEsecuzione = l.DataEsecuzione,
+                    Dettagli = l.Dettagli,
+                    UtenteId = l.UtenteId,
+                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
+                })
+                .ToListAsync();
         }
     }
 }

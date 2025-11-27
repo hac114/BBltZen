@@ -16,6 +16,10 @@ namespace Repository.Interface
         Task<CategoriaIngredienteDTO?> GetByIdAsync(int id);
 
         // ✅ AGGIUNGI: Metodo per verificare esistenza per nome
-        Task<bool> ExistsByNomeAsync(string categoria, int? excludeId = null);
+        Task<bool> ExistsByNomeAsync(string categoria);
+
+        // ✅ AGGIUNGI METODI FRONTEND
+        Task<IEnumerable<CategoriaIngredienteFrontendDTO>> GetAllPerFrontendAsync();
+        Task<CategoriaIngredienteFrontendDTO?> GetByNomePerFrontendAsync(string categoria);
     }
 }
