@@ -271,5 +271,119 @@ namespace RepositoryTest
             Assert.Equal("lb", result.Sigla);
             Assert.Equal("Libbre", result.Descrizione);
         }
+
+        // ✅ NUOVI TEST PER METODI FRONTEND
+
+        [Fact]
+        public async Task GetAllPerFrontendAsync_ShouldReturnFrontendDTOs_WithoutIds()
+        {
+            // Arrange
+            var unitaList = new List<UnitaDiMisuraDTO>
+    {
+        new UnitaDiMisuraDTO { Sigla = "ML", Descrizione = "Millilitri" },
+        new UnitaDiMisuraDTO { Sigla = "G", Descrizione = "Grammi" },
+        new UnitaDiMisuraDTO { Sigla = "CL", Descrizione = "Centilitri" }
+    };
+
+            // Aggiungi le unità di misura
+            foreach (var unita in unitaList)
+            {
+                await _unitaDiMisuraRepository.AddAsync(unita);
+            }
+
+            // Act
+            var result = await _unitaDiMisuraRepository.GetAllPerFrontendAsync();
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Equal(3, resultList.Count);
+
+            // ✅ VERIFICA CHE NON CI SIANO ID
+            Assert.All(resultList, u => Assert.Equal(0, GetIdIfExists(u))); // Usa reflection per verificare
+
+            // ✅ VERIFICA I DATI
+            var mlUnita = resultList.First(u => u.Sigla == "ML");
+            Assert.Equal("Millilitri", mlUnita.Descrizione);
+
+            var gUnita = resultList.First(u => u.Sigla == "G");
+            Assert.Equal("Grammi", gUnita.Descrizione);
+        }
+
+        [Fact]
+        public async Task GetAllPerFrontendAsync_ShouldReturnEmptyList_WhenNoData()
+        {
+            // Act
+            var result = await _unitaDiMisuraRepository.GetAllPerFrontendAsync();
+
+            // Assert
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public async Task GetBySiglaPerFrontendAsync_WithValidSigla_ShouldReturnFrontendDTO()
+        {
+            // Arrange
+            var unitaDto = new UnitaDiMisuraDTO
+            {
+                Sigla = "KG",
+                Descrizione = "Chilogrammi"
+            };
+            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+
+            // Act
+            var result = await _unitaDiMisuraRepository.GetBySiglaPerFrontendAsync("KG");
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal("KG", result.Sigla);
+            Assert.Equal("Chilogrammi", result.Descrizione);
+
+            // ✅ VERIFICA CHE NON CI SIA ID
+            Assert.Equal(0, GetIdIfExists(result));
+        }
+
+        [Fact]
+        public async Task GetBySiglaPerFrontendAsync_WithInvalidSigla_ShouldReturnNull()
+        {
+            // Act
+            var result = await _unitaDiMisuraRepository.GetBySiglaPerFrontendAsync("INVALID");
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task GetBySiglaPerFrontendAsync_ShouldBeCaseSensitive()
+        {
+            // Arrange
+            var unitaDto = new UnitaDiMisuraDTO
+            {
+                Sigla = "ML", // Maiuscolo
+                Descrizione = "Millilitri"
+            };
+            await _unitaDiMisuraRepository.AddAsync(unitaDto);
+
+            // Act & Assert - Dovrebbe trovare solo con sigla esatta
+            var resultUpper = await _unitaDiMisuraRepository.GetBySiglaPerFrontendAsync("ML");
+            Assert.NotNull(resultUpper);
+
+            var resultLower = await _unitaDiMisuraRepository.GetBySiglaPerFrontendAsync("ml");
+            Assert.Null(resultLower); // ❌ Case sensitive
+        }
+
+        // ✅ METODO HELPER PER VERIFICARE ASSENZA ID (usando reflection)
+        private int GetIdIfExists(object dto)
+        {
+            var property = dto.GetType().GetProperty("UnitaMisuraId") ??
+                           dto.GetType().GetProperty("Id");
+
+            if (property != null)
+            {
+                var value = property.GetValue(dto);
+                return value is int intValue ? intValue : 0; // ✅ SICURO: pattern matching
+            }
+
+            return 0;
+        }
     }
 }

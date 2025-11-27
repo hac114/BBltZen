@@ -109,5 +109,32 @@ namespace Repository.Service
 
             return unita == null ? null : MapToDTO(unita);
         }
+
+        public async Task<IEnumerable<UnitaDiMisuraFrontendDTO>> GetAllPerFrontendAsync()
+        {
+            return await _context.UnitaDiMisura
+                .AsNoTracking()
+                .Select(u => new UnitaDiMisuraFrontendDTO
+                {
+                    Sigla = u.Sigla,
+                    Descrizione = u.Descrizione
+                })
+                .ToListAsync();
+        }
+
+        public async Task<UnitaDiMisuraFrontendDTO?> GetBySiglaPerFrontendAsync(string sigla)
+        {
+            var unita = await _context.UnitaDiMisura
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Sigla == sigla);
+
+            if (unita == null) return null;
+
+            return new UnitaDiMisuraFrontendDTO
+            {
+                Sigla = unita.Sigla,
+                Descrizione = unita.Descrizione
+            };
+        }
     }
 }
