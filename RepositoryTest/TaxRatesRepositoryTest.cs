@@ -236,5 +236,82 @@ namespace RepositoryTest
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentException>(() => _repository.UpdateAsync(updateDto));
         }
+
+        [Fact]
+        public async Task GetAllPerFrontendAsync_ShouldReturnFrontendDTOs()
+        {
+            // Act
+            var result = await _repository.GetAllPerFrontendAsync();
+
+            // Assert
+            var resultList = result.ToList();
+            Assert.Equal(3, resultList.Count);
+
+            // ✅ VERIFICA FORMATTAZIONE FRONTEND CORRETTA
+            var ivaStandard = resultList.First(t => t.Aliquota == 22.00m);
+            Assert.Equal("22.00%", ivaStandard.AliquotaFormattata); // ✅ "22.00%" invece di "22%"
+            Assert.Equal("IVA Standard", ivaStandard.Descrizione);
+        }
+
+        [Fact]
+        public async Task GetByAliquotaPerFrontendAsync_WithValidAliquota_ShouldReturnFormattedTaxRate()
+        {
+            // Act
+            var result = await _repository.GetByAliquotaPerFrontendAsync(10.00m);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(10.00m, result.Aliquota);
+            Assert.Equal("10.00%", result.AliquotaFormattata); // ✅ "10.00%" invece di "10%"
+            Assert.Equal("IVA Ridotta", result.Descrizione);
+        }
+
+        [Fact]
+        public async Task GetByAliquotaPerFrontendAsync_WithInvalidAliquota_ShouldReturnNull()
+        {
+            // Act
+            var result = await _repository.GetByAliquotaPerFrontendAsync(99.99m);
+
+            // Assert
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_WithDependencies_ShouldThrowException()
+        {
+            // Arrange - Crea un'aliquota con dipendenze (OrderItem)
+            var newTaxRate = new TaxRatesDTO
+            {
+                Aliquota = 15.00m,
+                Descrizione = "IVA Test"
+            };
+            var addedTaxRate = await _repository.AddAsync(newTaxRate);
+
+            // Crea un order item associato all'aliquota
+            _context.OrderItem.Add(new OrderItem
+            {
+                OrderItemId = 999,
+                TaxRateId = addedTaxRate.TaxRateId,
+                OrdineId = 1,
+                ArticoloId = 1,
+                Quantita = 1,
+                PrezzoUnitario = 10.00m,
+                TipoArticolo = "BS"
+            });
+            await _context.SaveChangesAsync();
+
+            // Act & Assert - ✅ DOVREBBE LANCIARE ECCEZIONE
+            var exception = await Record.ExceptionAsync(() =>
+                _repository.DeleteAsync(addedTaxRate.TaxRateId)
+            );
+
+            // ✅ VERIFICA CHE SIA STATO LANCIATO UN ERRORE
+            Assert.NotNull(exception);
+            Assert.True(exception is InvalidOperationException || exception is DbUpdateException);
+
+            // ✅ VERIFICA CHE L'ALIQUOTA NON SIA STATA ELIMINATA
+            var result = await _repository.GetByIdAsync(addedTaxRate.TaxRateId);
+            Assert.NotNull(result);
+        }
     }
 }

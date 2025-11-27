@@ -1,29 +1,27 @@
 ﻿// BBltZen/Controllers/TaxRatesController.cs
-using Microsoft.AspNetCore.Mvc;
+using Database;
 using DTO;
-using Repository.Interface;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
-    public class TaxRatesController : SecureBaseController
+    public class TaxRatesController(
+    ITaxRatesRepository repository,
+    BubbleTeaContext context,
+    IWebHostEnvironment environment,
+    ILogger<TaxRatesController> logger)
+    : SecureBaseController(environment, logger)
     {
-        private readonly ITaxRatesRepository _repository;
-
-        public TaxRatesController(
-            ITaxRatesRepository repository,
-            IWebHostEnvironment environment,
-            ILogger<TaxRatesController> logger)
-            : base(environment, logger)
-        {
-            _repository = repository;
-        }
+        private readonly ITaxRatesRepository _repository = repository;
+        private readonly BubbleTeaContext _context = context;
 
         // GET: api/TaxRates
         [HttpGet]
@@ -194,23 +192,96 @@ namespace BBltZen.Controllers
                 if (taxRate == null)
                     return SafeNotFound("Aliquota fiscale");
 
+                // ✅ CONTROLLO VINCOLI REFERENZIALI NEL CONTROLLER
+                bool hasOrderItems = await _context.OrderItem.AnyAsync(oi => oi.TaxRateId == id);
+
+                if (hasOrderItems)
+                    return SafeBadRequest("Impossibile eliminare l'aliquota: sono presenti order items associati");
+
                 await _repository.DeleteAsync(id);
 
                 // ✅ SEMPLIFICATO: Audit trail
                 LogAuditTrail("DELETE", "TaxRates", id.ToString());
-                LogSecurityEvent("TaxRateDeleted", $"Deleted TaxRate ID: {id}");
+                LogSecurityEvent("TaxRateDeleted", new
+                {
+                    id,
+                    taxRate.Aliquota,
+                    UserId = GetCurrentUserIdOrDefault()
+                });
 
                 return NoContent();
             }
-            catch (DbUpdateException dbEx)
+            catch (InvalidOperationException invOpEx) // ✅ INMEMORY EXCEPTION
+            {
+                if (_environment.IsDevelopment())
+                    return SafeBadRequest($"Errore eliminazione: {invOpEx.Message}");
+                else
+                    return SafeBadRequest("Impossibile eliminare l'aliquota: sono presenti dipendenze");
+            }
+            catch (DbUpdateException dbEx) // ✅ DATABASE REAL EXCEPTION
             {
                 _logger.LogError(dbEx, "Errore database durante l'eliminazione dell'aliquota fiscale {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione dei dati");
+
+                if (_environment.IsDevelopment())
+                    return SafeBadRequest($"Errore database: {dbEx.Message}");
+                else
+                    return SafeBadRequest("Impossibile eliminare l'aliquota: sono presenti dipendenze");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione dell'aliquota fiscale {Id}", id);
-                return SafeInternalError(ex.Message);
+                return SafeInternalError("Errore durante l'eliminazione");
+            }
+        }
+
+        // ✅ NUOVI ENDPOINT PER FRONTEND
+
+        // GET: api/TaxRates/frontend
+        [HttpGet("frontend")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
+        public async Task<ActionResult<IEnumerable<TaxRatesFrontendDTO>>> GetAllPerFrontend()
+        {
+            try
+            {
+                var taxRates = await _repository.GetAllPerFrontendAsync();
+                return Ok(taxRates);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero delle aliquote per frontend");
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<IEnumerable<TaxRatesFrontendDTO>>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<IEnumerable<TaxRatesFrontendDTO>>("Errore durante il caricamento delle aliquote");
+            }
+        }
+
+        // GET: api/TaxRates/frontend/aliquota/22.00
+        [HttpGet("frontend/aliquota/{aliquota}")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
+        public async Task<ActionResult<TaxRatesFrontendDTO>> GetByAliquotaPerFrontend(decimal aliquota)
+        {
+            try
+            {
+                if (aliquota < 0 || aliquota > 100)
+                    return SafeBadRequest<TaxRatesFrontendDTO>("Valore aliquota non valido (deve essere tra 0 e 100)");
+
+                var taxRate = await _repository.GetByAliquotaPerFrontendAsync(aliquota);
+
+                if (taxRate == null)
+                    return SafeNotFound<TaxRatesFrontendDTO>("Aliquota fiscale");
+
+                return Ok(taxRate);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero dell'aliquota fiscale con valore {Aliquota} per frontend", aliquota);
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<TaxRatesFrontendDTO>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<TaxRatesFrontendDTO>("Errore durante il caricamento dell'aliquota");
             }
         }
     }

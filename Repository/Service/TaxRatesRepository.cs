@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -141,6 +142,36 @@ namespace Repository.Service
             }
 
             return await query.AnyAsync();
+        }
+
+        // ✅ AGGIUNGI QUESTI METODI
+        public async Task<IEnumerable<TaxRatesFrontendDTO>> GetAllPerFrontendAsync()
+        {
+            return await _context.TaxRates
+                .AsNoTracking()
+                .Select(t => new TaxRatesFrontendDTO
+                {
+                    Aliquota = t.Aliquota,
+                    Descrizione = t.Descrizione,
+                    AliquotaFormattata = $"{t.Aliquota.ToString("0.00", CultureInfo.InvariantCulture)}%" // ✅ FORMATTO FISSO
+                })
+                .ToListAsync();
+        }
+
+        public async Task<TaxRatesFrontendDTO?> GetByAliquotaPerFrontendAsync(decimal aliquota)
+        {
+            var taxRate = await _context.TaxRates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Aliquota == aliquota);
+
+            if (taxRate == null) return null;
+
+            return new TaxRatesFrontendDTO
+            {
+                Aliquota = taxRate.Aliquota,
+                Descrizione = taxRate.Descrizione,
+                AliquotaFormattata = $"{taxRate.Aliquota.ToString("0.00", CultureInfo.InvariantCulture)}%" // ✅ FORMATTO FISSO
+            };
         }
     }
 }
