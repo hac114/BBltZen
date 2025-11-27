@@ -5,20 +5,15 @@ using Repository.Interface;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class TavoloRepository : ITavoloRepository
+    public class TavoloRepository(BubbleTeaContext context) : ITavoloRepository
     {
-        private readonly BubbleTeaContext _context;
-        public TavoloRepository(BubbleTeaContext context)
-        {
-            _context = context;
-        }
+        private readonly BubbleTeaContext _context = context;
 
-        private TavoloDTO MapToDTO(Tavolo tavolo)
+        private static TavoloDTO MapToDTO(Tavolo tavolo)
         {
             return new TavoloDTO
             {
@@ -29,6 +24,21 @@ namespace Repository.Service
             };
         }
 
+        private static TavoloFrontendDTO MapToFrontendDTO(Tavolo tavolo)
+        {
+            return new TavoloFrontendDTO
+            {
+                Numero = tavolo.Numero,
+                Disponibile = GetDisponibileText(tavolo.Disponibile),
+                Zona = FormatZona(tavolo.Zona ?? string.Empty)
+            };
+        }
+
+        private static string GetDisponibileText(bool disponibile) => disponibile ? "SI" : "NO";
+
+        private static string FormatZona(string zona) => string.IsNullOrEmpty(zona) ? "" : zona.ToUpper();
+
+        // ✅ METODI CRUD ESISTENTI
         public async Task<IEnumerable<TavoloDTO>> GetAllAsync()
         {
             return await _context.Tavolo
@@ -44,10 +54,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
 
-            if (tavolo == null)
-                return null;
-
-            return MapToDTO(tavolo);
+            return tavolo == null ? null : MapToDTO(tavolo);
         }
 
         public async Task<TavoloDTO?> GetByNumeroAsync(int numero)
@@ -56,10 +63,7 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Numero == numero);
 
-            if (tavolo == null)
-                return null;
-
-            return MapToDTO(tavolo);
+            return tavolo == null ? null : MapToDTO(tavolo);
         }
 
         public async Task<IEnumerable<TavoloDTO>> GetDisponibiliAsync()
@@ -87,11 +91,8 @@ namespace Repository.Service
             if (tavoloDto == null)
                 throw new ArgumentNullException(nameof(tavoloDto));
 
-            // ✅ VERIFICA UNICITÀ NUMERO TAVOLO
             if (await NumeroExistsAsync(tavoloDto.Numero))
-            {
                 throw new ArgumentException($"Esiste già un tavolo con numero {tavoloDto.Numero}");
-            }
 
             var tavolo = new Tavolo
             {
@@ -103,7 +104,6 @@ namespace Repository.Service
             _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
-            // ✅ AGGIORNA DTO CON ID GENERATO E RITORNALO
             tavoloDto.TavoloId = tavolo.TavoloId;
             return tavoloDto;
         }
@@ -114,13 +114,10 @@ namespace Repository.Service
                 .FirstOrDefaultAsync(t => t.TavoloId == tavoloDto.TavoloId);
 
             if (tavolo == null)
-                return; // ✅ SILENT FAIL
+                return;
 
-            // ✅ VERIFICA UNICITÀ NUMERO TAVOLO (escludendo il record corrente)
             if (await NumeroExistsAsync(tavoloDto.Numero, tavoloDto.TavoloId))
-            {
                 throw new ArgumentException($"Esiste già un altro tavolo con numero {tavoloDto.Numero}");
-            }
 
             tavolo.Numero = tavoloDto.Numero;
             tavolo.Zona = tavoloDto.Zona;
@@ -150,12 +147,82 @@ namespace Repository.Service
         public async Task<bool> NumeroExistsAsync(int numero, int? excludeId = null)
         {
             if (excludeId.HasValue)
-            {
-                return await _context.Tavolo
-                    .AnyAsync(t => t.Numero == numero && t.TavoloId != excludeId.Value);
-            }
+                return await _context.Tavolo.AnyAsync(t => t.Numero == numero && t.TavoloId != excludeId.Value);
 
             return await _context.Tavolo.AnyAsync(t => t.Numero == numero);
+        }
+
+        // ✅ NUOVI METODI PER FRONTEND
+        public async Task<IEnumerable<TavoloFrontendDTO>> GetAllPerFrontendAsync()
+        {
+            return await _context.Tavolo
+                .AsNoTracking()
+                .OrderBy(t => t.Numero)
+                .Select(t => MapToFrontendDTO(t))
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<TavoloFrontendDTO>> GetDisponibiliPerFrontendAsync()
+        {
+            return await _context.Tavolo
+                .AsNoTracking()
+                .Where(t => t.Disponibile)
+                .OrderBy(t => t.Numero)
+                .Select(t => MapToFrontendDTO(t))
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<TavoloFrontendDTO>> GetByZonaPerFrontendAsync(string zona)
+        {
+            var zonaFormattata = FormatZona(zona);
+
+            return await _context.Tavolo
+                .AsNoTracking()
+                .Where(t => t.Zona != null && t.Zona.ToUpper() == zonaFormattata)
+                .OrderBy(t => t.Numero)
+                .Select(t => MapToFrontendDTO(t))
+                .ToListAsync();
+        }
+
+        public async Task<TavoloFrontendDTO?> GetByNumeroPerFrontendAsync(int numero)
+        {
+            var tavolo = await _context.Tavolo
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Numero == numero);
+
+            return tavolo == null ? null : MapToFrontendDTO(tavolo);
+        }        
+
+        public async Task<bool> ToggleDisponibilitaAsync(int tavoloId)
+        {
+            var tavolo = await _context.Tavolo
+                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
+
+            if (tavolo == null)
+                return false;
+
+            // ✅ CORREZIONE: inverti la disponibilità
+            tavolo.Disponibile = !tavolo.Disponibile;
+            await _context.SaveChangesAsync();
+
+            // ✅ RESTITUISCI IL NUOVO VALORE (dopo il toggle)
+            return tavolo.Disponibile;
+        }
+
+        public async Task<bool> ToggleDisponibilitaByNumeroAsync(int numero)
+        {
+            var tavolo = await _context.Tavolo
+                .FirstOrDefaultAsync(t => t.Numero == numero);
+
+            if (tavolo == null)
+                return false;
+
+            // ✅ CORREZIONE: inverti la disponibilità
+            tavolo.Disponibile = !tavolo.Disponibile;
+            await _context.SaveChangesAsync();
+
+            // ✅ RESTITUISCI IL NUOVO VALORE (dopo il toggle)
+            return tavolo.Disponibile;
         }
     }
 }

@@ -1,29 +1,29 @@
-﻿// BBltZen/Controllers/TavoloController.cs
-using Microsoft.AspNetCore.Mvc;
+﻿using Database;
 using DTO;
-using Repository.Interface;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
-    public class TavoloController : SecureBaseController
-    {
-        private readonly ITavoloRepository _repository;
+    public class TavoloController(
+    ITavoloRepository repository,
+    BubbleTeaContext context, // ✅ AGGIUNTO IL CONTEXT
+    IWebHostEnvironment environment,
+    ILogger<TavoloController> logger)
+    : SecureBaseController(environment, logger)
 
-        public TavoloController(
-            ITavoloRepository repository,
-            IWebHostEnvironment environment,
-            ILogger<TavoloController> logger)
-            : base(environment, logger)
-        {
-            _repository = repository;
-        }
+    {
+        private readonly ITavoloRepository _repository = repository;
+        private readonly BubbleTeaContext _context = context; // ✅ INIZIALIZZATO IL CONTEXT    
+
+        // ✅ ENDPOINT CRUD ESISTENTI (per admin/backoffice)
 
         // GET: api/Tavolo
         [HttpGet]
@@ -137,14 +137,11 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(tavoloDto))
                     return SafeBadRequest<TavoloDTO>("Dati tavolo non validi");
 
-                // Validazione numero univoco
                 if (await _repository.NumeroExistsAsync(tavoloDto.Numero))
                     return SafeBadRequest<TavoloDTO>("Numero tavolo già esistente");
 
-                // ✅ CORREZIONE: USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
                 var result = await _repository.AddAsync(tavoloDto);
 
-                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
                 LogAuditTrail("CREATE", "Tavolo", result.TavoloId.ToString());
                 LogSecurityEvent("TavoloCreated", new
                 {
@@ -188,17 +185,14 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(tavoloDto))
                     return SafeBadRequest("Dati tavolo non validi");
 
-                // ✅ VERIFICA ESISTENZA
                 if (!await _repository.ExistsAsync(id))
                     return SafeNotFound("Tavolo");
 
-                // Validazione numero univoco (escludendo l'ID corrente)
                 if (await _repository.NumeroExistsAsync(tavoloDto.Numero, id))
                     return SafeBadRequest("Numero tavolo già esistente");
 
                 await _repository.UpdateAsync(tavoloDto);
 
-                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
                 LogAuditTrail("UPDATE", "Tavolo", tavoloDto.TavoloId.ToString());
                 LogSecurityEvent("TavoloUpdated", new
                 {
@@ -239,28 +233,259 @@ namespace BBltZen.Controllers
                 if (tavolo == null)
                     return SafeNotFound("Tavolo");
 
+                // ✅ CONTROLLO VINCOLI REFERENZIALI NEL CONTROLLER
+                bool hasClienti = await _context.Cliente.AnyAsync(c => c.TavoloId == id);
+                bool hasSessioni = await _context.SessioniQr.AnyAsync(sq => sq.TavoloId == id);
+
+                if (hasClienti || hasSessioni)
+                {
+                    var errorMessage = "Impossibile eliminare il tavolo: ";
+                    if (hasClienti) errorMessage += "sono presenti clienti associati. ";
+                    if (hasSessioni) errorMessage += "sono presenti sessioni QR associate.";
+
+                    return SafeBadRequest(errorMessage.Trim());
+                }
+
                 await _repository.DeleteAsync(id);
 
-                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
+                // ✅ AUDIT & SECURITY
                 LogAuditTrail("DELETE", "Tavolo", id.ToString());
                 LogSecurityEvent("TavoloDeleted", new
                 {
-                    TavoloId = id,
-                    Numero = tavolo.Numero,
+                    id,
+                    tavolo.Numero,
                     UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (DbUpdateException dbEx)
+            catch (InvalidOperationException invOpEx) // ✅ INMEMORY EXCEPTION
             {
+                // ✅ GESTIONE SPECIFICA PER DIPENDENZE IN MEMORY
+                if (_environment.IsDevelopment())
+                    return SafeBadRequest($"Errore eliminazione: {invOpEx.Message}");
+                else
+                    return SafeBadRequest("Impossibile eliminare il tavolo: sono presenti dipendenze");
+            }
+            catch (DbUpdateException dbEx) // ✅ DATABASE REAL EXCEPTION
+            {
+                // ✅ GESTIONE SPECIFICA PER DIPENDENZE DATABASE
                 _logger.LogError(dbEx, "Errore database durante l'eliminazione del tavolo {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
+
+                if (_environment.IsDevelopment())
+                    return SafeBadRequest($"Errore database: {dbEx.Message}");
+                else
+                    return SafeBadRequest("Impossibile eliminare il tavolo: sono presenti dipendenze");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante l'eliminazione del tavolo {Id}", id);
                 return SafeInternalError("Errore durante l'eliminazione");
+            }
+        }
+
+        // ✅ NUOVI ENDPOINT PER FRONTEND (formattati per clienti)
+
+        // GET: api/Tavolo/frontend
+        [HttpGet("frontend")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
+        public async Task<ActionResult<IEnumerable<TavoloFrontendDTO>>> GetAllPerFrontend()
+        {
+            try
+            {
+                var tavoli = await _repository.GetAllPerFrontendAsync();
+                return Ok(tavoli);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero dei tavoli per frontend");
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<IEnumerable<TavoloFrontendDTO>>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<IEnumerable<TavoloFrontendDTO>>("Errore durante il caricamento dei tavoli");
+            }
+        }
+
+        // GET: api/Tavolo/frontend/disponibili
+        [HttpGet("frontend/disponibili")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
+        public async Task<ActionResult<IEnumerable<TavoloFrontendDTO>>> GetDisponibiliPerFrontend()
+        {
+            try
+            {
+                var tavoli = await _repository.GetDisponibiliPerFrontendAsync();
+                return Ok(tavoli);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero dei tavoli disponibili per frontend");
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<IEnumerable<TavoloFrontendDTO>>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<IEnumerable<TavoloFrontendDTO>>("Errore durante il caricamento dei tavoli disponibili");
+            }
+        }
+
+        // GET: api/Tavolo/frontend/zona/{zona}
+        [HttpGet("frontend/zona/{zona}")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
+        public async Task<ActionResult<IEnumerable<TavoloFrontendDTO>>> GetByZonaPerFrontend(string zona)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(zona))
+                    return SafeBadRequest<IEnumerable<TavoloFrontendDTO>>("Zona non valida");
+
+                var tavoli = await _repository.GetByZonaPerFrontendAsync(zona);
+                return Ok(tavoli);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero dei tavoli per zona {Zona} per frontend", zona);
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<IEnumerable<TavoloFrontendDTO>>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<IEnumerable<TavoloFrontendDTO>>("Errore durante il caricamento dei tavoli");
+            }
+        }
+
+        // GET: api/Tavolo/frontend/numero/{numero}
+        [HttpGet("frontend/numero/{numero}")]
+        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
+        public async Task<ActionResult<TavoloFrontendDTO>> GetByNumeroPerFrontend(int numero)
+        {
+            try
+            {
+                if (numero <= 0)
+                    return SafeBadRequest<TavoloFrontendDTO>("Numero tavolo non valido");
+
+                var tavolo = await _repository.GetByNumeroPerFrontendAsync(numero);
+
+                if (tavolo == null)
+                    return SafeNotFound<TavoloFrontendDTO>("Tavolo");
+
+                return Ok(tavolo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il recupero del tavolo numero {Numero} per frontend", numero);
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<TavoloFrontendDTO>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<TavoloFrontendDTO>("Errore durante il caricamento del tavolo");
+            }
+        }
+
+        // ✅ NUOVI ENDPOINT BUSINESS
+
+        // PATCH: api/Tavolo/5/toggle-disponibilita
+        [HttpPatch("{id}/toggle-disponibilita")]
+        //[Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        public async Task<ActionResult<object>> ToggleDisponibilita(int id)
+        {
+            try
+            {
+                if (id <= 0)
+                    return SafeBadRequest<object>("ID tavolo non valido");
+
+                if (!await _repository.ExistsAsync(id))
+                    return SafeNotFound<object>("Tavolo");
+
+                var nuovaDisponibilita = await _repository.ToggleDisponibilitaAsync(id);
+
+                LogAuditTrail("TOGGLE_DISPONIBILITA", "Tavolo", id.ToString());
+                LogSecurityEvent("TavoloDisponibilitaToggled", new
+                {
+                    id,
+                    NuovaDisponibilita = nuovaDisponibilita,
+                    UserId = GetCurrentUserIdOrDefault()
+                });
+
+                // ✅ RISPOSTA DETTAGLIATA PER SVILUPPO, SEMPLICE PER PRODUZIONE
+                if (_environment.IsDevelopment())
+                {
+                    return Ok(new
+                    {
+                        TavoloId = id,
+                        Disponibile = nuovaDisponibilita,
+                        Messaggio = $"Disponibilità aggiornata a: {(nuovaDisponibilita ? "SI" : "NO")}",
+                        Timestamp = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    return Ok(new
+                    {
+                        Messaggio = "Disponibilità aggiornata con successo",
+                        Disponibile = nuovaDisponibilita ? "SI" : "NO"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il toggle disponibilità del tavolo {Id}", id);
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<object>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<object>("Errore durante l'aggiornamento della disponibilità");
+            }
+        }
+
+        // PATCH: api/Tavolo/numero/5/toggle-disponibilita
+        [HttpPatch("numero/{numero}/toggle-disponibilita")]
+        //[Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        public async Task<ActionResult<object>> ToggleDisponibilitaByNumero(int numero)
+        {
+            try
+            {
+                if (numero <= 0)
+                    return SafeBadRequest<object>("Numero tavolo non valido");
+
+                var nuovaDisponibilita = await _repository.ToggleDisponibilitaByNumeroAsync(numero);
+
+                if (!nuovaDisponibilita && !await _repository.NumeroExistsAsync(numero))
+                    return SafeNotFound<object>("Tavolo");
+
+                LogAuditTrail("TOGGLE_DISPONIBILITA_BY_NUMERO", "Tavolo", numero.ToString());
+                LogSecurityEvent("TavoloDisponibilitaToggledByNumero", new
+                {
+                    NumeroTavolo = numero,
+                    NuovaDisponibilita = nuovaDisponibilita,
+                    UserId = GetCurrentUserIdOrDefault()
+                });
+
+                if (_environment.IsDevelopment())
+                {
+                    return Ok(new
+                    {
+                        NumeroTavolo = numero,
+                        Disponibile = nuovaDisponibilita,
+                        Messaggio = $"Disponibilità aggiornata a: {(nuovaDisponibilita ? "SI" : "NO")}",
+                        Timestamp = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    return Ok(new
+                    {
+                        Messaggio = "Disponibilità aggiornata con successo",
+                        Disponibile = nuovaDisponibilita ? "SI" : "NO"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore durante il toggle disponibilità del tavolo numero {Numero}", numero);
+
+                if (_environment.IsDevelopment())
+                    return SafeInternalError<object>($"Errore: {ex.Message}");
+                else
+                    return SafeInternalError<object>("Errore durante l'aggiornamento della disponibilità");
             }
         }
     }

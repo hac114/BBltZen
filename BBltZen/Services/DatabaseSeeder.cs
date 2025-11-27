@@ -79,11 +79,36 @@ namespace BBltZen.Services
 
             var tavoli = new[]
             {
-                new Tavolo { Numero = 1, Zona = "Interno", Disponibile = true },
-                new Tavolo { Numero = 2, Zona = "Interno", Disponibile = true },
-                new Tavolo { Numero = 3, Zona = "Terrazza", Disponibile = false },
-                new Tavolo { Numero = 4, Zona = "Terrazza", Disponibile = true },
-                new Tavolo { Numero = 5, Zona = "Bar", Disponibile = true }
+                new Tavolo
+                {
+                    Numero = 1,
+                    Zona = "Interno",
+                    Disponibile = true
+                },
+                new Tavolo
+                {
+                    Numero = 2,
+                    Zona = "Interno",
+                    Disponibile = true
+                },
+                new Tavolo
+                {
+                    Numero = 3,
+                    Zona = "Terrazza",
+                    Disponibile = false
+                },
+                new Tavolo
+                {
+                    Numero = 4,
+                    Zona = "Terrazza",
+                    Disponibile = true
+                },
+                new Tavolo
+                {
+                    Numero = 5,
+                    Zona = "Bar",
+                    Disponibile = true
+                }
             };
 
             await _context.Tavolo.AddRangeAsync(tavoli);
@@ -95,9 +120,21 @@ namespace BBltZen.Services
 
             var unita = new[]
             {
-                new UnitaDiMisura { Sigla = "ML", Descrizione = "Millilitri" },
-                new UnitaDiMisura { Sigla = "GR", Descrizione = "Grammi" },
-                new UnitaDiMisura { Sigla = "PZ", Descrizione = "Pezzi" }
+                new UnitaDiMisura
+                {
+                    Sigla = "ML",
+                    Descrizione = "Millilitri"
+                },
+                new UnitaDiMisura
+                {
+                    Sigla = "GR",
+                    Descrizione = "Grammi"
+                },
+                new UnitaDiMisura
+                {
+                    Sigla = "PZ",
+                    Descrizione = "Pezzi"
+                }
             };
 
             await _context.UnitaDiMisura.AddRangeAsync(unita);
@@ -109,12 +146,30 @@ namespace BBltZen.Services
 
             var categorie = new[]
             {
-                new CategoriaIngrediente { Categoria = "tea" },
-                new CategoriaIngrediente { Categoria = "latte" },
-                new CategoriaIngrediente { Categoria = "dolcificante" },
-                new CategoriaIngrediente { Categoria = "topping" },
-                new CategoriaIngrediente { Categoria = "aroma" },
-                new CategoriaIngrediente { Categoria = "speciale" }
+                new CategoriaIngrediente
+                {
+                    Categoria = "tea"
+                },
+                new CategoriaIngrediente
+                {
+                    Categoria = "latte"
+                },
+                new CategoriaIngrediente
+                {
+                    Categoria = "dolcificante"
+                },
+                new CategoriaIngrediente
+                {
+                    Categoria = "topping"
+                },
+                new CategoriaIngrediente
+                {
+                    Categoria = "aroma"
+                },
+                new CategoriaIngrediente
+                {
+                    Categoria = "speciale" 
+                }
             };
 
             await _context.CategoriaIngrediente.AddRangeAsync(categorie);
@@ -145,6 +200,215 @@ namespace BBltZen.Services
             await _context.TaxRates.AddRangeAsync(taxRates);
             await _context.SaveChangesAsync();
             Console.WriteLine($"✅ TaxRates seeded - {taxRates.Length} aliquote create");
+        }
+
+        private async Task SeedLogAttivitaAsync()
+        {
+            if (await _context.LogAttivita.AnyAsync()) return;
+
+            try
+            {
+                var utenti = await _context.Utenti.ToListAsync();
+                var utente = utenti.FirstOrDefault();
+
+                var logAttivita = new[]
+                {
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Sistema",
+                        Descrizione = "Avvio applicazione",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-4),
+                        Dettagli = "Sistema avviato correttamente",
+                        UtenteId = null
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Database",
+                        Descrizione = "Pulizia cache",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-3),
+                        Dettagli = "Cache pulita automaticamente",
+                        UtenteId = null
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Ordine",
+                        Descrizione = "Nuovo ordine creato",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-2),
+                        Dettagli = "Ordine #1 creato dal cliente",
+                        UtenteId = utente?.UtenteId
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Ordine",
+                        Descrizione = "Stato ordine aggiornato",
+                        DataEsecuzione = DateTime.UtcNow.AddHours(-1),
+                        Dettagli = "Ordine #1 passato in preparazione",
+                        UtenteId = utente?.UtenteId
+                    },
+                    new LogAttivita
+                    {
+                        TipoAttivita = "Sistema",
+                        Descrizione = "Backup automatico",
+                        DataEsecuzione = DateTime.UtcNow.AddMinutes(-30),
+                        Dettagli = "Backup database completato",
+                        UtenteId = null
+                    }
+                };
+
+                await _context.LogAttivita.AddRangeAsync(logAttivita);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ LogAttivita seeded - {logAttivita.Length} record creati");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedLogAttivitaAsync: {ex.Message}");
+            }
+        }
+
+        private async Task SeedStatiOrdineAsync()
+        {
+            if (await _context.StatoOrdine.AnyAsync()) return;
+
+            var statiOrdine = new[]
+            {
+                // ✅ NUOVI STATI AGGIUNTI
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "bozza",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "in_carrello",
+                    Terminale = false
+                },
+                // ✅ STATI ESISTENTI
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "In Attesa",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "In Preparazione",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "Pronto",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "Completato",
+                    Terminale = true
+                },
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "Annullato",
+                    Terminale = true
+                }
+            };
+
+            await _context.StatoOrdine.AddRangeAsync(statiOrdine);
+            await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
+
+            Console.WriteLine($"✅ StatoOrdine seeded successfully - {statiOrdine.Length} stati creati");
+        }
+
+        private async Task SeedConfigSoglieTempiAsync()
+        {
+            if (await _context.ConfigSoglieTempi.AnyAsync()) return;
+
+            try
+            {
+                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                var statiOrdine = await _context.StatoOrdine.ToListAsync();
+
+                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
+                var statoInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
+                var statoInPreparazione = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Preparazione");
+                var statoPronto = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "Pronto");
+
+                // ✅ Verifica che gli stati esistano
+                if (statoInAttesa == null || statoInPreparazione == null || statoPronto == null)
+                {
+                    Console.WriteLine("⚠️  Stati ordine non trovati per ConfigSoglieTempi");
+                    return;
+                }
+
+                var soglieTempi = new[]
+                {
+                    new ConfigSoglieTempi
+                    {
+                        StatoOrdineId = statoInAttesa.StatoOrdineId,
+                        SogliaAttenzione = 5,    // minuti
+                        SogliaCritico = 10,      // minuti
+                        DataAggiornamento = DateTime.UtcNow,
+                        UtenteAggiornamento = "system"
+                    },
+                    new ConfigSoglieTempi
+                    {
+                        StatoOrdineId = statoInPreparazione.StatoOrdineId,
+                        SogliaAttenzione = 10,   // minuti
+                        SogliaCritico = 20,      // minuti
+                        DataAggiornamento = DateTime.UtcNow,
+                        UtenteAggiornamento = "system"
+                    },
+                    new ConfigSoglieTempi
+                    {
+                        StatoOrdineId = statoPronto.StatoOrdineId,
+                        SogliaAttenzione = 5,    // minuti
+                        SogliaCritico = 15,      // minuti
+                        DataAggiornamento = DateTime.UtcNow,
+                        UtenteAggiornamento = "system"
+                    }
+                };
+
+                await _context.ConfigSoglieTempi.AddRangeAsync(soglieTempi);
+                Console.WriteLine("✅ ConfigSoglieTempi seeded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedConfigSoglieTempiAsync: {ex.Message}");
+                // Continua senza bloccare tutto il seeding
+            }
+        }
+
+        private async Task SeedStatiPagamentoAsync()
+        {
+            if (await _context.StatoPagamento.AnyAsync()) return;
+
+            var statiPagamento = new[]
+            {
+                // ✅ NUOVO STATO AGGIUNTO
+                new StatoPagamento
+                {
+                    StatoPagamento1 = "non_richiesto"
+                },
+                // ✅ STATI ESISTENTI
+                new StatoPagamento
+                {
+                    StatoPagamento1 = "Pending"
+                },
+                new StatoPagamento
+                {
+                    StatoPagamento1 = "Pagato"
+                },
+                new StatoPagamento
+                {
+                    StatoPagamento1 = "Fallito"
+                },
+                new StatoPagamento
+                {
+                    StatoPagamento1 = "Rimborsato"
+                }
+            };
+
+            await _context.StatoPagamento.AddRangeAsync(statiPagamento);
+            await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
+
+            Console.WriteLine($"✅ StatoPagamento seeded successfully - {statiPagamento.Length} stati creati");
         }
 
         private async Task SeedIngredientiAsync()
@@ -798,6 +1062,136 @@ namespace BBltZen.Services
             }
         }
 
+        private async Task SeedSessioniQrAsync()
+        {
+            if (await _context.SessioniQr.AnyAsync()) return;
+
+            try
+            {
+                var tavoli = await _context.Tavolo.ToListAsync();
+                var clienti = await _context.Cliente.ToListAsync();
+
+                var tavolo = tavoli.FirstOrDefault();
+                var cliente = clienti.FirstOrDefault();
+
+                if (tavolo == null)
+                {
+                    Console.WriteLine("⚠️  Nessun tavolo trovato per SessioniQr");
+                    return;
+                }
+
+                var sessioniQr = new[]
+                {
+                    new SessioniQr
+                    {
+                        SessioneId = Guid.NewGuid(),
+                        ClienteId = cliente?.ClienteId,
+                        QrCode = $"QR_{Guid.NewGuid()}",
+                        DataCreazione = DateTime.UtcNow,
+                        DataScadenza = DateTime.UtcNow.AddHours(2),
+                        Utilizzato = true,
+                        DataUtilizzo = DateTime.UtcNow.AddMinutes(5),
+                        TavoloId = tavolo.TavoloId,
+                        CodiceSessione = $"SESS_{DateTime.UtcNow:yyyyMMddHHmmss}",
+                        Stato = "Completata"
+                    },
+                    new SessioniQr
+                    {
+                        SessioneId = Guid.NewGuid(),
+                        ClienteId = null,
+                        QrCode = $"QR_{Guid.NewGuid()}",
+                        DataCreazione = DateTime.UtcNow,
+                        DataScadenza = DateTime.UtcNow.AddHours(1),
+                        Utilizzato = false,
+                        DataUtilizzo = null,
+                        TavoloId = tavolo.TavoloId,
+                        CodiceSessione = $"SESS_{DateTime.UtcNow.AddMinutes(1):yyyyMMddHHmmss}",
+                        Stato = "Attiva"
+                    }
+                };
+
+                await _context.SessioniQr.AddRangeAsync(sessioniQr);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ SessioniQr seeded - {sessioniQr.Length} sessioni create");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedSessioniQrAsync: {ex.Message}");
+            }
+        }
+
+        private async Task SeedPreferitiClienteAsync()
+        {
+            if (await _context.PreferitiCliente.AnyAsync()) return;
+
+            try
+            {
+                var clienti = await _context.Cliente.ToListAsync();
+                var bevandeStandard = await _context.BevandaStandard.ToListAsync();
+                var dimensioniBicchiere = await _context.DimensioneBicchiere.ToListAsync();
+
+                // ✅ CORREZIONE: Controllo conteggio invece di FirstOrDefault con condizioni
+                if (clienti.Count < 1 || bevandeStandard.Count < 2 || dimensioniBicchiere.Count < 1)
+                {
+                    Console.WriteLine("⚠️  Clienti, BevandeStandard o Dimensioni insufficienti per PreferitiCliente");
+                    return;
+                }
+
+                var cliente = clienti[0]; // ✅ Accesso per indice
+                var bevanda1 = bevandeStandard[0]; // ✅ Prima bevanda
+                var bevanda2 = bevandeStandard[1]; // ✅ Seconda bevanda  
+                var dimensioneDefault = dimensioniBicchiere[0]; // ✅ Accesso per indice
+
+                var preferiti = new[]
+                {
+                    new PreferitiCliente
+                    {
+                        ClienteId = cliente.ClienteId,
+                        BevandaId = bevanda1.ArticoloId,
+                        DataAggiunta = DateTime.UtcNow.AddDays(-7),
+                        TipoArticolo = "BS",
+                        NomePersonalizzato = "Il mio Bubble Tea Classico",
+                        GradoDolcezza = 2,
+                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
+                        IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte\", \"tapioca\", \"zucchero di canna\"]}",
+                        NotePersonali = "Preferito con poco ghiaccio"
+                    },
+                    new PreferitiCliente
+                    {
+                        ClienteId = cliente.ClienteId,
+                        BevandaId = bevanda2.ArticoloId,
+                        DataAggiunta = DateTime.UtcNow.AddDays(-3),
+                        TipoArticolo = "BS",
+                        NomePersonalizzato = "Bubble Tea Fruttato Estivo",
+                        GradoDolcezza = 3,
+                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
+                        IngredientiJson = "{\"ingredienti\": [\"tè verde\", \"mango\", \"frutto della passione\", \"tapioca arcobaleno\"]}",
+                        NotePersonali = "Perfetto per l'estate, con extra frutta"
+                    },
+                    new PreferitiCliente
+                    {
+                        ClienteId = cliente.ClienteId,
+                        BevandaId = bevanda1.ArticoloId,
+                        DataAggiunta = DateTime.UtcNow.AddDays(-1),
+                        TipoArticolo = "BS",
+                        NomePersonalizzato = "Bubble Tea Light",
+                        GradoDolcezza = 1,
+                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
+                        IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte di mandorla\", \"tapioca\", \"stevia\"]}",
+                        NotePersonali = "Versione light senza zucchero aggiunto"
+                    }
+                };
+
+                await _context.PreferitiCliente.AddRangeAsync(preferiti);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ PreferitiCliente seeded - {preferiti.Length} preferiti creati");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedPreferitiClienteAsync: {ex.Message}");
+            }
+        }
+
         private async Task SeedUtentiAsync()
         {
             if (await _context.Utenti.AnyAsync()) return;
@@ -843,91 +1237,73 @@ namespace BBltZen.Services
             Console.WriteLine($"✅ Utenti seeded - {utenti.Length} utenti creati");
         }
 
-        private async Task SeedStatiOrdineAsync()
+        private async Task SeedLogAccessiAsync()
         {
-            if (await _context.StatoOrdine.AnyAsync()) return;
+            if (await _context.LogAccessi.AnyAsync()) return;
 
-            var statiOrdine = new[]
+            try
             {
-                // ✅ NUOVI STATI AGGIUNTI
-                new StatoOrdine
+                var utenti = await _context.Utenti.ToListAsync();
+                var clienti = await _context.Cliente.ToListAsync();
+
+                var utente = utenti.FirstOrDefault();
+                var cliente = clienti.FirstOrDefault();
+
+                if (utente == null)
                 {
-                    StatoOrdine1 = "bozza",
-                    Terminale = false
-                },
-                new StatoOrdine
-                {
-                    StatoOrdine1 = "in_carrello",
-                    Terminale = false
-                },
-                // ✅ STATI ESISTENTI
-                new StatoOrdine
-                {
-                    StatoOrdine1 = "In Attesa",
-                    Terminale = false
-                },
-                new StatoOrdine
-                {
-                    StatoOrdine1 = "In Preparazione",
-                    Terminale = false
-                },
-                new StatoOrdine
-                {
-                    StatoOrdine1 = "Pronto",
-                    Terminale = false
-                },
-                new StatoOrdine
-                {
-                    StatoOrdine1 = "Completato",
-                    Terminale = true
-                },
-                new StatoOrdine
-                {
-                    StatoOrdine1 = "Annullato",
-                    Terminale = true
+                    Console.WriteLine("⚠️  Utente non trovato per LogAccessi");
+                    return;
                 }
-            };
 
-            await _context.StatoOrdine.AddRangeAsync(statiOrdine);
-            await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
+                var logAccessi = new List<LogAccessi>
+                {
+                    new LogAccessi
+                    {
+                        UtenteId = utente.UtenteId,
+                        ClienteId = null,
+                        TipoAccesso = "Login",
+                        Esito = "Successo",
+                        IpAddress = "192.168.1.100",
+                        UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        DataCreazione = DateTime.UtcNow.AddHours(-3),
+                        Dettagli = "Accesso amministratore al sistema"
+                    },
+                    new LogAccessi
+                    {
+                        UtenteId = utente.UtenteId,
+                        ClienteId = null,
+                        TipoAccesso = "Accesso API",
+                        Esito = "Fallito",
+                        IpAddress = "192.168.1.200",
+                        UserAgent = "PostmanRuntime/7.32.0",
+                        DataCreazione = DateTime.UtcNow.AddHours(-1),
+                        Dettagli = "Tentativo di accesso con token scaduto"
+                    }
+                };
 
-            Console.WriteLine($"✅ StatoOrdine seeded successfully - {statiOrdine.Length} stati creati");
-        }
+                if (cliente != null)
+                {
+                    logAccessi.Add(new LogAccessi
+                    {
+                        UtenteId = null,
+                        ClienteId = cliente.ClienteId,
+                        TipoAccesso = "Registrazione",
+                        Esito = "Successo",
+                        IpAddress = "192.168.1.150",
+                        UserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)",
+                        DataCreazione = DateTime.UtcNow.AddHours(-2),
+                        Dettagli = "Nuovo cliente registrato tramite QR code"
+                    });
+                }
 
-        private async Task SeedStatiPagamentoAsync()
-        {
-            if (await _context.StatoPagamento.AnyAsync()) return;
-
-            var statiPagamento = new[]
+                await _context.LogAccessi.AddRangeAsync(logAccessi);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ LogAccessi seeded - {logAccessi.Count} record creati");
+            }
+            catch (Exception ex)
             {
-                // ✅ NUOVO STATO AGGIUNTO
-                new StatoPagamento
-                {
-                    StatoPagamento1 = "non_richiesto"
-                },
-                // ✅ STATI ESISTENTI
-                new StatoPagamento
-                {
-                    StatoPagamento1 = "Pending"
-                },
-                new StatoPagamento
-                {
-                    StatoPagamento1 = "Pagato"
-                },
-                new StatoPagamento
-                {
-                    StatoPagamento1 = "Fallito"
-                },
-                new StatoPagamento
-                {
-                    StatoPagamento1 = "Rimborsato"
-                }
-            };
-
-            await _context.StatoPagamento.AddRangeAsync(statiPagamento);
-            await _context.SaveChangesAsync(); // ✅ AGGIUNTO SaveChangesAsync
-
-            Console.WriteLine($"✅ StatoPagamento seeded successfully - {statiPagamento.Length} stati creati");
+                Console.WriteLine($"⚠️  Errore in SeedLogAccessiAsync: {ex.Message}");
+            }
         }
 
         private async Task SeedOrdiniAsync()
@@ -1004,6 +1380,126 @@ namespace BBltZen.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedOrdiniAsync: {ex.Message}");
+            }
+        }
+
+        private async Task SeedNotificheOperativeAsync()
+        {
+            if (await _context.NotificheOperative.AnyAsync()) return;
+
+            var notifiche = new[]
+            {
+                new NotificheOperative
+                {
+                    DataCreazione = DateTime.UtcNow.AddHours(-2),
+                    OrdiniCoinvolti = "1,2",
+                    Messaggio = "Ordini in attesa da più di 1 ora",
+                    Stato = "Attiva",
+                    DataGestione = null,
+                    UtenteGestione = null,
+                    Priorita = 2,
+                    TipoNotifica = "RitardoOrdine"
+                },
+                new NotificheOperative
+                {
+                    DataCreazione = DateTime.UtcNow.AddHours(-1),
+                    OrdiniCoinvolti = "1",
+                    Messaggio = "Ingrediente 'Perle di tapioca' in esaurimento",
+                    Stato = "Risolta",
+                    DataGestione = DateTime.UtcNow.AddMinutes(-30),
+                    UtenteGestione = "gestore",
+                    Priorita = 1,
+                    TipoNotifica = "ScortaIngrediente"
+                },
+                new NotificheOperative
+                {
+                    DataCreazione = DateTime.UtcNow.AddMinutes(-15),
+                    OrdiniCoinvolti = "",
+                    Messaggio = "Sistema di pagamento temporaneamente non disponibile",
+                    Stato = "Attiva",
+                    DataGestione = null,
+                    UtenteGestione = null,
+                    Priorita = 3,
+                    TipoNotifica = "SistemaPagamento"
+                },
+                new NotificheOperative
+                {
+                    DataCreazione = DateTime.UtcNow.AddMinutes(-5),
+                    OrdiniCoinvolti = "2",
+                    Messaggio = "Ordine #2 pronto per la consegna",
+                    Stato = "Attiva",
+                    DataGestione = null,
+                    UtenteGestione = null,
+                    Priorita = 2,
+                    TipoNotifica = "OrdinePronto"
+                }
+            };
+
+            await _context.NotificheOperative.AddRangeAsync(notifiche);
+            await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ NotificheOperative seeded - {notifiche.Length} notifiche create");
+        }
+
+        private async Task SeedStatoStoricoOrdiniAsync()
+        {
+            if (await _context.StatoStoricoOrdine.AnyAsync()) return;
+
+            try
+            {
+                var ordini = await _context.Ordine.ToListAsync();
+                var statiOrdine = await _context.StatoOrdine.ToListAsync();
+
+                if (ordini.Count < 2 || statiOrdine.Count < 3)
+                {
+                    Console.WriteLine("⚠️  Ordini o stati insufficienti per StatoStoricoOrdine");
+                    return;
+                }
+
+                var ordine1 = ordini[0];
+                var ordine2 = ordini[1];
+
+                // ✅ CORREZIONE: Prendi i primi 3 stati invece di cercare per nome
+                var stato1 = statiOrdine[0]; // Primo stato (es. "bozza")
+                var stato2 = statiOrdine[1]; // Secondo stato (es. "in_carrello")  
+                var stato3 = statiOrdine[2]; // Terzo stato (es. "In Attesa")
+
+                var storicoOrdini = new[]
+                {
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        StatoOrdineId = stato1.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddHours(-2),
+                        Fine = DateTime.UtcNow.AddHours(-1)
+                    },
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        StatoOrdineId = stato2.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddHours(-1),
+                        Fine = DateTime.UtcNow.AddMinutes(-30)
+                    },
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine1.OrdineId,
+                        StatoOrdineId = stato3.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddMinutes(-30)
+                    },
+                    new StatoStoricoOrdine
+                    {
+                        OrdineId = ordine2.OrdineId,
+                        StatoOrdineId = stato1.StatoOrdineId,
+                        Inizio = DateTime.UtcNow.AddHours(-1)
+                    }
+                };
+
+                await _context.StatoStoricoOrdine.AddRangeAsync(storicoOrdini);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"✅ StatoStoricoOrdine seeded - {storicoOrdini.Length} record creati");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️  Errore in SeedStatoStoricoOrdiniAsync: {ex.Message}");
             }
         }
 
@@ -1124,448 +1620,7 @@ namespace BBltZen.Services
                 Console.WriteLine($"⚠️  Errore in SeedOrderItemsAsync: {ex.Message}");
                 // Continua senza bloccare tutto il seeding
             }
-        }
-
-        private async Task SeedConfigSoglieTempiAsync()
-        {
-            if (await _context.ConfigSoglieTempi.AnyAsync()) return;
-
-            try
-            {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
-                var statiOrdine = await _context.StatoOrdine.ToListAsync();
-
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var statoInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
-                var statoInPreparazione = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Preparazione");
-                var statoPronto = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "Pronto");
-
-                // ✅ Verifica che gli stati esistano
-                if (statoInAttesa == null || statoInPreparazione == null || statoPronto == null)
-                {
-                    Console.WriteLine("⚠️  Stati ordine non trovati per ConfigSoglieTempi");
-                    return;
-                }
-
-                var soglieTempi = new[]
-                {
-                    new ConfigSoglieTempi
-                    {
-                        StatoOrdineId = statoInAttesa.StatoOrdineId,
-                        SogliaAttenzione = 5,    // minuti
-                        SogliaCritico = 10,      // minuti
-                        DataAggiornamento = DateTime.UtcNow,
-                        UtenteAggiornamento = "system"
-                    },
-                    new ConfigSoglieTempi
-                    {
-                        StatoOrdineId = statoInPreparazione.StatoOrdineId,
-                        SogliaAttenzione = 10,   // minuti
-                        SogliaCritico = 20,      // minuti
-                        DataAggiornamento = DateTime.UtcNow,
-                        UtenteAggiornamento = "system"
-                    },
-                    new ConfigSoglieTempi
-                    {
-                        StatoOrdineId = statoPronto.StatoOrdineId,
-                        SogliaAttenzione = 5,    // minuti
-                        SogliaCritico = 15,      // minuti
-                        DataAggiornamento = DateTime.UtcNow,
-                        UtenteAggiornamento = "system"
-                    }
-                };
-
-                await _context.ConfigSoglieTempi.AddRangeAsync(soglieTempi);
-                Console.WriteLine("✅ ConfigSoglieTempi seeded successfully");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Errore in SeedConfigSoglieTempiAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
-            }
-        }
-
-        private async Task SeedStatoStoricoOrdiniAsync()
-        {
-            if (await _context.StatoStoricoOrdine.AnyAsync()) return;
-
-            try
-            {
-                var ordini = await _context.Ordine.ToListAsync();
-                var statiOrdine = await _context.StatoOrdine.ToListAsync();
-
-                if (ordini.Count < 2 || statiOrdine.Count < 3)
-                {
-                    Console.WriteLine("⚠️  Ordini o stati insufficienti per StatoStoricoOrdine");
-                    return;
-                }
-
-                var ordine1 = ordini[0];
-                var ordine2 = ordini[1];
-
-                // ✅ CORREZIONE: Prendi i primi 3 stati invece di cercare per nome
-                var stato1 = statiOrdine[0]; // Primo stato (es. "bozza")
-                var stato2 = statiOrdine[1]; // Secondo stato (es. "in_carrello")  
-                var stato3 = statiOrdine[2]; // Terzo stato (es. "In Attesa")
-
-                var storicoOrdini = new[]
-                {
-                    new StatoStoricoOrdine
-                    {
-                        OrdineId = ordine1.OrdineId,
-                        StatoOrdineId = stato1.StatoOrdineId,
-                        Inizio = DateTime.UtcNow.AddHours(-2),
-                        Fine = DateTime.UtcNow.AddHours(-1)
-                    },
-                    new StatoStoricoOrdine
-                    {
-                        OrdineId = ordine1.OrdineId,
-                        StatoOrdineId = stato2.StatoOrdineId,
-                        Inizio = DateTime.UtcNow.AddHours(-1),
-                        Fine = DateTime.UtcNow.AddMinutes(-30)
-                    },
-                    new StatoStoricoOrdine
-                    {
-                        OrdineId = ordine1.OrdineId,
-                        StatoOrdineId = stato3.StatoOrdineId,
-                        Inizio = DateTime.UtcNow.AddMinutes(-30)
-                    },
-                    new StatoStoricoOrdine
-                    {
-                        OrdineId = ordine2.OrdineId,
-                        StatoOrdineId = stato1.StatoOrdineId,
-                        Inizio = DateTime.UtcNow.AddHours(-1)
-                    }
-                };
-
-                await _context.StatoStoricoOrdine.AddRangeAsync(storicoOrdini);
-                await _context.SaveChangesAsync();
-                Console.WriteLine($"✅ StatoStoricoOrdine seeded - {storicoOrdini.Length} record creati");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Errore in SeedStatoStoricoOrdiniAsync: {ex.Message}");
-            }
-        }
-
-        private async Task SeedPreferitiClienteAsync()
-        {
-            if (await _context.PreferitiCliente.AnyAsync()) return;
-
-            try
-            {
-                var clienti = await _context.Cliente.ToListAsync();
-                var bevandeStandard = await _context.BevandaStandard.ToListAsync();
-                var dimensioniBicchiere = await _context.DimensioneBicchiere.ToListAsync();
-
-                // ✅ CORREZIONE: Controllo conteggio invece di FirstOrDefault con condizioni
-                if (clienti.Count < 1 || bevandeStandard.Count < 2 || dimensioniBicchiere.Count < 1)
-                {
-                    Console.WriteLine("⚠️  Clienti, BevandeStandard o Dimensioni insufficienti per PreferitiCliente");
-                    return;
-                }
-
-                var cliente = clienti[0]; // ✅ Accesso per indice
-                var bevanda1 = bevandeStandard[0]; // ✅ Prima bevanda
-                var bevanda2 = bevandeStandard[1]; // ✅ Seconda bevanda  
-                var dimensioneDefault = dimensioniBicchiere[0]; // ✅ Accesso per indice
-
-                var preferiti = new[]
-                {
-                    new PreferitiCliente
-                    {
-                        ClienteId = cliente.ClienteId,
-                        BevandaId = bevanda1.ArticoloId,
-                        DataAggiunta = DateTime.UtcNow.AddDays(-7),
-                        TipoArticolo = "BS",
-                        NomePersonalizzato = "Il mio Bubble Tea Classico",
-                        GradoDolcezza = 2,
-                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
-                        IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte\", \"tapioca\", \"zucchero di canna\"]}",
-                        NotePersonali = "Preferito con poco ghiaccio"
-                    },
-                    new PreferitiCliente
-                    {
-                        ClienteId = cliente.ClienteId,
-                        BevandaId = bevanda2.ArticoloId,
-                        DataAggiunta = DateTime.UtcNow.AddDays(-3),
-                        TipoArticolo = "BS",
-                        NomePersonalizzato = "Bubble Tea Fruttato Estivo",
-                        GradoDolcezza = 3,
-                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
-                        IngredientiJson = "{\"ingredienti\": [\"tè verde\", \"mango\", \"frutto della passione\", \"tapioca arcobaleno\"]}",
-                        NotePersonali = "Perfetto per l'estate, con extra frutta"
-                    },
-                    new PreferitiCliente
-                    {
-                        ClienteId = cliente.ClienteId,
-                        BevandaId = bevanda1.ArticoloId,
-                        DataAggiunta = DateTime.UtcNow.AddDays(-1),
-                        TipoArticolo = "BS",
-                        NomePersonalizzato = "Bubble Tea Light",
-                        GradoDolcezza = 1,
-                        DimensioneBicchiereId = dimensioneDefault.DimensioneBicchiereId,
-                        IngredientiJson = "{\"ingredienti\": [\"tè nero\", \"latte di mandorla\", \"tapioca\", \"stevia\"]}",
-                        NotePersonali = "Versione light senza zucchero aggiunto"
-                    }
-                };
-
-                await _context.PreferitiCliente.AddRangeAsync(preferiti);
-                await _context.SaveChangesAsync();
-                Console.WriteLine($"✅ PreferitiCliente seeded - {preferiti.Length} preferiti creati");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Errore in SeedPreferitiClienteAsync: {ex.Message}");
-            }
-        }
-
-        private async Task SeedSessioniQrAsync()
-        {
-            if (await _context.SessioniQr.AnyAsync()) return;
-
-            try
-            {
-                var tavoli = await _context.Tavolo.ToListAsync();
-                var clienti = await _context.Cliente.ToListAsync();
-
-                var tavolo = tavoli.FirstOrDefault();
-                var cliente = clienti.FirstOrDefault();
-
-                if (tavolo == null)
-                {
-                    Console.WriteLine("⚠️  Nessun tavolo trovato per SessioniQr");
-                    return;
-                }
-
-                var sessioniQr = new[]
-                {
-                    new SessioniQr
-                    {
-                        SessioneId = Guid.NewGuid(),
-                        ClienteId = cliente?.ClienteId,
-                        QrCode = $"QR_{Guid.NewGuid()}",
-                        DataCreazione = DateTime.UtcNow,
-                        DataScadenza = DateTime.UtcNow.AddHours(2),
-                        Utilizzato = true,
-                        DataUtilizzo = DateTime.UtcNow.AddMinutes(5),
-                        TavoloId = tavolo.TavoloId,
-                        CodiceSessione = $"SESS_{DateTime.UtcNow:yyyyMMddHHmmss}",
-                        Stato = "Completata"
-                    },
-                    new SessioniQr
-                    {
-                        SessioneId = Guid.NewGuid(),
-                        ClienteId = null,
-                        QrCode = $"QR_{Guid.NewGuid()}",
-                        DataCreazione = DateTime.UtcNow,
-                        DataScadenza = DateTime.UtcNow.AddHours(1),
-                        Utilizzato = false,
-                        DataUtilizzo = null,
-                        TavoloId = tavolo.TavoloId,
-                        CodiceSessione = $"SESS_{DateTime.UtcNow.AddMinutes(1):yyyyMMddHHmmss}",
-                        Stato = "Attiva"
-                    }
-                };
-
-                await _context.SessioniQr.AddRangeAsync(sessioniQr);
-                await _context.SaveChangesAsync();
-                Console.WriteLine($"✅ SessioniQr seeded - {sessioniQr.Length} sessioni create");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Errore in SeedSessioniQrAsync: {ex.Message}");
-            }
-        }
-
-        private async Task SeedLogAccessiAsync()
-        {
-            if (await _context.LogAccessi.AnyAsync()) return;
-
-            try
-            {
-                var utenti = await _context.Utenti.ToListAsync();
-                var clienti = await _context.Cliente.ToListAsync();
-
-                var utente = utenti.FirstOrDefault();
-                var cliente = clienti.FirstOrDefault();
-
-                if (utente == null)
-                {
-                    Console.WriteLine("⚠️  Utente non trovato per LogAccessi");
-                    return;
-                }
-
-                var logAccessi = new List<LogAccessi>
-                {
-                    new LogAccessi
-                    {
-                        UtenteId = utente.UtenteId,
-                        ClienteId = null,
-                        TipoAccesso = "Login",
-                        Esito = "Successo",
-                        IpAddress = "192.168.1.100",
-                        UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                        DataCreazione = DateTime.UtcNow.AddHours(-3),
-                        Dettagli = "Accesso amministratore al sistema"
-                    },
-                    new LogAccessi
-                    {
-                        UtenteId = utente.UtenteId,
-                        ClienteId = null,
-                        TipoAccesso = "Accesso API",
-                        Esito = "Fallito",
-                        IpAddress = "192.168.1.200",
-                        UserAgent = "PostmanRuntime/7.32.0",
-                        DataCreazione = DateTime.UtcNow.AddHours(-1),
-                        Dettagli = "Tentativo di accesso con token scaduto"
-                    }
-                };
-
-                if (cliente != null)
-                {
-                    logAccessi.Add(new LogAccessi
-                    {
-                        UtenteId = null,
-                        ClienteId = cliente.ClienteId,
-                        TipoAccesso = "Registrazione",
-                        Esito = "Successo",
-                        IpAddress = "192.168.1.150",
-                        UserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)",
-                        DataCreazione = DateTime.UtcNow.AddHours(-2),
-                        Dettagli = "Nuovo cliente registrato tramite QR code"
-                    });
-                }
-
-                await _context.LogAccessi.AddRangeAsync(logAccessi);
-                await _context.SaveChangesAsync();
-                Console.WriteLine($"✅ LogAccessi seeded - {logAccessi.Count} record creati");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Errore in SeedLogAccessiAsync: {ex.Message}");
-            }
-        }
-
-        private async Task SeedLogAttivitaAsync()
-        {
-            if (await _context.LogAttivita.AnyAsync()) return;
-
-            try
-            {
-                var utenti = await _context.Utenti.ToListAsync();
-                var utente = utenti.FirstOrDefault();
-
-                var logAttivita = new[]
-                {
-                    new LogAttivita
-                    {
-                        TipoAttivita = "Sistema",
-                        Descrizione = "Avvio applicazione",
-                        DataEsecuzione = DateTime.UtcNow.AddHours(-4),
-                        Dettagli = "Sistema avviato correttamente",
-                        UtenteId = null
-                    },
-                    new LogAttivita
-                    {
-                        TipoAttivita = "Database",
-                        Descrizione = "Pulizia cache",
-                        DataEsecuzione = DateTime.UtcNow.AddHours(-3),
-                        Dettagli = "Cache pulita automaticamente",
-                        UtenteId = null
-                    },
-                    new LogAttivita
-                    {
-                        TipoAttivita = "Ordine",
-                        Descrizione = "Nuovo ordine creato",
-                        DataEsecuzione = DateTime.UtcNow.AddHours(-2),
-                        Dettagli = "Ordine #1 creato dal cliente",
-                        UtenteId = utente?.UtenteId
-                    },
-                    new LogAttivita
-                    {
-                        TipoAttivita = "Ordine",
-                        Descrizione = "Stato ordine aggiornato",
-                        DataEsecuzione = DateTime.UtcNow.AddHours(-1),
-                        Dettagli = "Ordine #1 passato in preparazione",
-                        UtenteId = utente?.UtenteId
-                    },
-                    new LogAttivita
-                    {
-                        TipoAttivita = "Sistema",
-                        Descrizione = "Backup automatico",
-                        DataEsecuzione = DateTime.UtcNow.AddMinutes(-30),
-                        Dettagli = "Backup database completato",
-                        UtenteId = null
-                    }
-                };
-
-                await _context.LogAttivita.AddRangeAsync(logAttivita);
-                await _context.SaveChangesAsync();
-                Console.WriteLine($"✅ LogAttivita seeded - {logAttivita.Length} record creati");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Errore in SeedLogAttivitaAsync: {ex.Message}");
-            }
-        }
-
-        private async Task SeedNotificheOperativeAsync()
-        {
-            if (await _context.NotificheOperative.AnyAsync()) return;
-
-            var notifiche = new[]
-            {
-                new NotificheOperative
-                {
-                    DataCreazione = DateTime.UtcNow.AddHours(-2),
-                    OrdiniCoinvolti = "1,2",
-                    Messaggio = "Ordini in attesa da più di 1 ora",
-                    Stato = "Attiva",
-                    DataGestione = null,
-                    UtenteGestione = null,
-                    Priorita = 2,
-                    TipoNotifica = "RitardoOrdine"
-                },
-                new NotificheOperative
-                {
-                    DataCreazione = DateTime.UtcNow.AddHours(-1),
-                    OrdiniCoinvolti = "1",
-                    Messaggio = "Ingrediente 'Perle di tapioca' in esaurimento",
-                    Stato = "Risolta",
-                    DataGestione = DateTime.UtcNow.AddMinutes(-30),
-                    UtenteGestione = "gestore",
-                    Priorita = 1,
-                    TipoNotifica = "ScortaIngrediente"
-                },
-                new NotificheOperative
-                {
-                    DataCreazione = DateTime.UtcNow.AddMinutes(-15),
-                    OrdiniCoinvolti = "",
-                    Messaggio = "Sistema di pagamento temporaneamente non disponibile",
-                    Stato = "Attiva",
-                    DataGestione = null,
-                    UtenteGestione = null,
-                    Priorita = 3,
-                    TipoNotifica = "SistemaPagamento"
-                },
-                new NotificheOperative
-                {
-                    DataCreazione = DateTime.UtcNow.AddMinutes(-5),
-                    OrdiniCoinvolti = "2",
-                    Messaggio = "Ordine #2 pronto per la consegna",
-                    Stato = "Attiva",
-                    DataGestione = null,
-                    UtenteGestione = null,
-                    Priorita = 2,
-                    TipoNotifica = "OrdinePronto"
-                }
-            };
-
-            await _context.NotificheOperative.AddRangeAsync(notifiche);
-            await _context.SaveChangesAsync();
-            Console.WriteLine($"✅ NotificheOperative seeded - {notifiche.Length} notifiche create");
-        }
+        }                
 
         private async Task SeedStatisticheCacheAsync()
         {
