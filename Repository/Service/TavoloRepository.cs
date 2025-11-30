@@ -2,6 +2,7 @@
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
+using Repository.Service.Helper;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -38,61 +39,149 @@ namespace Repository.Service
 
         private static string FormatZona(string zona) => string.IsNullOrEmpty(zona) ? "" : zona.ToUpper();
 
-        // ✅ METODI CRUD ESISTENTI
-        public async Task<IEnumerable<TavoloDTO>> GetAllAsync()
+        // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
+        public async Task<PaginatedResponseDTO<TavoloDTO>> GetAllAsync(int page = 1, int pageSize = 10)
         {
-            return await _context.Tavolo
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
+
+            var query = _context.Tavolo
                 .AsNoTracking()
-                .OrderBy(t => t.Numero)
+                .OrderBy(t => t.Numero);
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip(skip)
+                .Take(safePageSize)
                 .Select(t => MapToDTO(t))
                 .ToListAsync();
+
+            return new PaginatedResponseDTO<TavoloDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
+            };
         }
 
-        public async Task<TavoloDTO?> GetByIdAsync(int tavoloId)
+        public async Task<TavoloDTO?> GetByIdAsync(int? tavoloId = null)
         {
+            // ✅ SE NULL, RESTITUISCE NULL (il controller gestirà il caso)
+            if (!tavoloId.HasValue)
+                return null;
+
+            // ✅ VALIDAZIONE SICUREZZA
+            if (tavoloId <= 0)
+                return null;
+
             var tavolo = await _context.Tavolo
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
+                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId.Value);
 
             return tavolo == null ? null : MapToDTO(tavolo);
         }
 
-        public async Task<TavoloDTO?> GetByNumeroAsync(int numero)
+        public async Task<TavoloDTO?> GetByNumeroAsync(int? numero = null)
         {
+            // ✅ SE NULL, RESTITUISCE NULL (il controller gestirà il caso)
+            if (!numero.HasValue)
+                return null;
+
+            // ✅ VALIDAZIONE SICUREZZA
+            if (numero <= 0)
+                return null;
+
             var tavolo = await _context.Tavolo
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Numero == numero);
+                .FirstOrDefaultAsync(t => t.Numero == numero.Value);
 
             return tavolo == null ? null : MapToDTO(tavolo);
         }
 
-        public async Task<IEnumerable<TavoloDTO>> GetDisponibiliAsync()
+        // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
+        public async Task<PaginatedResponseDTO<TavoloDTO>> GetDisponibiliAsync(int page = 1, int pageSize = 10)
         {
-            return await _context.Tavolo
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
+
+            var query = _context.Tavolo
                 .AsNoTracking()
                 .Where(t => t.Disponibile)
-                .OrderBy(t => t.Numero)
+                .OrderBy(t => t.Numero);
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip(skip)
+                .Take(safePageSize)
                 .Select(t => MapToDTO(t))
                 .ToListAsync();
+
+            return new PaginatedResponseDTO<TavoloDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
+            };
         }
 
-        public async Task<IEnumerable<TavoloDTO>> GetByZonaAsync(string zona)
+        // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
+        public async Task<PaginatedResponseDTO<TavoloDTO>> GetByZonaAsync(string? zona = null, int page = 1, int pageSize = 10)
         {
-            return await _context.Tavolo
-                .AsNoTracking()
-                .Where(t => t.Zona == zona)
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
+
+            // ✅ VALIDAZIONE SICUREZZA INPUT
+            if (!SecurityHelper.IsValidInput(zona))
+                return new PaginatedResponseDTO<TavoloDTO> { Message = "Input non valido" };
+
+            var query = _context.Tavolo.AsQueryable();
+
+            // ✅ FILTRA SOLO SE ZONA SPECIFICATA - USA STRINGHELPER
+            if (!string.IsNullOrWhiteSpace(zona))
+            {
+                var normalizedZona = StringHelper.NormalizeSearchTerm(zona);
+                query = query.Where(t => t.Zona != null &&
+                       StringHelper.StartsWithCaseInsensitive(t.Zona, normalizedZona));
+            }
+
+            var totalCount = await query.CountAsync();
+            var items = await query
                 .OrderBy(t => t.Numero)
+                .Skip(skip)
+                .Take(safePageSize)
                 .Select(t => MapToDTO(t))
                 .ToListAsync();
+
+            return new PaginatedResponseDTO<TavoloDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
+            };
         }
 
         public async Task<TavoloDTO> AddAsync(TavoloDTO tavoloDto)
         {
-            if (tavoloDto == null)
-                throw new ArgumentNullException(nameof(tavoloDto));
+            ArgumentNullException.ThrowIfNull(tavoloDto);
+
+            // ✅ VALIDAZIONE SICUREZZA
+            if (tavoloDto.Numero <= 0)
+            {
+                throw new ArgumentException("Numero tavolo non valido");
+            }
+
+            if (!SecurityHelper.IsValidInput(tavoloDto.Zona))
+            {
+                throw new ArgumentException("Zona non valida");
+            }
 
             if (await NumeroExistsAsync(tavoloDto.Numero))
+            {
                 throw new ArgumentException($"Esiste già un tavolo con numero {tavoloDto.Numero}");
+            }
 
             var tavolo = new Tavolo
             {
@@ -114,10 +203,14 @@ namespace Repository.Service
                 .FirstOrDefaultAsync(t => t.TavoloId == tavoloDto.TavoloId);
 
             if (tavolo == null)
+            {
                 return;
+            }
 
             if (await NumeroExistsAsync(tavoloDto.Numero, tavoloDto.TavoloId))
+            {
                 throw new ArgumentException($"Esiste già un altro tavolo con numero {tavoloDto.Numero}");
+            }
 
             tavolo.Numero = tavoloDto.Numero;
             tavolo.Zona = tavoloDto.Zona;
@@ -147,82 +240,170 @@ namespace Repository.Service
         public async Task<bool> NumeroExistsAsync(int numero, int? excludeId = null)
         {
             if (excludeId.HasValue)
+            {
                 return await _context.Tavolo.AnyAsync(t => t.Numero == numero && t.TavoloId != excludeId.Value);
+            }
 
             return await _context.Tavolo.AnyAsync(t => t.Numero == numero);
         }
 
-        // ✅ NUOVI METODI PER FRONTEND
-        public async Task<IEnumerable<TavoloFrontendDTO>> GetAllPerFrontendAsync()
-        {
-            return await _context.Tavolo
-                .AsNoTracking()
-                .OrderBy(t => t.Numero)
-                .Select(t => MapToFrontendDTO(t))
-                .ToListAsync();
-        }
+        // ✅ METODI FRONTEND PAGINATI - CORRETTI PER INTERFACCIA
+        //public async Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetAllPerFrontendAsync(int page = 1, int pageSize = 10)
+        //{
+        //    var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+        //    var skip = (safePage - 1) * safePageSize;
 
-        public async Task<IEnumerable<TavoloFrontendDTO>> GetDisponibiliPerFrontendAsync()
+        //    var query = _context.Tavolo
+        //        .AsNoTracking()
+        //        .OrderBy(t => t.Numero);
+
+        //    var totalCount = await query.CountAsync();
+        //    var items = await query
+        //        .Skip(skip)
+        //        .Take(safePageSize)
+        //        .Select(t => MapToFrontendDTO(t))
+        //        .ToListAsync();
+
+        //    return new PaginatedResponseDTO<TavoloFrontendDTO>
+        //    {
+        //        Data = items,
+        //        Page = safePage,
+        //        PageSize = safePageSize,
+        //        TotalCount = totalCount
+        //    };
+        //}
+
+        // ✅ METODO PAGINATO - CORRETTO PER INTERFACCIA
+        public async Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetDisponibiliPerFrontendAsync(int page = 1, int pageSize = 10)
         {
-            return await _context.Tavolo
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
+
+            var query = _context.Tavolo
                 .AsNoTracking()
                 .Where(t => t.Disponibile)
-                .OrderBy(t => t.Numero)
+                .OrderBy(t => t.Numero);
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip(skip)
+                .Take(safePageSize)
                 .Select(t => MapToFrontendDTO(t))
                 .ToListAsync();
+
+            return new PaginatedResponseDTO<TavoloFrontendDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
+            };
         }
 
-        public async Task<IEnumerable<TavoloFrontendDTO>> GetByZonaPerFrontendAsync(string zona)
+        // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
+        public async Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetByZonaPerFrontendAsync(string? zona = null, int page = 1, int pageSize = 10)
         {
-            var zonaFormattata = FormatZona(zona);
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
 
-            return await _context.Tavolo
-                .AsNoTracking()
-                .Where(t => t.Zona != null && t.Zona.ToUpper() == zonaFormattata)
+            if (!SecurityHelper.IsValidInput(zona))
+                return new PaginatedResponseDTO<TavoloFrontendDTO> { Message = "Input non valido" };
+
+            var query = _context.Tavolo.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(zona))
+            {
+                var normalizedZona = StringHelper.NormalizeSearchTerm(zona);
+                query = query.Where(t => t.Zona != null &&
+                       StringHelper.StartsWithCaseInsensitive(t.Zona, normalizedZona));
+            }
+
+            var totalCount = await query.CountAsync();
+            var items = await query
                 .OrderBy(t => t.Numero)
+                .Skip(skip)
+                .Take(safePageSize)
                 .Select(t => MapToFrontendDTO(t))
                 .ToListAsync();
+
+            return new PaginatedResponseDTO<TavoloFrontendDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
+            };
         }
 
-        public async Task<TavoloFrontendDTO?> GetByNumeroPerFrontendAsync(int numero)
+        public async Task<TavoloFrontendDTO?> GetByNumeroPerFrontendAsync(int? numero = null)
         {
+            // ✅ SE NULL, RESTITUISCE NULL (il controller gestirà il caso)
+            if (!numero.HasValue)
+                return null;
+
+            // ✅ VALIDAZIONE SICUREZZA
+            if (numero <= 0)
+                return null;
+
             var tavolo = await _context.Tavolo
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Numero == numero);
+                .FirstOrDefaultAsync(t => t.Numero == numero.Value);
 
             return tavolo == null ? null : MapToFrontendDTO(tavolo);
-        }        
+        }
 
         public async Task<bool> ToggleDisponibilitaAsync(int tavoloId)
         {
+            // ✅ VALIDAZIONE SICUREZZA
+            if (tavoloId <= 0) return false;
+
             var tavolo = await _context.Tavolo
                 .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
 
             if (tavolo == null)
                 return false;
 
-            // ✅ CORREZIONE: inverti la disponibilità
             tavolo.Disponibile = !tavolo.Disponibile;
             await _context.SaveChangesAsync();
 
-            // ✅ RESTITUISCI IL NUOVO VALORE (dopo il toggle)
             return tavolo.Disponibile;
         }
 
         public async Task<bool> ToggleDisponibilitaByNumeroAsync(int numero)
         {
+            // ✅ VALIDAZIONE SICUREZZA
+            if (numero <= 0) return false;
+
             var tavolo = await _context.Tavolo
                 .FirstOrDefaultAsync(t => t.Numero == numero);
 
             if (tavolo == null)
                 return false;
 
-            // ✅ CORREZIONE: inverti la disponibilità
             tavolo.Disponibile = !tavolo.Disponibile;
             await _context.SaveChangesAsync();
 
-            // ✅ RESTITUISCI IL NUOVO VALORE (dopo il toggle)
             return tavolo.Disponibile;
         }
+
+        // ❌ METODO DA ELIMINARE - RIDONDANTE CON GetByZonaAsync
+        /*
+        public async Task<IEnumerable<TavoloDTO>> GetAllByZonaAsync(string? zona = null)
+        {
+            var query = _context.Tavolo.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(zona))
+            {
+                query = query.Where(t => t.Zona != null &&
+                                       t.Zona.StartsWith(zona, StringComparison.InvariantCultureIgnoreCase));
+            }
+
+            return await query
+                .AsNoTracking()
+                .OrderBy(t => t.Numero)
+                .Select(t => MapToDTO(t))
+                .ToListAsync();
+        }
+        */
     }
 }
