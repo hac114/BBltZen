@@ -4,8 +4,10 @@ using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
 //using Keycloak.AuthServices.Authentication; // ✅ COMMENTATO
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.OpenApi.Models;
 using Repository;
+using System.Threading.RateLimiting;
 
 namespace BBltZen
 {
@@ -56,6 +58,83 @@ namespace BBltZen
             // ✅ COMMENTATO: KEYCLOAK AUTHENTICATION
             // builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
 
+            // ✅ RATE LIMITING CONFIGURATION
+            builder.Services.AddRateLimiter(options =>
+            {
+                // ✅ COMMENTATO: GlobalLimiter (applica a TUTTI gli endpoint automaticamente)
+                // options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+                //     context => RateLimitPartition.GetFixedWindowLimiter(
+                //         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                //         factory: partition => new FixedWindowRateLimiterOptions
+                //         {
+                //             AutoReplenishment = true,
+                //             PermitLimit = 100, // ✅ 100 richieste al minuto
+                //             QueueLimit = 0,    // ✅ Nessuna coda
+                //             Window = TimeSpan.FromMinutes(1) // ✅ Finestra di 1 minuto
+                //         }));
+
+                // ✅ POLITICA "Default" PER SVILUPPO (limiti alti)
+                options.AddPolicy("Default", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                        factory: partition => new FixedWindowRateLimiterOptions
+                        {
+                            AutoReplenishment = true,
+                            PermitLimit = 1000, // ✅ Limite alto per sviluppo
+                            QueueLimit = 0,
+                            Window = TimeSpan.FromMinutes(1)
+                        }));
+
+                // ✅ POLITICA PER ENDPOINT SENSIBILI: 30 richieste/minuto
+                options.AddPolicy("SensitiveEndpoints", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: context.User.Identity?.Name ??
+                                     context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                        factory: partition => new FixedWindowRateLimiterOptions
+                        {
+                            AutoReplenishment = true,
+                            PermitLimit = 30, // ✅ 30 richieste al minuto
+                            QueueLimit = 0,
+                            Window = TimeSpan.FromMinutes(1)
+                        }));
+
+                // ✅ POLITICA PER SWAGGER: NO LIMITI
+                options.AddPolicy("SwaggerExempt", context =>
+                    RateLimitPartition.GetNoLimiter("swagger"));
+
+                // ✅ POLITICA PRODUZIONE (100 richieste/minuto)
+                options.AddPolicy("Production", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+                        factory: partition => new FixedWindowRateLimiterOptions
+                        {
+                            AutoReplenishment = true,
+                            PermitLimit = 100, // ✅ 100 richieste al minuto
+                            QueueLimit = 0,
+                            Window = TimeSpan.FromMinutes(1)
+                        }));
+
+                // ✅ RISPOSTA PERSONALIZZATA QUANDO SI SUPERA IL LIMITE
+                options.OnRejected = async (context, token) =>
+                {
+                    context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    await context.HttpContext.Response.WriteAsync(
+                        "⚠️ Troppe richieste. Riprova tra qualche minuto.",
+                        cancellationToken: token);
+
+                    // ✅ LOGGING (solo in sviluppo)
+                    if (builder.Environment.IsDevelopment())
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                        logger.LogWarning($"Rate limit exceeded for IP: {context.HttpContext.Connection.RemoteIpAddress}");
+                    }
+                };
+
+                // ✅ DISABILITA RATE LIMITING PER CERTI ENDPOINT (opzionale)
+                options.AddPolicy("NoLimiting", context =>
+                    RateLimitPartition.GetNoLimiter("unlimited"));
+            });
+
             // 🔍 DEBUG: Verifica la configurazione
             Console.WriteLine("=== DEBUG CONFIGURAZIONE ===");
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -92,6 +171,9 @@ namespace BBltZen
             // builder.Services.AddAuthorization();
 
             var app = builder.Build();
+
+            // ✅ APPLICA RATE LIMITING (DOPO builder.Build() e PRIMA di UseAuthorization)
+            app.UseRateLimiter();
 
             // ✅ SEEDING AUTOMATICO IN DEVELOPMENT
             if (app.Environment.IsDevelopment())

@@ -2,6 +2,7 @@
 using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
 using System.Collections.Generic;
@@ -11,7 +12,7 @@ namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
+    // [Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
     public class TavoloController(
     ITavoloRepository repository,
     BubbleTeaContext context, // ✅ AGGIUNTO IL CONTEXT
@@ -46,8 +47,9 @@ namespace BBltZen.Controllers
         // GET: api/Tavolo/{id?}
         // GET: api/Tavolo/{id}
         // ✅ 1. GET /api/Tavolo - USA [FromQuery] PER ID
-        [HttpGet]
+        [HttpGet("id")]
         [AllowAnonymous]
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> GetById([FromQuery] int? id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -87,7 +89,8 @@ namespace BBltZen.Controllers
 
         // GET: api/Tavolo/numero/{numero}
         [HttpGet("numero")]
-        [AllowAnonymous]
+        // [AllowAnonymous]
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> GetByNumero([FromQuery] int? numero, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -99,7 +102,7 @@ namespace BBltZen.Controllers
                     return Ok(new
                     {
                         Message = $"Trovati {result.TotalCount} tavoli",
-                        Data = result.Data,
+                        result.Data,
                         Pagination = new
                         {
                             result.Page,
@@ -128,6 +131,7 @@ namespace BBltZen.Controllers
         // GET: api/Tavolo/disponibili
         [HttpGet("disponibili")]
         [AllowAnonymous]
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> GetDisponibili([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -150,7 +154,8 @@ namespace BBltZen.Controllers
         // GET: api/Tavolo/zona/{zona}
         // GET: api/Tavolo/zona
         [HttpGet("zona")]
-        [AllowAnonymous]
+        // [AllowAnonymous]
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> GetByZona([FromQuery] string? zona = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -175,7 +180,8 @@ namespace BBltZen.Controllers
 
         // POST: api/Tavolo
         [HttpPost]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult<TavoloDTO>> Create([FromBody] TavoloDTO tavoloDto)
         {
             try
@@ -217,7 +223,8 @@ namespace BBltZen.Controllers
 
         // PUT: api/Tavolo/5
         [HttpPut("{id}")]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> Update(int id, [FromBody] TavoloDTO tavoloDto)
         {
             try
@@ -267,7 +274,8 @@ namespace BBltZen.Controllers
 
         // DELETE: api/Tavolo/5
         [HttpDelete("{id}")]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> Delete(int id)
         {
             try
@@ -358,6 +366,7 @@ namespace BBltZen.Controllers
         // GET: api/Tavolo/frontend/disponibili
         [HttpGet("frontend/disponibili")]
         [AllowAnonymous]
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> GetDisponibiliPerFrontend([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -380,6 +389,7 @@ namespace BBltZen.Controllers
         // GET: api/Tavolo/frontend/zona
         [HttpGet("frontend/zona")]
         [AllowAnonymous]
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> GetByZonaPerFrontend([FromQuery] string? zona = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -406,6 +416,7 @@ namespace BBltZen.Controllers
         // GET: api/Tavolo/frontend/numero/{numero?}
         [HttpGet("frontend/numero")]
         [AllowAnonymous]
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult> GetByNumeroPerFrontend([FromQuery] int? numero, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
@@ -447,7 +458,8 @@ namespace BBltZen.Controllers
 
         // PATCH: api/Tavolo/5/toggle-disponibilita
         [HttpPatch("{id}/toggle-disponibilita")]
-        //[Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult<object>> ToggleDisponibilita(int id)
         {
             try
@@ -501,7 +513,8 @@ namespace BBltZen.Controllers
 
         // PATCH: api/Tavolo/numero/5/toggle-disponibilita
         [HttpPatch("numero/{numero}/toggle-disponibilita")]
-        //[Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        // [EnableRateLimiting("Default")]
         public async Task<ActionResult<object>> ToggleDisponibilitaByNumero(int numero)
         {
             try
