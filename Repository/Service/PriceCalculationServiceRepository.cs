@@ -255,8 +255,9 @@ namespace Repository.Service
                 // ✅ CORREZIONE: GESTIONE ESPLICITA DEL POSSIBILE NULL
                 if (!_cache.TryGetValue(cacheKey, out Dictionary<int, decimal>? taxRates) || taxRates == null)
                 {
+                    // ✅ CORREZIONE: GetAllAsync() restituisce PaginatedResponseDTO, usa .Data
                     var allTaxRates = await _taxRatesRepo.GetAllAsync();
-                    taxRates = allTaxRates.ToDictionary(t => t.TaxRateId, t => t.Aliquota);
+                    taxRates = allTaxRates.Data.ToDictionary(t => t.TaxRateId, t => t.Aliquota); // ✅ AGGIUNGI .Data
                     _cache.Set(cacheKey, taxRates, TimeSpan.FromHours(24));
                 }
 

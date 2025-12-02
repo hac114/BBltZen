@@ -4,18 +4,25 @@ namespace Repository.Interface
 {
     public interface ITaxRatesRepository
     {
-        // ✅ METODI ESISTENTI...
-        Task<TaxRatesDTO> AddAsync(TaxRatesDTO taxRateDto);
-        Task DeleteAsync(int taxRateId);
-        Task<bool> ExistsAsync(int taxRateId);
-        Task<IEnumerable<TaxRatesDTO>> GetAllAsync();
-        Task<TaxRatesDTO?> GetByAliquotaAsync(decimal aliquota);
-        Task<TaxRatesDTO?> GetByIdAsync(int taxRateId);
-        Task UpdateAsync(TaxRatesDTO taxRateDto);
-        Task<bool> ExistsByAliquotaAsync(decimal aliquota, int? excludeTaxRateId = null);
+        // ✅ METODI PAGINATI CRUD
+        Task<PaginatedResponseDTO<TaxRatesDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<TaxRatesDTO?> GetByIdAsync(int? taxRateId = null);
+        Task<PaginatedResponseDTO<TaxRatesDTO>> GetByAliquotaAsync(decimal? aliquota = null, int page = 1, int pageSize = 10);
 
-        // ✅ NUOVI METODI PER FRONTEND
-        Task<IEnumerable<TaxRatesFrontendDTO>> GetAllPerFrontendAsync();
-        Task<TaxRatesFrontendDTO?> GetByAliquotaPerFrontendAsync(decimal aliquota);
+        // ✅ METODI SCRITTURA
+        Task<TaxRatesDTO> AddAsync(TaxRatesDTO taxRateDto);
+        Task UpdateAsync(TaxRatesDTO taxRateDto);
+        Task DeleteAsync(int taxRateId);
+
+        // ✅ METODI VERIFICA
+        Task<bool> ExistsAsync(int taxRateId);
+        Task<bool> ExistsByAliquotaDescrizioneAsync(decimal aliquota, string descrizione, int? excludeId = null);
+
+        // ✅ METODI FRONTEND PAGINATI
+        Task<PaginatedResponseDTO<TaxRatesFrontendDTO>> GetAllPerFrontendAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<TaxRatesFrontendDTO>> GetByAliquotaPerFrontendAsync(decimal? aliquota = null, int page = 1, int pageSize = 10);
+
+        // ✅ METODO PER CONTROLLO DIPENDENZE DELETE
+        Task<bool> HasDependenciesAsync(int taxRateId);
     }
 }

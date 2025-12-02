@@ -2,6 +2,7 @@
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
+using Repository.Service.Helper;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -10,19 +11,23 @@ using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class TaxRatesRepository : ITaxRatesRepository
+    public class TaxRatesRepository(BubbleTeaContext context) : ITaxRatesRepository
     {
-        private readonly BubbleTeaContext _context;
+        private readonly BubbleTeaContext _context = context;
 
-        public TaxRatesRepository(BubbleTeaContext context)
+        public async Task<PaginatedResponseDTO<TaxRatesDTO>> GetAllAsync(int page = 1, int pageSize = 10)
         {
-            _context = context;
-        }
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
 
-        public async Task<IEnumerable<TaxRatesDTO>> GetAllAsync()
-        {
-            return await _context.TaxRates
+            var query = _context.TaxRates
                 .AsNoTracking()
+                .OrderBy(t => t.Aliquota);
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip(skip)
+                .Take(safePageSize)
                 .Select(t => new TaxRatesDTO
                 {
                     TaxRateId = t.TaxRateId,
@@ -32,13 +37,28 @@ namespace Repository.Service
                     DataAggiornamento = t.DataAggiornamento
                 })
                 .ToListAsync();
+
+            return new PaginatedResponseDTO<TaxRatesDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
+            };
         }
 
-        public async Task<TaxRatesDTO?> GetByIdAsync(int taxRateId)
+        public async Task<TaxRatesDTO?> GetByIdAsync(int? taxRateId = null)
         {
+            // ✅ SE NULL, RESTITUISCE NULL (il controller gestirà la lista)
+            if (!taxRateId.HasValue)
+                return null;
+
+            if (taxRateId <= 0)
+                return null;
+
             var taxRate = await _context.TaxRates
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TaxRateId == taxRateId);
+                .FirstOrDefaultAsync(t => t.TaxRateId == taxRateId.Value);
 
             if (taxRate == null) return null;
 
@@ -52,52 +72,80 @@ namespace Repository.Service
             };
         }
 
-        public async Task<TaxRatesDTO?> GetByAliquotaAsync(decimal aliquota)
+        public async Task<PaginatedResponseDTO<TaxRatesDTO>> GetByAliquotaAsync(decimal? aliquota = null, int page = 1, int pageSize = 10)
         {
-            var taxRate = await _context.TaxRates
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Aliquota == aliquota);
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
 
-            if (taxRate == null) return null;
+            var query = _context.TaxRates.AsQueryable();
 
-            return new TaxRatesDTO
+            // ✅ FILTRA SOLO SE ALIQUOTA SPECIFICATA
+            if (aliquota.HasValue)
             {
-                TaxRateId = taxRate.TaxRateId,
-                Aliquota = taxRate.Aliquota,
-                Descrizione = taxRate.Descrizione,
-                DataCreazione = taxRate.DataCreazione,
-                DataAggiornamento = taxRate.DataAggiornamento
+                query = query.Where(t => t.Aliquota == aliquota.Value);
+            }
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .OrderBy(t => t.Aliquota)
+                .Skip(skip)
+                .Take(safePageSize)
+                .Select(t => new TaxRatesDTO
+                {
+                    TaxRateId = t.TaxRateId,
+                    Aliquota = t.Aliquota,
+                    Descrizione = t.Descrizione,
+                    DataCreazione = t.DataCreazione,
+                    DataAggiornamento = t.DataAggiornamento
+                })
+                .ToListAsync();
+
+            return new PaginatedResponseDTO<TaxRatesDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
             };
         }
 
-        public async Task<TaxRatesDTO> AddAsync(TaxRatesDTO taxRateDto) // ✅ CORREGGI: ritorna DTO
+        public async Task<TaxRatesDTO> AddAsync(TaxRatesDTO taxRateDto)
         {
-            if (taxRateDto == null)
-                throw new ArgumentNullException(nameof(taxRateDto));
+            ArgumentNullException.ThrowIfNull(taxRateDto);
+
+            // ✅ VALIDAZIONE SICUREZZA INPUT
+            if (!SecurityHelper.IsValidInput(taxRateDto.Descrizione, 100))
+                throw new ArgumentException("Descrizione non valida");
+
+            // ✅ CONTROLLO DUPLICATI (aliquota + descrizione)
+            if (await ExistsByAliquotaDescrizioneAsync(taxRateDto.Aliquota, taxRateDto.Descrizione))
+                throw new ArgumentException($"Esiste già un'aliquota {taxRateDto.Aliquota}% con descrizione '{taxRateDto.Descrizione}'");
 
             var taxRate = new TaxRates
             {
                 Aliquota = taxRateDto.Aliquota,
                 Descrizione = taxRateDto.Descrizione,
-                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
-                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
+                DataCreazione = DateTime.Now,
+                DataAggiornamento = DateTime.Now
             };
 
             await _context.TaxRates.AddAsync(taxRate);
             await _context.SaveChangesAsync();
 
-            // Aggiorna il DTO con i valori del database
             taxRateDto.TaxRateId = taxRate.TaxRateId;
             taxRateDto.DataCreazione = taxRate.DataCreazione;
             taxRateDto.DataAggiornamento = taxRate.DataAggiornamento;
 
-            return taxRateDto; // ✅ AGGIUNGI return
+            return taxRateDto;
         }
 
         public async Task UpdateAsync(TaxRatesDTO taxRateDto)
         {
-            if (taxRateDto == null) // ✅ AGGIUNGI validazione
-                throw new ArgumentNullException(nameof(taxRateDto));
+            ArgumentNullException.ThrowIfNull(taxRateDto);
+
+            // ✅ VALIDAZIONE SICUREZZA INPUT
+            if (!SecurityHelper.IsValidInput(taxRateDto.Descrizione, 100))
+                throw new ArgumentException("Descrizione non valida");
 
             var taxRate = await _context.TaxRates
                 .FirstOrDefaultAsync(t => t.TaxRateId == taxRateDto.TaxRateId);
@@ -105,12 +153,18 @@ namespace Repository.Service
             if (taxRate == null)
                 throw new ArgumentException($"Tax rate con ID {taxRateDto.TaxRateId} non trovato");
 
+            // ✅ CONTROLLO DUPLICATI (aliquota + descrizione) ESCLUDENDO QUESTO ID
+            if (await ExistsByAliquotaDescrizioneAsync(taxRateDto.Aliquota, taxRateDto.Descrizione, taxRateDto.TaxRateId))
+                throw new ArgumentException($"Esiste già un'aliquota {taxRateDto.Aliquota}% con descrizione '{taxRateDto.Descrizione}'");
+
+            // ✅ AGGIORNAMENTO
             taxRate.Aliquota = taxRateDto.Aliquota;
             taxRate.Descrizione = taxRateDto.Descrizione;
-            taxRate.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
+            taxRate.DataAggiornamento = DateTime.Now;
 
             await _context.SaveChangesAsync();
 
+            // ✅ AGGIORNA DTO CON DATI DB
             taxRateDto.DataAggiornamento = taxRate.DataAggiornamento;
         }
 
@@ -124,6 +178,7 @@ namespace Repository.Service
                 _context.TaxRates.Remove(taxRate);
                 await _context.SaveChangesAsync();
             }
+            // ✅ SILENT FAIL - Nessuna eccezione se non trovato
         }
 
         public async Task<bool> ExistsAsync(int taxRateId)
@@ -145,33 +200,93 @@ namespace Repository.Service
         }
 
         // ✅ AGGIUNGI QUESTI METODI
-        public async Task<IEnumerable<TaxRatesFrontendDTO>> GetAllPerFrontendAsync()
+        public async Task<PaginatedResponseDTO<TaxRatesFrontendDTO>> GetAllPerFrontendAsync(int page = 1, int pageSize = 10)
         {
-            return await _context.TaxRates
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
+
+            var query = _context.TaxRates
                 .AsNoTracking()
+                .OrderBy(t => t.Aliquota);
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip(skip)
+                .Take(safePageSize)
                 .Select(t => new TaxRatesFrontendDTO
                 {
                     Aliquota = t.Aliquota,
                     Descrizione = t.Descrizione,
-                    AliquotaFormattata = $"{t.Aliquota.ToString("0.00", CultureInfo.InvariantCulture)}%" // ✅ FORMATTO FISSO
+                    AliquotaFormattata = $"{t.Aliquota.ToString("0.00", CultureInfo.InvariantCulture)}%"
                 })
                 .ToListAsync();
+
+            return new PaginatedResponseDTO<TaxRatesFrontendDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
+            };
         }
 
-        public async Task<TaxRatesFrontendDTO?> GetByAliquotaPerFrontendAsync(decimal aliquota)
+        public async Task<PaginatedResponseDTO<TaxRatesFrontendDTO>> GetByAliquotaPerFrontendAsync(decimal? aliquota = null, int page = 1, int pageSize = 10)
         {
-            var taxRate = await _context.TaxRates
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Aliquota == aliquota);
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            var skip = (safePage - 1) * safePageSize;
 
-            if (taxRate == null) return null;
+            var query = _context.TaxRates.AsQueryable();
 
-            return new TaxRatesFrontendDTO
+            // ✅ FILTRA SOLO SE ALIQUOTA SPECIFICATA
+            if (aliquota.HasValue)
             {
-                Aliquota = taxRate.Aliquota,
-                Descrizione = taxRate.Descrizione,
-                AliquotaFormattata = $"{taxRate.Aliquota.ToString("0.00", CultureInfo.InvariantCulture)}%" // ✅ FORMATTO FISSO
+                query = query.Where(t => t.Aliquota == aliquota.Value);
+            }
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .OrderBy(t => t.Aliquota)
+                .Skip(skip)
+                .Take(safePageSize)
+                .Select(t => new TaxRatesFrontendDTO
+                {
+                    Aliquota = t.Aliquota,
+                    Descrizione = t.Descrizione,
+                    AliquotaFormattata = $"{t.Aliquota.ToString("0.00", CultureInfo.InvariantCulture)}%"
+                })
+                .ToListAsync();
+
+            return new PaginatedResponseDTO<TaxRatesFrontendDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount
             };
+        }
+
+        public async Task<bool> ExistsByAliquotaDescrizioneAsync(decimal aliquota, string descrizione, int? excludeId = null)
+        {
+            // ✅ USA STRINGHELPER PER NORMALIZZAZIONE
+            var normalizedDescrizione = StringHelper.NormalizeSearchTerm(descrizione);
+
+            var query = _context.TaxRates
+                .Where(t => t.Aliquota == aliquota &&
+                           StringHelper.EqualsCaseInsensitive(t.Descrizione, normalizedDescrizione));
+
+            if (excludeId.HasValue)
+            {
+                query = query.Where(t => t.TaxRateId != excludeId.Value);
+            }
+
+            return await query.AnyAsync();
+        }
+
+        public async Task<bool> HasDependenciesAsync(int taxRateId)
+        {
+            // ✅ CONTROLLA SE CI SONO ORDER ITEM CHE USANO QUESTA ALIQUOTA
+            return await _context.OrderItem
+                .AnyAsync(oi => oi.TaxRateId == taxRateId);
         }
     }
 }

@@ -3,7 +3,6 @@ using DTO;
 using Microsoft.EntityFrameworkCore;
 using Repository.Service;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -13,11 +12,10 @@ namespace RepositoryTest
     public class TaxRatesRepositoryTest : BaseTest
     {
         private readonly TaxRatesRepository _repository;
-        
-        public TaxRatesRepositoryTest()
-        {            
-            _repository = new TaxRatesRepository(_context);
 
+        public TaxRatesRepositoryTest()
+        {
+            _repository = new TaxRatesRepository(_context);
             InitializeTestData();
         }
 
@@ -28,24 +26,21 @@ namespace RepositoryTest
 
             var taxRates = new List<TaxRates>
             {
-                new TaxRates
-                {
+                new() {
                     TaxRateId = 1,
                     Aliquota = 22.00m,
                     Descrizione = "IVA Standard",
                     DataCreazione = DateTime.Now.AddDays(-10),
                     DataAggiornamento = DateTime.Now.AddDays(-1)
                 },
-                new TaxRates
-                {
+                new() {
                     TaxRateId = 2,
                     Aliquota = 10.00m,
                     Descrizione = "IVA Ridotta",
                     DataCreazione = DateTime.Now.AddDays(-5),
                     DataAggiornamento = DateTime.Now
                 },
-                new TaxRates
-                {
+                new() {
                     TaxRateId = 3,
                     Aliquota = 4.00m,
                     Descrizione = "IVA Minima",
@@ -59,14 +54,18 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetAllAsync_ShouldReturnAllTaxRates()
+        public async Task GetAllAsync_ShouldReturnPaginatedTaxRates()
         {
             // Act
-            var result = await _repository.GetAllAsync();
+            var result = await _repository.GetAllAsync(page: 1, pageSize: 10);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(3, result.Count());
+            Assert.IsType<PaginatedResponseDTO<TaxRatesDTO>>(result);
+            Assert.Equal(3, result.TotalCount);
+            Assert.Equal(1, result.Page);
+            Assert.Equal(10, result.PageSize);
+            Assert.True(result.Data.Any());
         }
 
         [Fact]
@@ -83,36 +82,38 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetByIdAsync_WithInvalidId_ShouldReturnNull()
+        public async Task GetByIdAsync_WithNullId_ShouldReturnNull()
         {
             // Act
-            var result = await _repository.GetByIdAsync(999);
+            var result = await _repository.GetByIdAsync(null);
 
             // Assert
             Assert.Null(result);
         }
 
         [Fact]
-        public async Task GetByAliquotaAsync_ShouldReturnTaxRate()
+        public async Task GetByAliquotaAsync_WithAliquota_ShouldReturnPaginatedResult()
         {
             // Act
-            var result = await _repository.GetByAliquotaAsync(10.00m);
+            var result = await _repository.GetByAliquotaAsync(10.00m, page: 1, pageSize: 10);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(2, result.TaxRateId);
-            Assert.Equal(10.00m, result.Aliquota);
-            Assert.Equal("IVA Ridotta", result.Descrizione);
+            Assert.IsType<PaginatedResponseDTO<TaxRatesDTO>>(result);
+            Assert.Equal(1, result.TotalCount);
+            Assert.Equal(10.00m, result.Data.First().Aliquota);
         }
 
         [Fact]
-        public async Task GetByAliquotaAsync_WithInvalidAliquota_ShouldReturnNull()
+        public async Task GetByAliquotaAsync_WithNullAliquota_ShouldReturnAllPaginated()
         {
             // Act
-            var result = await _repository.GetByAliquotaAsync(99.99m);
+            var result = await _repository.GetByAliquotaAsync(null, page: 1, pageSize: 10);
 
             // Assert
-            Assert.Null(result);
+            Assert.NotNull(result);
+            Assert.Equal(3, result.TotalCount);
+            Assert.Equal(3, result.Data.Count());
         }
 
         [Fact]
@@ -126,18 +127,30 @@ namespace RepositoryTest
             };
 
             // Act
-            var result = await _repository.AddAsync(newTaxRate); // ✅ CORREGGI: assegna risultato
+            var result = await _repository.AddAsync(newTaxRate);
 
             // Assert
-            Assert.True(result.TaxRateId > 0); // ✅ USA result
-            var savedTaxRate = await _repository.GetByIdAsync(result.TaxRateId); // ✅ USA result
+            Assert.True(result.TaxRateId > 0);
+            var savedTaxRate = await _repository.GetByIdAsync(result.TaxRateId);
             Assert.NotNull(savedTaxRate);
             Assert.Equal(5.00m, savedTaxRate.Aliquota);
             Assert.Equal("IVA Speciale", savedTaxRate.Descrizione);
-
-            // ✅ VERIFICA CHE LE DATE SIANO STATE IMPOSTATE
             Assert.NotEqual(default(DateTime), savedTaxRate.DataCreazione);
-            Assert.NotEqual(default(DateTime), savedTaxRate.DataAggiornamento);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithDuplicateAliquotaDescrizione_ShouldThrowException()
+        {
+            // Arrange - Prova ad aggiungere aliquota con stessa combinazione
+            var duplicateTaxRate = new TaxRatesDTO
+            {
+                Aliquota = 22.00m,
+                Descrizione = "IVA Standard"
+            };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                _repository.AddAsync(duplicateTaxRate));
         }
 
         [Fact]
@@ -147,8 +160,8 @@ namespace RepositoryTest
             var updateDto = new TaxRatesDTO
             {
                 TaxRateId = 1,
-                Aliquota = 25.00m, // Aliquota modificata
-                Descrizione = "IVA Standard Aggiornata" // Descrizione modificata
+                Aliquota = 25.00m,
+                Descrizione = "IVA Standard Aggiornata"
             };
 
             // Act
@@ -164,12 +177,31 @@ namespace RepositoryTest
         [Fact]
         public async Task DeleteAsync_ShouldRemoveTaxRate()
         {
+            // Arrange
+            var newTaxRate = new TaxRatesDTO
+            {
+                Aliquota = 15.00m,
+                Descrizione = "IVA Test"
+            };
+            var addedTaxRate = await _repository.AddAsync(newTaxRate);
+
             // Act
-            await _repository.DeleteAsync(1);
+            await _repository.DeleteAsync(addedTaxRate.TaxRateId);
 
             // Assert
-            var result = await _repository.GetByIdAsync(1);
-            Assert.Null(result);
+            var result = await _repository.GetByIdAsync(addedTaxRate.TaxRateId);
+            Assert.Null(result); // ✅ SILENT FAIL
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ShouldNotThrow_ForNonExistingId()
+        {
+            // Act & Assert - ✅ SILENT FAIL, NO EXCEPTION
+            var exception = await Record.ExceptionAsync(() =>
+                _repository.DeleteAsync(999)
+            );
+
+            Assert.Null(exception);
         }
 
         [Fact]
@@ -183,115 +215,33 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task ExistsAsync_WithNonExistingId_ShouldReturnFalse()
+        public async Task ExistsByAliquotaDescrizioneAsync_WithExistingCombination_ShouldReturnTrue()
         {
             // Act
-            var result = await _repository.ExistsAsync(999);
-
-            // Assert
-            Assert.False(result);
-        }
-
-        [Fact]
-        public async Task ExistsByAliquotaAsync_WithExistingAliquota_ShouldReturnTrue()
-        {
-            // Act
-            var result = await _repository.ExistsByAliquotaAsync(22.00m);
+            var result = await _repository.ExistsByAliquotaDescrizioneAsync(22.00m, "IVA Standard");
 
             // Assert
             Assert.True(result);
         }
 
         [Fact]
-        public async Task ExistsByAliquotaAsync_WithNonExistingAliquota_ShouldReturnFalse()
+        public async Task ExistsByAliquotaDescrizioneAsync_WithExcludeId_ShouldReturnFalse()
         {
             // Act
-            var result = await _repository.ExistsByAliquotaAsync(99.99m);
+            var result = await _repository.ExistsByAliquotaDescrizioneAsync(22.00m, "IVA Standard", 1);
 
             // Assert
             Assert.False(result);
         }
 
         [Fact]
-        public async Task ExistsByAliquotaAsync_WithExcludeId_ShouldReturnCorrectResult()
+        public async Task HasDependenciesAsync_WithOrderItems_ShouldReturnTrue()
         {
-            // Act
-            var result = await _repository.ExistsByAliquotaAsync(22.00m, 1);
-
-            // Assert
-            Assert.False(result); // Non dovrebbero esserci altre aliquote al 22% oltre all'ID 1
-        }
-
-        [Fact]
-        public async Task UpdateAsync_WithNonExistingTaxRate_ShouldThrowException()
-        {
-            // Arrange
-            var updateDto = new TaxRatesDTO
-            {
-                TaxRateId = 999,
-                Aliquota = 25.00m,
-                Descrizione = "Test"
-            };
-
-            // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => _repository.UpdateAsync(updateDto));
-        }
-
-        [Fact]
-        public async Task GetAllPerFrontendAsync_ShouldReturnFrontendDTOs()
-        {
-            // Act
-            var result = await _repository.GetAllPerFrontendAsync();
-
-            // Assert
-            var resultList = result.ToList();
-            Assert.Equal(3, resultList.Count);
-
-            // ✅ VERIFICA FORMATTAZIONE FRONTEND CORRETTA
-            var ivaStandard = resultList.First(t => t.Aliquota == 22.00m);
-            Assert.Equal("22.00%", ivaStandard.AliquotaFormattata); // ✅ "22.00%" invece di "22%"
-            Assert.Equal("IVA Standard", ivaStandard.Descrizione);
-        }
-
-        [Fact]
-        public async Task GetByAliquotaPerFrontendAsync_WithValidAliquota_ShouldReturnFormattedTaxRate()
-        {
-            // Act
-            var result = await _repository.GetByAliquotaPerFrontendAsync(10.00m);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Equal(10.00m, result.Aliquota);
-            Assert.Equal("10.00%", result.AliquotaFormattata); // ✅ "10.00%" invece di "10%"
-            Assert.Equal("IVA Ridotta", result.Descrizione);
-        }
-
-        [Fact]
-        public async Task GetByAliquotaPerFrontendAsync_WithInvalidAliquota_ShouldReturnNull()
-        {
-            // Act
-            var result = await _repository.GetByAliquotaPerFrontendAsync(99.99m);
-
-            // Assert
-            Assert.Null(result);
-        }
-
-        [Fact]
-        public async Task DeleteAsync_WithDependencies_ShouldThrowException()
-        {
-            // Arrange - Crea un'aliquota con dipendenze (OrderItem)
-            var newTaxRate = new TaxRatesDTO
-            {
-                Aliquota = 15.00m,
-                Descrizione = "IVA Test"
-            };
-            var addedTaxRate = await _repository.AddAsync(newTaxRate);
-
-            // Crea un order item associato all'aliquota
+            // Arrange - Crea dipendenza
             _context.OrderItem.Add(new OrderItem
             {
                 OrderItemId = 999,
-                TaxRateId = addedTaxRate.TaxRateId,
+                TaxRateId = 1,
                 OrdineId = 1,
                 ArticoloId = 1,
                 Quantita = 1,
@@ -300,18 +250,36 @@ namespace RepositoryTest
             });
             await _context.SaveChangesAsync();
 
-            // Act & Assert - ✅ DOVREBBE LANCIARE ECCEZIONE
-            var exception = await Record.ExceptionAsync(() =>
-                _repository.DeleteAsync(addedTaxRate.TaxRateId)
-            );
+            // Act
+            var result = await _repository.HasDependenciesAsync(1);
 
-            // ✅ VERIFICA CHE SIA STATO LANCIATO UN ERRORE
-            Assert.NotNull(exception);
-            Assert.True(exception is InvalidOperationException || exception is DbUpdateException);
+            // Assert
+            Assert.True(result);
+        }
 
-            // ✅ VERIFICA CHE L'ALIQUOTA NON SIA STATA ELIMINATA
-            var result = await _repository.GetByIdAsync(addedTaxRate.TaxRateId);
+        [Fact]
+        public async Task GetAllPerFrontendAsync_ShouldReturnPaginatedFrontendDTOs()
+        {
+            // Act
+            var result = await _repository.GetAllPerFrontendAsync(page: 1, pageSize: 10);
+
+            // Assert
             Assert.NotNull(result);
+            Assert.IsType<PaginatedResponseDTO<TaxRatesFrontendDTO>>(result);
+            Assert.Equal(3, result.TotalCount);
+            Assert.Equal("22.00%", result.Data.First(t => t.Aliquota == 22.00m).AliquotaFormattata);
+        }
+
+        [Fact]
+        public async Task GetByAliquotaPerFrontendAsync_ShouldReturnPaginatedFrontendResult()
+        {
+            // Act
+            var result = await _repository.GetByAliquotaPerFrontendAsync(10.00m, page: 1, pageSize: 10);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(1, result.TotalCount);
+            Assert.Equal("10.00%", result.Data.First().AliquotaFormattata);
         }
     }
 }

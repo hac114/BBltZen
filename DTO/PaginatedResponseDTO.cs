@@ -1,5 +1,4 @@
-﻿// DTO/PaginatedResponseDTO.cs
-namespace DTO
+﻿namespace DTO
 {
     public class PaginatedResponseDTO<T>
     {

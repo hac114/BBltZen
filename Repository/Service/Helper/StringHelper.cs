@@ -48,5 +48,29 @@ namespace Repository.Service.Helper
                 sourceWords.Any(sourceWord =>
                     sourceWord.StartsWith(searchWord, StringComparison.InvariantCultureIgnoreCase)));
         }
+
+        // ✅ VERIFICA UGUAGLIANZA CASE-INSENSITIVE
+        public static bool EqualsCaseInsensitive(string source, string searchTerm)
+        {
+            if (string.IsNullOrWhiteSpace(source) && string.IsNullOrWhiteSpace(searchTerm))
+                return true;
+
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(searchTerm))
+                return false;
+
+            return source.Equals(searchTerm, StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        // ✅ VERIFICA UGUAGLIANZA SENZA SPAZI EXTRA
+        public static bool EqualsTrimmedCaseInsensitive(string source, string searchTerm)
+        {
+            if (string.IsNullOrWhiteSpace(source) && string.IsNullOrWhiteSpace(searchTerm))
+                return true;
+
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(searchTerm))
+                return false;
+
+            return source.Trim().Equals(searchTerm.Trim(), StringComparison.InvariantCultureIgnoreCase);
+        }
     }
 }

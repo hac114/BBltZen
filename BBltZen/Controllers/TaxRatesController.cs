@@ -24,264 +24,276 @@ namespace BBltZen.Controllers
         private readonly BubbleTeaContext _context = context;
 
         // GET: api/TaxRates
-        [HttpGet]
-        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
-        public async Task<ActionResult<IEnumerable<TaxRatesDTO>>> GetAll()
-        {
-            try
-            {
-                var taxRates = await _repository.GetAllAsync();
-                return Ok(taxRates);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante il recupero di tutte le aliquote fiscali");
-                return SafeInternalError<IEnumerable<TaxRatesDTO>>(ex.Message);
-            }
-        }
+        //[HttpGet]
+        //[AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
+        //public async Task<ActionResult<IEnumerable<TaxRatesDTO>>> GetAll()
+        //{
+        //    try
+        //    {
+        //        var taxRates = await _repository.GetAllAsync();
+        //        return Ok(taxRates);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Errore durante il recupero di tutte le aliquote fiscali");
+        //        return SafeInternalError<IEnumerable<TaxRatesDTO>>(ex.Message);
+        //    }
+        //}
 
         // GET: api/TaxRates/5
-        [HttpGet("{id}")]
-        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
-        public async Task<ActionResult<TaxRatesDTO>> GetById(int id)
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetById([FromQuery] int? id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest<TaxRatesDTO>("ID aliquota non valido");
+                // ✅ SE ID NULL → LISTA COMPLETA PAGINATA
+                if (!id.HasValue)
+                {
+                    var result = await _repository.GetAllAsync(page, pageSize);
+                    return Ok(new
+                    {
+                        Message = $"Trovate {result.TotalCount} aliquote",
+                        result.Data,
+                        Pagination = new { result.Page, result.PageSize, result.TotalCount, result.TotalPages }
+                    });
+                }
 
-                var taxRate = await _repository.GetByIdAsync(id);
+                // ✅ SE ID VALORIZZATO → SINGOLO ELEMENTO
+                if (id <= 0) return SafeBadRequest("ID aliquota non valido");
 
-                if (taxRate == null)
-                    return SafeNotFound<TaxRatesDTO>("Aliquota fiscale");
-
-                return Ok(taxRate);
+                var taxRate = await _repository.GetByIdAsync(id.Value);
+                return taxRate == null ? SafeNotFound("Aliquota fiscale") : Ok(taxRate);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante il recupero dell'aliquota fiscale {Id}", id);
-                return SafeInternalError<TaxRatesDTO>(ex.Message);
+                return SafeInternalError("Errore durante il recupero dell'aliquota");
             }
         }
 
         // GET: api/TaxRates/aliquota/22.00
-        [HttpGet("aliquota/{aliquota}")]
-        [AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
-        public async Task<ActionResult<TaxRatesDTO>> GetByAliquota(decimal aliquota)
+        [HttpGet("aliquota")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetByAliquota([FromQuery] decimal? aliquota, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
+                // ✅ SE ALIQUOTA NULL → LISTA COMPLETA PAGINATA
+                if (!aliquota.HasValue)
+                {
+                    var result = await _repository.GetAllAsync(page, pageSize);
+                    return Ok(new
+                    {
+                        Message = $"Trovate {result.TotalCount} aliquote",
+                        result.Data,
+                        Pagination = new { result.Page, result.PageSize, result.TotalCount, result.TotalPages }
+                    });
+                }
+
+                // ✅ VALIDAZIONE ALIQUOTA
                 if (aliquota < 0 || aliquota > 100)
-                    return SafeBadRequest<TaxRatesDTO>("Valore aliquota non valido (deve essere tra 0 e 100)");
+                    return SafeBadRequest("Valore aliquota non valido (deve essere tra 0 e 100)");
 
-                var taxRate = await _repository.GetByAliquotaAsync(aliquota);
+                // ✅ RICERCA PAGINATA PER ALIQUOTA SPECIFICA
+                var resultByAliquota = await _repository.GetByAliquotaAsync(aliquota, page, pageSize);
 
-                if (taxRate == null)
-                    return SafeNotFound<TaxRatesDTO>("Aliquota fiscale");
+                resultByAliquota.Message = resultByAliquota.TotalCount > 0
+                    ? $"Trovate {resultByAliquota.TotalCount} aliquote al {aliquota}%"
+                    : $"Nessuna aliquota trovata al {aliquota}%";
 
-                return Ok(taxRate);
+                return Ok(resultByAliquota);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dell'aliquota fiscale con valore {Aliquota}", aliquota);
-                return SafeInternalError<TaxRatesDTO>(ex.Message);
+                _logger.LogError(ex, "Errore durante il recupero delle aliquote con valore {Aliquota}", aliquota);
+                return SafeInternalError("Errore durante il recupero delle aliquote");
             }
         }
 
         // POST: api/TaxRates
         [HttpPost]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")]
         public async Task<ActionResult<TaxRatesDTO>> Create([FromBody] TaxRatesDTO taxRateDto)
         {
             try
             {
                 if (!IsModelValid(taxRateDto))
-                    return SafeBadRequest<TaxRatesDTO>("Dati aliquota non validi");
+                    return SafeBadRequest("Dati aliquota non validi");
 
-                // Validazione aliquota univoca
-                if (await _repository.ExistsByAliquotaAsync(taxRateDto.Aliquota))
-                    return SafeBadRequest<TaxRatesDTO>("Aliquota già esistente");
+                // ✅ VALIDAZIONE DUPLICATI (aliquota + descrizione)
+                if (await _repository.ExistsByAliquotaDescrizioneAsync(taxRateDto.Aliquota, taxRateDto.Descrizione))
+                    return SafeBadRequest($"Esiste già un'aliquota {taxRateDto.Aliquota}% con descrizione '{taxRateDto.Descrizione}'");
 
-                // ✅ CORREZIONE: AddAsync ora ritorna il DTO con i valori aggiornati
                 var createdTaxRate = await _repository.AddAsync(taxRateDto);
 
-                // ✅ SEMPLIFICATO: Audit trail
                 LogAuditTrail("CREATE", "TaxRates", createdTaxRate.TaxRateId.ToString());
-                LogSecurityEvent("TaxRateCreated", $"Created TaxRate ID: {createdTaxRate.TaxRateId}");
+                LogSecurityEvent("TaxRateCreated", new
+                {
+                    createdTaxRate.TaxRateId,
+                    createdTaxRate.Aliquota,
+                    createdTaxRate.Descrizione,
+                    UserId = GetCurrentUserIdOrDefault()
+                });
 
                 return CreatedAtAction(nameof(GetById), new { id = createdTaxRate.TaxRateId }, createdTaxRate);
             }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione dell'aliquota fiscale");
-                return SafeInternalError<TaxRatesDTO>("Errore durante il salvataggio dei dati");
-            }
             catch (ArgumentException argEx)
             {
-                _logger.LogWarning(argEx, "Argomento non valido durante la creazione dell'aliquota fiscale");
-                return SafeBadRequest<TaxRatesDTO>(argEx.Message);
+                return SafeBadRequest(argEx.Message);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore database durante la creazione dell'aliquota");
+                return SafeInternalError("Errore durante il salvataggio");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione dell'aliquota fiscale");
-                return SafeInternalError<TaxRatesDTO>(ex.Message);
+                _logger.LogError(ex, "Errore durante la creazione dell'aliquota");
+                return SafeInternalError("Errore durante la creazione");
             }
         }
 
         // PUT: api/TaxRates/5
         [HttpPut("{id}")]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //[Authorize(Roles = "Admin")]
         public async Task<ActionResult> Update(int id, [FromBody] TaxRatesDTO taxRateDto)
         {
             try
             {
+                // ✅ 1. VALIDAZIONE ID
                 if (id <= 0)
                     return SafeBadRequest("ID aliquota non valido");
 
                 if (id != taxRateDto.TaxRateId)
                     return SafeBadRequest("ID aliquota non corrispondente");
 
+                // ✅ 2. VALIDAZIONE MODEL
                 if (!IsModelValid(taxRateDto))
                     return SafeBadRequest("Dati aliquota non validi");
 
-                var existing = await _repository.GetByIdAsync(id);
-                if (existing == null)
+                // ✅ 3. VERIFICA ESISTENZA
+                if (!await _repository.ExistsAsync(id))
                     return SafeNotFound("Aliquota fiscale");
 
-                // Validazione aliquota univoca (escludendo l'ID corrente)
-                if (await _repository.ExistsByAliquotaAsync(taxRateDto.Aliquota, id))
-                    return SafeBadRequest("Aliquota già esistente");
+                // ✅ 4. CONTROLLO DUPLICATI (aliquota + descrizione) ESCLUDENDO QUESTO ID
+                if (await _repository.ExistsByAliquotaDescrizioneAsync(taxRateDto.Aliquota, taxRateDto.Descrizione, id))
+                    return SafeBadRequest($"Esiste già un'aliquota {taxRateDto.Aliquota}% con descrizione '{taxRateDto.Descrizione}'");
 
-                // ✅ CORREZIONE: UpdateAsync ora aggiorna automaticamente DataAggiornamento
+                // ✅ 5. ESEGUI UPDATE
                 await _repository.UpdateAsync(taxRateDto);
 
-                // ✅ SEMPLIFICATO: Audit trail
+                // ✅ 6. AUDIT TRAIL
                 LogAuditTrail("UPDATE", "TaxRates", taxRateDto.TaxRateId.ToString());
-                LogSecurityEvent("TaxRateUpdated", $"Updated TaxRate ID: {taxRateDto.TaxRateId}");
-
-                return NoContent();
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'aliquota fiscale {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dei dati");
-            }
-            catch (ArgumentException argEx)
-            {
-                _logger.LogWarning(argEx, "Argomento non valido durante l'aggiornamento dell'aliquota fiscale {Id}", id);
-                return SafeBadRequest(argEx.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante l'aggiornamento dell'aliquota fiscale {Id}", id);
-                return SafeInternalError(ex.Message);
-            }
-        }
-
-        // DELETE: api/TaxRates/5
-        [HttpDelete("{id}")]
-        //[Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        public async Task<ActionResult> Delete(int id)
-        {
-            try
-            {
-                if (id <= 0)
-                    return SafeBadRequest("ID aliquota non valido");
-
-                var taxRate = await _repository.GetByIdAsync(id);
-                if (taxRate == null)
-                    return SafeNotFound("Aliquota fiscale");
-
-                // ✅ CONTROLLO VINCOLI REFERENZIALI NEL CONTROLLER
-                bool hasOrderItems = await _context.OrderItem.AnyAsync(oi => oi.TaxRateId == id);
-
-                if (hasOrderItems)
-                    return SafeBadRequest("Impossibile eliminare l'aliquota: sono presenti order items associati");
-
-                await _repository.DeleteAsync(id);
-
-                // ✅ SEMPLIFICATO: Audit trail
-                LogAuditTrail("DELETE", "TaxRates", id.ToString());
-                LogSecurityEvent("TaxRateDeleted", new
+                LogSecurityEvent("TaxRateUpdated", new
                 {
-                    id,
-                    taxRate.Aliquota,
+                    taxRateDto.TaxRateId,
+                    taxRateDto.Aliquota,
                     UserId = GetCurrentUserIdOrDefault()
                 });
 
                 return NoContent();
             }
-            catch (InvalidOperationException invOpEx) // ✅ INMEMORY EXCEPTION
+            catch (ArgumentException argEx)
             {
-                if (_environment.IsDevelopment())
-                    return SafeBadRequest($"Errore eliminazione: {invOpEx.Message}");
-                else
-                    return SafeBadRequest("Impossibile eliminare l'aliquota: sono presenti dipendenze");
+                return SafeBadRequest(argEx.Message);
             }
-            catch (DbUpdateException dbEx) // ✅ DATABASE REAL EXCEPTION
+            catch (DbUpdateException dbEx)
             {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione dell'aliquota fiscale {Id}", id);
-
-                if (_environment.IsDevelopment())
-                    return SafeBadRequest($"Errore database: {dbEx.Message}");
-                else
-                    return SafeBadRequest("Impossibile eliminare l'aliquota: sono presenti dipendenze");
+                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'aliquota {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione dell'aliquota fiscale {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
+                _logger.LogError(ex, "Errore durante l'aggiornamento dell'aliquota {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
+            }
+        }
+
+        [HttpDelete("{id}")]
+        //[Authorize(Roles = "Admin")]
+        public async Task<ActionResult> Delete(int id)
+        {
+            try
+            {
+                if (id <= 0) return SafeBadRequest("ID non valido");
+
+                var taxRate = await _repository.GetByIdAsync(id);
+                if (taxRate == null) return SafeNotFound("Aliquota");
+
+                // ✅ CONTROLLO DIPENDENZE QUI, come Tavolo
+                bool hasOrderItems = await _context.OrderItem.AnyAsync(oi => oi.TaxRateId == id);
+                if (hasOrderItems) return SafeBadRequest("Ci sono order items associati");
+
+                await _repository.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore eliminazione ID {Id}", id);
+                return SafeInternalError("Errore");
             }
         }
 
         // ✅ NUOVI ENDPOINT PER FRONTEND
 
         // GET: api/TaxRates/frontend
-        [HttpGet("frontend")]
-        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
-        public async Task<ActionResult<IEnumerable<TaxRatesFrontendDTO>>> GetAllPerFrontend()
-        {
-            try
-            {
-                var taxRates = await _repository.GetAllPerFrontendAsync();
-                return Ok(taxRates);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante il recupero delle aliquote per frontend");
+        //[HttpGet("frontend")]
+        //[AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
+        //public async Task<ActionResult<IEnumerable<TaxRatesFrontendDTO>>> GetAllPerFrontend()
+        //{
+        //    try
+        //    {
+        //        var taxRates = await _repository.GetAllPerFrontendAsync();
+        //        return Ok(taxRates);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Errore durante il recupero delle aliquote per frontend");
 
-                if (_environment.IsDevelopment())
-                    return SafeInternalError<IEnumerable<TaxRatesFrontendDTO>>($"Errore: {ex.Message}");
-                else
-                    return SafeInternalError<IEnumerable<TaxRatesFrontendDTO>>("Errore durante il caricamento delle aliquote");
-            }
-        }
+        //        if (_environment.IsDevelopment())
+        //            return SafeInternalError<IEnumerable<TaxRatesFrontendDTO>>($"Errore: {ex.Message}");
+        //        else
+        //            return SafeInternalError<IEnumerable<TaxRatesFrontendDTO>>("Errore durante il caricamento delle aliquote");
+        //    }
+        //}
 
         // GET: api/TaxRates/frontend/aliquota/22.00
-        [HttpGet("frontend/aliquota/{aliquota}")]
-        [AllowAnonymous] // ✅ ACCESSO PUBBLICO PER CLIENTI
-        public async Task<ActionResult<TaxRatesFrontendDTO>> GetByAliquotaPerFrontend(decimal aliquota)
+        [HttpGet("frontend/aliquota")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetByAliquotaPerFrontend([FromQuery] decimal? aliquota, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
+                // ✅ SE ALIQUOTA NULL → LISTA FRONTEND COMPLETA PAGINATA
+                if (!aliquota.HasValue)
+                {
+                    var res = await _repository.GetByAliquotaPerFrontendAsync(null, page, pageSize);
+                    return Ok(new
+                    {
+                        Message = $"Trovate {res.TotalCount} aliquote",
+                        res.Data,
+                        Pagination = new { res.Page, res.PageSize, res.TotalCount, res.TotalPages }
+                    });
+                }
+
+                // ✅ VALIDAZIONE ALIQUOTA
                 if (aliquota < 0 || aliquota > 100)
-                    return SafeBadRequest<TaxRatesFrontendDTO>("Valore aliquota non valido (deve essere tra 0 e 100)");
+                    return SafeBadRequest("Valore aliquota non valido (deve essere tra 0 e 100)");
 
-                var taxRate = await _repository.GetByAliquotaPerFrontendAsync(aliquota);
+                // ✅ RICERCA FRONTEND PAGINATA PER ALIQUOTA SPECIFICA
+                var result = await _repository.GetByAliquotaPerFrontendAsync(aliquota, page, pageSize);
 
-                if (taxRate == null)
-                    return SafeNotFound<TaxRatesFrontendDTO>("Aliquota fiscale");
+                result.Message = result.TotalCount > 0
+                    ? $"Trovate {result.TotalCount} aliquote al {aliquota}%"
+                    : $"Nessuna aliquota trovata al {aliquota}%";
 
-                return Ok(taxRate);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dell'aliquota fiscale con valore {Aliquota} per frontend", aliquota);
-
-                if (_environment.IsDevelopment())
-                    return SafeInternalError<TaxRatesFrontendDTO>($"Errore: {ex.Message}");
-                else
-                    return SafeInternalError<TaxRatesFrontendDTO>("Errore durante il caricamento dell'aliquota");
+                _logger.LogError(ex, "Errore durante il recupero delle aliquote frontend con valore {Aliquota}", aliquota);
+                return SafeInternalError("Errore durante il caricamento delle aliquote");
             }
         }
     }

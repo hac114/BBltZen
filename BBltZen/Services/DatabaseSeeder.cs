@@ -7,14 +7,9 @@ using System.Threading.Tasks;
 
 namespace BBltZen.Services
 {
-    public class DatabaseSeeder
+    public class DatabaseSeeder(BubbleTeaContext context)
     {
-        private readonly BubbleTeaContext _context;
-
-        public DatabaseSeeder(BubbleTeaContext context)
-        {
-            _context = context;
-        }
+        private readonly BubbleTeaContext _context = context;
 
         public async Task SeedAsync(bool forceReset = false)
         {
@@ -556,6 +551,19 @@ namespace BBltZen.Services
                     BevandaCustom = new BevandaCustom() // ✅ CORRETTO: SINGOLO OGGETTO, NON LISTA
                     {
                         PersCustomId = 1, // ✅ AGGIUNTO: FK OBBLIGATORIA
+                        Prezzo = 6.00m,
+                        DataCreazione = now, // ✅ DATA OBBLIGATORIA
+                        DataAggiornamento = now // ✅ DATA OBBLIGATORIA
+                    }
+                },
+                new Articolo
+                {
+                    Tipo = "BC",
+                    DataCreazione = now,
+                    DataAggiornamento = now,
+                    BevandaCustom = new BevandaCustom() // ✅ CORRETTO: SINGOLO OGGETTO, NON LISTA
+                    {
+                        PersCustomId = 2, // ✅ AGGIUNTO: FK OBBLIGATORIA
                         Prezzo = 6.00m,
                         DataCreazione = now, // ✅ DATA OBBLIGATORIA
                         DataAggiornamento = now // ✅ DATA OBBLIGATORIA
@@ -1509,106 +1517,53 @@ namespace BBltZen.Services
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
                 var ordini = await _context.Ordine.ToListAsync();
                 var articoli = await _context.Articolo.ToListAsync();
                 var taxRates = await _context.TaxRates.ToListAsync();
 
-                // ✅ Verifica che ci siano abbastanza ordini
-                if (ordini.Count < 2)
+                // ✅ MODIFICA: BASTA 1 ORDINE
+                if (!ordini.Any())
                 {
-                    Console.WriteLine("⚠️  Ordini insufficienti per OrderItems (servono almeno 2)");
+                    Console.WriteLine("⚠️  Nessun ordine trovato per OrderItems");
                     return;
                 }
 
-                // ✅ Usa accesso per indice invece di Skip().FirstAsync()
                 var ordine1 = ordini[0];
-                var ordine2 = ordini[1];
 
-                // ✅ Filtra articoli per tipo in memoria
-                var articoliBevanda = articoli.Where(a => a.Tipo == "bevanda").ToList();
-                var articoliDolce = articoli.Where(a => a.Tipo == "dolce").ToList();
+                // ✅ MODIFICA: PRENDI QUALSIASI ARTICOLO
+                var articolo1 = articoli.FirstOrDefault();
+                var articolo2 = articolo1 != null && articoli.Count > 1 ? articoli[1] : articolo1;
 
-                // ✅ Verifica che ci siano abbastanza articoli
-                if (articoliBevanda.Count < 2)
+                if (articolo1 == null)
                 {
-                    Console.WriteLine("⚠️  Articoli bevanda insufficienti per OrderItems (servono almeno 2)");
+                    Console.WriteLine("⚠️  Nessun articolo trovato per OrderItems");
                     return;
                 }
 
-                if (!articoliDolce.Any())
+                var taxRate = taxRates.FirstOrDefault();
+                if (taxRate == null)
                 {
-                    Console.WriteLine("⚠️  Nessun articolo dolce trovato per OrderItems");
+                    Console.WriteLine("⚠️  Nessuna tax rate trovata per OrderItems");
                     return;
                 }
 
-                var articoloBevanda1 = articoliBevanda[0];
-                var articoloBevanda2 = articoliBevanda[1];
-                var articoloDolce = articoliDolce.FirstOrDefault();
-
-                // ✅ CORREZIONE WARNING: Verifica esplicita che articoloDolce non sia null
-                if (articoloDolce == null)
-                {
-                    Console.WriteLine("⚠️  Articolo dolce non trovato per OrderItems");
-                    return;
-                }
-
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var taxRateStandard = taxRates.FirstOrDefault(t => t.Aliquota == 22.00m);
-
-                // ✅ Verifica che la tax rate esista
-                if (taxRateStandard == null)
-                {
-                    Console.WriteLine("⚠️  Tax rate standard non trovato per OrderItems");
-                    return;
-                }
+                Console.WriteLine($"✅ Creando OrderItems con: OrdineId={ordine1.OrdineId}, ArticoloId={articolo1.ArticoloId}, TaxRateId={taxRate.TaxRateId}");
 
                 var orderItems = new[]
                 {
-                    // Ordine 1 - Classic Milk Tea
                     new OrderItem
                     {
                         OrdineId = ordine1.OrdineId,
-                        ArticoloId = articoloBevanda1.ArticoloId,
+                        ArticoloId = articolo1.ArticoloId,
                         Quantita = 2,
                         PrezzoUnitario = 4.50m,
                         ScontoApplicato = 0.00m,
                         Imponibile = 9.00m,
-                        TotaleIvato = 10.98m, // 9.00 + 22% IVA
-                        TaxRateId = taxRateStandard.TaxRateId,
-                        TipoArticolo = "bevanda",
+                        TotaleIvato = 9.00m + (9.00m * taxRate.Aliquota / 100),
+                        TaxRateId = taxRate.TaxRateId, // ✅ COLLEGATO!
+                        TipoArticolo = articolo1.Tipo,
                         DataCreazione = DateTime.UtcNow.AddHours(-2),
                         DataAggiornamento = DateTime.UtcNow.AddHours(-2)
-                    },
-                    // Ordine 1 - Tiramisù
-                    new OrderItem
-                    {
-                        OrdineId = ordine1.OrdineId,
-                        ArticoloId = articoloDolce.ArticoloId, // ✅ ORA SICURO: articoloDolce non è null
-                        Quantita = 1,
-                        PrezzoUnitario = 5.50m,
-                        ScontoApplicato = 0.00m,
-                        Imponibile = 5.50m,
-                        TotaleIvato = 6.71m, // 5.50 + 22% IVA
-                        TaxRateId = taxRateStandard.TaxRateId,
-                        TipoArticolo = "dolce",
-                        DataCreazione = DateTime.UtcNow.AddHours(-2),
-                        DataAggiornamento = DateTime.UtcNow.AddHours(-2)
-                    },
-                    // Ordine 2 - Fruit Fusion
-                    new OrderItem
-                    {
-                        OrdineId = ordine2.OrdineId,
-                        ArticoloId = articoloBevanda2.ArticoloId,
-                        Quantita = 1,
-                        PrezzoUnitario = 5.50m,
-                        ScontoApplicato = 0.50m, // Sconto applicato
-                        Imponibile = 5.00m,
-                        TotaleIvato = 6.10m, // 5.00 + 22% IVA
-                        TaxRateId = taxRateStandard.TaxRateId,
-                        TipoArticolo = "bevanda",
-                        DataCreazione = DateTime.UtcNow.AddHours(-1),
-                        DataAggiornamento = DateTime.UtcNow.AddHours(-1)
                     }
                 };
 
@@ -1618,9 +1573,8 @@ namespace BBltZen.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"⚠️  Errore in SeedOrderItemsAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
             }
-        }                
+        }
 
         private async Task SeedStatisticheCacheAsync()
         {

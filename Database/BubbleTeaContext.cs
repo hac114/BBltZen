@@ -978,6 +978,8 @@ public partial class BubbleTeaContext : DbContext
 
             entity.ToTable("TAX_RATES");
 
+            entity.HasIndex(e => new { e.Aliquota, e.Descrizione }, "UQ_TAX_RATES_Aliquota_Descrizione").IsUnique();
+
             entity.Property(e => e.TaxRateId).HasColumnName("tax_rate_id");
             entity.Property(e => e.Aliquota)
                 .HasColumnType("decimal(5, 2)")
