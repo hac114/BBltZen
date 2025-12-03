@@ -1052,6 +1052,10 @@ public partial class BubbleTeaContext : DbContext
 
             entity.ToTable("Unita_di_misura");
 
+            entity.HasIndex(e => e.Descrizione, "UQ_Unita_di_misura_descrizione").IsUnique();
+
+            entity.HasIndex(e => e.Sigla, "UQ_Unita_di_misura_sigla").IsUnique();
+
             entity.Property(e => e.UnitaMisuraId).HasColumnName("unita_misura_id");
             entity.Property(e => e.Descrizione)
                 .HasMaxLength(10)

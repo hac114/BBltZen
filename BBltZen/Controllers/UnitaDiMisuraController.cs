@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
-using System.Collections.Generic;
+using Repository.Service.Helper;
 using System.Threading.Tasks;
 
 namespace BBltZen.Controllers
@@ -13,115 +13,141 @@ namespace BBltZen.Controllers
     [Route("api/[controller]")]
     [AllowAnonymous]
     public class UnitaDiMisuraController(
-    IUnitaDiMisuraRepository repository,
-    BubbleTeaContext context,
-    IWebHostEnvironment environment,
-    ILogger<UnitaDiMisuraController> logger)
-    : SecureBaseController(environment, logger)
+        IUnitaDiMisuraRepository repository,
+        BubbleTeaContext context,
+        IWebHostEnvironment environment,
+        ILogger<UnitaDiMisuraController> logger)
+        : SecureBaseController(environment, logger)
     {
         private readonly IUnitaDiMisuraRepository _repository = repository;
         private readonly BubbleTeaContext _context = context;
 
-        // GET: api/UnitaDiMisura
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<UnitaDiMisuraDTO>>> GetAll()
-        {
-            try
-            {
-                var unita = await _repository.GetAllAsync();
-                return Ok(unita);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante il recupero di tutte le unità di misura");
-                return SafeInternalError<IEnumerable<UnitaDiMisuraDTO>>("Errore durante il recupero delle unità di misura");
-            }
-        }
-
-        // GET: api/UnitaDiMisura/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<UnitaDiMisuraDTO>> GetById(int id)
-        {
-            try
-            {
-                if (id <= 0)
-                    return SafeBadRequest<UnitaDiMisuraDTO>("ID unità di misura non valido");
-
-                var unita = await _repository.GetByIdAsync(id);
-
-                if (unita == null)
-                    return SafeNotFound<UnitaDiMisuraDTO>("Unità di misura");
-
-                return Ok(unita);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante il recupero dell'unità di misura {Id}", id);
-                return SafeInternalError<UnitaDiMisuraDTO>("Errore durante il recupero dell'unità di misura");
-            }
-        }
-        // POST: api/UnitaDiMisura
+        // ✅ 2. POST /api/UnitaDiMisura
+        // ✅ 2. POST /api/UnitaDiMisura - CORRETTO
         [HttpPost]
         // [Authorize(Roles = "admin,manager")]
-        public async Task<ActionResult<UnitaDiMisuraDTO>> Create(UnitaDiMisuraDTO unitaDto)
+        public async Task<ActionResult<UnitaDiMisuraDTO>> Create([FromBody] UnitaDiMisuraDTO unitaDto)
         {
             try
             {
                 if (!IsModelValid(unitaDto))
-                    return SafeBadRequest<UnitaDiMisuraDTO>("Dati unità di misura non validi");
+                    return SafeBadRequest("Dati unità di misura non validi");
 
-                if (await _repository.SiglaExistsAsync(unitaDto.Sigla))
-                    return SafeBadRequest<UnitaDiMisuraDTO>("Esiste già un'unità di misura con questa sigla");
+                // ✅ SIGLA: Converti in maiuscolo e valida lunghezza
+                unitaDto.Sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla).ToUpperInvariant();
+
+                if (unitaDto.Sigla.Length > 2)
+                    return SafeBadRequest("La sigla non può superare 2 caratteri");
+
+                // ✅ DESCRIZIONE: Normalizza
+                unitaDto.Descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
+
+                // ✅ CONTROLLO UNIVOCITÀ SIGLA (case-insensitive)
+                var existingBySigla = await _context.UnitaDiMisura
+                    .FirstOrDefaultAsync(u => u.Sigla.ToUpper() == unitaDto.Sigla.ToUpper());
+
+                if (existingBySigla != null)
+                    return SafeBadRequest($"Esiste già un'unità di misura con la sigla '{unitaDto.Sigla}'");
+
+                // ✅ CONTROLLO UNIVOCITÀ DESCRIZIONE (case-insensitive)
+                var existingByDesc = await _context.UnitaDiMisura
+                    .FirstOrDefaultAsync(u => u.Descrizione.ToUpper() == unitaDto.Descrizione.ToUpper());
+
+                if (existingByDesc != null)
+                    return SafeBadRequest($"Esiste già un'unità di misura con la descrizione '{unitaDto.Descrizione}'");
 
                 var result = await _repository.AddAsync(unitaDto);
 
-                // ✅ OTTIMIZZATO: Oggetto anonimo semplificato
                 LogSecurityEvent("UnitaMisuraCreated", new
                 {
                     result.UnitaMisuraId,
                     result.Sigla,
-                    UserId = GetCurrentUserId(),
-                    UserName = User.Identity?.Name
+                    UserId = GetCurrentUserId()
                 });
 
                 LogAuditTrail("CREATE", "UnitaDiMisura", result.UnitaMisuraId.ToString());
 
                 return CreatedAtAction(nameof(GetById), new { id = result.UnitaMisuraId }, result);
             }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione dell'unità di misura");
-                return SafeInternalError<UnitaDiMisuraDTO>("Errore durante il salvataggio dell'unità di misura");
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest<UnitaDiMisuraDTO>(argEx.Message);
-            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore durante la creazione dell'unità di misura");
-                return SafeInternalError<UnitaDiMisuraDTO>("Errore durante la creazione dell'unità di misura");
+                return SafeInternalError("Errore durante la creazione dell'unità di misura");
             }
         }
 
-        // PUT: api/UnitaDiMisura/5
-        [HttpPut("{id}")]
-        // [Authorize(Roles = "admin,manager")]
-        public async Task<ActionResult> Update(int id, UnitaDiMisuraDTO unitaDto)
+        // ✅ 3. GET /api/UnitaDiMisura - MODIFICATO (come Tavolo)
+        [HttpGet("id")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetById([FromQuery] int? id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (id <= 0 || id != unitaDto.UnitaMisuraId)
-                    return SafeBadRequest("ID unità di misura non valido");
+                // ✅ SE ID NULL → LISTA COMPLETA
+                if (!id.HasValue)
+                {
+                    var result = await _repository.GetAllAsync(page, pageSize);
+                    return Ok(new
+                    {
+                        Message = $"Trovate {result.TotalCount} unità di misura",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
 
-                if (!IsModelValid(unitaDto))
-                    return SafeBadRequest("Dati unità di misura non validi");
+                // ✅ SE ID VALORIZZATO → SINGOLO ELEMENTO
+                if (id <= 0) return SafeBadRequest("ID non valido");
 
-                if (!await _repository.ExistsAsync(id))
-                    return SafeNotFound("Unità di misura");
+                var unita = await _repository.GetByIdAsync(id.Value);
+                return unita == null ? SafeNotFound("Unità di misura") : Ok(unita);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore recupero unità di misura {Id}", id);
+                return SafeInternalError("Errore durante il recupero");
+            }
+        }
 
-                if (await _repository.SiglaExistsForOtherAsync(id, unitaDto.Sigla))
-                    return SafeBadRequest("Esiste già un'altra unità di misura con questa sigla");
+        // ✅ 4. PUT /api/UnitaDiMisura/{id}
+        [HttpPut("{id}")]
+        // [Authorize(Roles = "admin,manager")]
+        public async Task<ActionResult> Update(int id, [FromBody] UnitaDiMisuraDTO unitaDto)
+        {
+            try
+            {
+                if (id != unitaDto.UnitaMisuraId)
+                    return SafeBadRequest("ID non corrispondente");
+
+                // ✅ SIGLA: Converti in maiuscolo e valida lunghezza
+                unitaDto.Sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla).ToUpperInvariant();
+
+                if (unitaDto.Sigla.Length > 2)
+                    return SafeBadRequest("La sigla non può superare 2 caratteri");
+
+                // ✅ DESCRIZIONE: Normalizza
+                unitaDto.Descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
+
+                // ✅ CONTROLLO DUPICATI SIGLA (case-insensitive)
+                var existingBySigla = await _context.UnitaDiMisura
+                    .FirstOrDefaultAsync(u => u.UnitaMisuraId != id &&
+                                             u.Sigla.ToUpper() == unitaDto.Sigla.ToUpper());
+                if (existingBySigla != null)
+                    return SafeBadRequest($"Esiste già un'unità di misura con la sigla '{unitaDto.Sigla}'");
+
+                // ✅ CONTROLLO DUPICATI DESCRIZIONE (case-insensitive)
+                var existingByDesc = await _context.UnitaDiMisura
+                    .FirstOrDefaultAsync(u => u.UnitaMisuraId != id &&
+                                             u.Descrizione.ToUpper() == unitaDto.Descrizione.ToUpper());
+                if (existingByDesc != null)
+                    return SafeBadRequest($"Esiste già un'unità di misura con la descrizione '{unitaDto.Descrizione}'");
 
                 await _repository.UpdateAsync(unitaDto);
 
@@ -129,45 +155,36 @@ namespace BBltZen.Controllers
                 {
                     id,
                     unitaDto.Sigla,
-                    UserId = GetCurrentUserId(),
-                    UserName = User.Identity?.Name
+                    UserId = GetCurrentUserId()
                 });
 
                 LogAuditTrail("UPDATE", "UnitaDiMisura", id.ToString());
 
                 return NoContent();
             }
-            catch (DbUpdateException dbEx)
+            catch (KeyNotFoundException ex)
             {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'unità di misura {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dell'unità di misura");
+                return SafeNotFound(ex.Message);
             }
-            catch (ArgumentException argEx)
+            catch (InvalidOperationException ex)
             {
-                return SafeBadRequest(argEx.Message);
+                return SafeBadRequest(ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento dell'unità di misura {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento dell'unità di misura");
+                _logger.LogError(ex, "Errore aggiornamento unità di misura {Id}", id);
+                return SafeInternalError("Errore durante l'aggiornamento");
             }
         }
 
-        // DELETE: api/UnitaDiMisura/5
+        // ✅ 5. DELETE /api/UnitaDiMisura/{id}
         [HttpDelete("{id}")]
         // [Authorize(Roles = "admin")]
         public async Task<ActionResult> Delete(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest("ID unità di misura non valido");
-
-                var unita = await _repository.GetByIdAsync(id);
-                if (unita == null)
-                    return SafeNotFound("Unità di misura");
-
-                // ✅ CONTROLLO VINCOLI REFERENZIALI NEL CONTROLLER
+                // ✅ CONTROLLO DIPENDENZE (come Tavolo)
                 bool hasDimensioneBicchieri = await _context.DimensioneBicchiere
                     .AnyAsync(db => db.UnitaMisuraId == id);
 
@@ -175,101 +192,158 @@ namespace BBltZen.Controllers
                     .AnyAsync(pi => pi.UnitaMisuraId == id);
 
                 if (hasDimensioneBicchieri || hasPersonalizzazioneIngredienti)
-                    return SafeBadRequest("Impossibile eliminare l'unità di misura: sono presenti dimensioni bicchieri o personalizzazioni ingredienti associati");
+                {
+                    var errorMessage = "Impossibile eliminare: ";
+                    if (hasDimensioneBicchieri) errorMessage += "sono presenti dimensioni bicchieri associate. ";
+                    if (hasPersonalizzazioneIngredienti) errorMessage += "sono presenti personalizzazioni ingredienti associate.";
+                    return SafeBadRequest(errorMessage.Trim());
+                }
 
                 await _repository.DeleteAsync(id);
 
-                // ✅ SEMPLIFICATO: Audit trail
                 LogAuditTrail("DELETE", "UnitaDiMisura", id.ToString());
                 LogSecurityEvent("UnitaMisuraDeleted", new
                 {
                     id,
-                    unita.Sigla,
-                    UserId = GetCurrentUserIdOrDefault()
+                    UserId = GetCurrentUserId()
                 });
 
                 return NoContent();
             }
-            catch (InvalidOperationException invOpEx) // ✅ INMEMORY EXCEPTION
+            catch (KeyNotFoundException ex)
             {
-                if (_environment.IsDevelopment())
-                    return SafeBadRequest($"Errore eliminazione: {invOpEx.Message}");
-                else
-                    return SafeBadRequest("Impossibile eliminare l'unità di misura: sono presenti dipendenze");
+                return SafeNotFound(ex.Message);
             }
-            catch (DbUpdateException dbEx) // ✅ DATABASE REAL EXCEPTION
+            catch (InvalidOperationException ex)
             {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione dell'unità di misura {Id}", id);
-
-                if (_environment.IsDevelopment())
-                    return SafeBadRequest($"Errore database: {dbEx.Message}");
-                else
-                    return SafeBadRequest("Impossibile eliminare l'unità di misura: sono presenti dipendenze");
+                return SafeBadRequest(ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione dell'unità di misura {Id}", id);
+                _logger.LogError(ex, "Errore eliminazione unità di misura {Id}", id);
                 return SafeInternalError("Errore durante l'eliminazione");
             }
         }
 
-        // GET: api/UnitaDiMisura/sigla/ml
-        [HttpGet("sigla/{sigla}")]
-        public async Task<ActionResult<UnitaDiMisuraDTO>> GetBySigla(string sigla)
+        // ✅ 6. GET /api/UnitaDiMisura/sigla - MODIFICATO (come Tavolo)
+        [HttpGet("sigla")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetBySigla(
+            [FromQuery] string? sigla = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(sigla))
-                    return SafeBadRequest<UnitaDiMisuraDTO>("Sigla non valida");
+                // ✅ VALIDAZIONE SICUREZZA
+                if (!SecurityHelper.IsValidInput(sigla, maxLength: 2))
+                    return SafeBadRequest("Input non valido");
 
-                var unita = await _repository.GetBySiglaAsync(sigla.ToUpper());
-                if (unita == null)
-                    return SafeNotFound<UnitaDiMisuraDTO>("Unità di misura");
+                var result = await _repository.GetBySiglaAsync(sigla, page, pageSize);
 
-                return Ok(unita);
+                // ✅ MESSAGGIO DINAMICO (come Tavolo)
+                result.Message = !string.IsNullOrWhiteSpace(sigla)
+                    ? (result.TotalCount > 0
+                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{sigla}' (pagina {result.Page} di {result.TotalPages})"
+                        : $"Nessuna unità di misura trovata che inizia con '{sigla}'")
+                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
+
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dell'unità di misura con sigla {Sigla}", sigla);
-                return SafeInternalError<UnitaDiMisuraDTO>("Errore durante il recupero dell'unità di misura");
+                _logger.LogError(ex, "Errore recupero unità di misura per sigla {Sigla}", sigla);
+                return SafeInternalError("Errore durante il recupero");
             }
         }
 
-        // GET: api/UnitaDiMisura/frontend
-        [HttpGet("frontend")]
-        public async Task<ActionResult<IEnumerable<UnitaDiMisuraFrontendDTO>>> GetAllPerFrontend()
+        // ✅ 8. GET /api/UnitaDiMisura/frontend/sigla - MODIFICATO (come Tavolo)
+        [HttpGet("frontend/sigla")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetBySiglaPerFrontend(
+            [FromQuery] string? sigla = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                var unita = await _repository.GetAllPerFrontendAsync();
-                return Ok(unita);
+                if (!SecurityHelper.IsValidInput(sigla, maxLength: 2))
+                    return SafeBadRequest("Input non valido");
+
+                var result = await _repository.GetBySiglaPerFrontendAsync(sigla, page, pageSize);
+
+                result.Message = !string.IsNullOrWhiteSpace(sigla)
+                    ? (result.TotalCount > 0
+                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{sigla}' (pagina {result.Page} di {result.TotalPages})"
+                        : $"Nessuna unità di misura trovata che inizia con '{sigla}'")
+                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
+
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero di tutte le unità di misura per frontend");
-                return SafeInternalError<IEnumerable<UnitaDiMisuraFrontendDTO>>("Errore durante il recupero delle unità di misura");
+                _logger.LogError(ex, "Errore recupero frontend unità di misura per sigla {Sigla}", sigla);
+                return SafeInternalError("Errore durante il recupero");
             }
         }
 
-        // GET: api/UnitaDiMisura/frontend/sigla/ml
-        [HttpGet("frontend/sigla/{sigla}")]
-        public async Task<ActionResult<UnitaDiMisuraFrontendDTO>> GetBySiglaPerFrontend(string sigla)
+        // ✅ 9. GET /api/UnitaDiMisura/descrizione - NUOVO (come Tavolo)
+        [HttpGet("descrizione")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetByDescrizione(
+            [FromQuery] string? descrizione = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(sigla))
-                    return SafeBadRequest<UnitaDiMisuraFrontendDTO>("Sigla non valida");
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
+                    return SafeBadRequest("Input non valido");
 
-                var unita = await _repository.GetBySiglaPerFrontendAsync(sigla.ToUpper());
-                if (unita == null)
-                    return SafeNotFound<UnitaDiMisuraFrontendDTO>("Unità di misura");
+                var result = await _repository.GetByDescrizioneAsync(descrizione, page, pageSize);
 
-                return Ok(unita);
+                result.Message = !string.IsNullOrWhiteSpace(descrizione)
+                    ? (result.TotalCount > 0
+                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{descrizione}' (pagina {result.Page} di {result.TotalPages})"
+                        : $"Nessuna unità di misura trovata che inizia con '{descrizione}'")
+                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
+
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dell'unità di misura con sigla {Sigla} per frontend", sigla);
-                return SafeInternalError<UnitaDiMisuraFrontendDTO>("Errore durante il recupero dell'unità di misura");
+                _logger.LogError(ex, "Errore recupero unità di misura per descrizione {Descrizione}", descrizione);
+                return SafeInternalError("Errore durante il recupero");
+            }
+        }
+
+        // ✅ 10. GET /api/UnitaDiMisura/frontend/descrizione - NUOVO (come Tavolo)
+        [HttpGet("frontend/descrizione")]
+        [AllowAnonymous]
+        public async Task<ActionResult> GetByDescrizionePerFrontend(
+            [FromQuery] string? descrizione = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
+                    return SafeBadRequest("Input non valido");
+
+                var result = await _repository.GetByDescrizionePerFrontendAsync(descrizione, page, pageSize);
+
+                result.Message = !string.IsNullOrWhiteSpace(descrizione)
+                    ? (result.TotalCount > 0
+                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{descrizione}' (pagina {result.Page} di {result.TotalPages})"
+                        : $"Nessuna unità di misura trovata che inizia con '{descrizione}'")
+                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore recupero frontend unità di misura per descrizione {Descrizione}", descrizione);
+                return SafeInternalError("Errore durante il recupero");
             }
         }
     }
