@@ -27,53 +27,76 @@ namespace BBltZen.Controllers
             private readonly ICategoriaIngredienteRepository _repository = repository;
             private readonly Database.BubbleTeaContext _context = context;
 
-            [HttpGet]
-            public async Task<ActionResult<IEnumerable<CategoriaIngredienteDTO>>> GetAll()
+            //[HttpGet]
+            //public async Task<ActionResult<IEnumerable<CategoriaIngredienteDTO>>> GetAll()
+            //{
+            //    try
+            //    {
+            //        var categorie = await _repository.GetAllAsync();
+            //        return Ok(categorie);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        _logger.LogError(ex, "Errore durante il recupero di tutte le categorie ingredienti");
+            //        return SafeInternalError<IEnumerable<CategoriaIngredienteDTO>>("Errore durante il recupero delle categorie");
+            //    }
+            //}
+
+            [HttpGet("id")]
+            [AllowAnonymous]
+            public async Task<ActionResult> GetById([FromQuery] int? id = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
             {
                 try
                 {
-                    var categorie = await _repository.GetAllAsync();
-                    return Ok(categorie);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Errore durante il recupero di tutte le categorie ingredienti");
-                    return SafeInternalError<IEnumerable<CategoriaIngredienteDTO>>("Errore durante il recupero delle categorie");
-                }
-            }
+                    // ✅ SE ID NULL → LISTA COMPLETA PAGINATA
+                    if (!id.HasValue)
+                    {
+                        var result = await _repository.GetAllAsync(page, pageSize);
+                        return Ok(new
+                        {
+                            Message = $"Trovate {result.TotalCount} categorie",
+                            result.Data,
+                            Pagination = new
+                            {
+                                result.Page,
+                                result.PageSize,
+                                result.TotalCount,
+                                result.TotalPages,
+                                result.HasPrevious,
+                                result.HasNext
+                            }
+                        });
+                    }
 
-            [HttpGet("{id}")]
-            public async Task<ActionResult<CategoriaIngredienteDTO>> GetById(int id)
-            {
-                try
-                {
-                    if (id <= 0)
-                        return SafeBadRequest<CategoriaIngredienteDTO>("ID categoria non valido");
+                    // ✅ SE ID VALORIZZATO → SINGOLO ELEMENTO
+                    if (id <= 0) return SafeBadRequest("ID categoria non valido");
 
-                    var categoria = await _repository.GetByIdAsync(id);
-                    return categoria == null
-                        ? SafeNotFound<CategoriaIngredienteDTO>("Categoria ingrediente")
-                        : Ok(categoria);
+                    var categoria = await _repository.GetByIdAsync(id.Value);
+                    return categoria == null ? SafeNotFound("Categoria ingrediente") : Ok(categoria);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Errore durante il recupero della categoria ingrediente {Id}", id);
-                    return SafeInternalError<CategoriaIngredienteDTO>("Errore durante il recupero della categoria");
+                    return SafeInternalError("Errore durante il recupero della categoria");
                 }
             }
 
+            // ✅ 2. POST /api/CategoriaIngrediente (AGGIORNATO)
             [HttpPost]
-            // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
+            // [Authorize(Roles = "admin,manager")]
             public async Task<ActionResult<CategoriaIngredienteDTO>> Create([FromBody] CategoriaIngredienteDTO categoriaDto)
             {
                 try
                 {
                     if (!IsModelValid(categoriaDto))
-                        return SafeBadRequest<CategoriaIngredienteDTO>("Dati categoria non validi");
+                        return SafeBadRequest("Dati categoria non validi");
 
-                    // ✅ VERIFICA UNICITÀ NOME
-                    if (await _repository.ExistsByNomeAsync(categoriaDto.Categoria))
-                        return SafeBadRequest<CategoriaIngredienteDTO>("Esiste già una categoria con questo nome");
+                    // ✅ VERIFICA UNICITÀ NOME (case-insensitive)
+                    var existingByNome = await _context.CategoriaIngrediente
+                        .FirstOrDefaultAsync(c => c.Categoria.ToUpper() == categoriaDto.Categoria.ToUpper());
+
+                    if (existingByNome != null)
+                        return SafeBadRequest($"Esiste già una categoria con nome '{categoriaDto.Categoria}'");
 
                     // ✅ USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
                     var result = await _repository.AddAsync(categoriaDto);
@@ -89,44 +112,30 @@ namespace BBltZen.Controllers
 
                     return CreatedAtAction(nameof(GetById), new { id = result.CategoriaId }, result);
                 }
-                catch (ArgumentException argEx)
-                {
-                    return SafeBadRequest<CategoriaIngredienteDTO>(argEx.Message);
-                }
-                catch (DbUpdateException dbEx)
-                {
-                    _logger.LogError(dbEx, "Errore database durante la creazione categoria ingrediente");
-                    return SafeInternalError<CategoriaIngredienteDTO>("Errore durante il salvataggio");
-                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Errore durante la creazione categoria ingrediente");
-                    return SafeInternalError<CategoriaIngredienteDTO>("Errore durante la creazione");
+                    return SafeInternalError("Errore durante la creazione");
                 }
             }
 
+            // ✅ 4. PUT /api/CategoriaIngrediente/{id} (AGGIORNATO)
             [HttpPut("{id}")]
-            // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
+            // [Authorize(Roles = "admin,manager")]
             public async Task<ActionResult> Update(int id, [FromBody] CategoriaIngredienteDTO categoriaDto)
             {
                 try
                 {
-                    if (id <= 0 || id != categoriaDto.CategoriaId)
-                        return SafeBadRequest("ID categoria non valido");
+                    if (id != categoriaDto.CategoriaId)
+                        return SafeBadRequest("ID non corrispondente");
 
-                    if (!IsModelValid(categoriaDto))
-                        return SafeBadRequest("Dati categoria non validi");
+                    // ✅ CONTROLLO DUPICATI NOME (case-insensitive)
+                    var existingByNome = await _context.CategoriaIngrediente
+                        .FirstOrDefaultAsync(c => c.CategoriaId != id &&
+                                                 c.Categoria.ToUpper() == categoriaDto.Categoria.ToUpper());
 
-                    // ✅ VERIFICA ESISTENZA
-                    if (!await _repository.ExistsAsync(id))
-                        return SafeNotFound("Categoria ingrediente");
-
-                    // ✅ VERIFICA UNICITÀ NOME (controllo manuale nel controller)
-                    bool existsOther = await _context.CategoriaIngrediente
-                        .AnyAsync(c => c.CategoriaId != id && c.Categoria == categoriaDto.Categoria);
-
-                    if (existsOther)
-                        return SafeBadRequest("Esiste già un'altra categoria con questo nome");
+                    if (existingByNome != null)
+                        return SafeBadRequest($"Esiste già una categoria con nome '{categoriaDto.Categoria}'");
 
                     await _repository.UpdateAsync(categoriaDto);
 
@@ -141,14 +150,13 @@ namespace BBltZen.Controllers
 
                     return NoContent();
                 }
-                catch (ArgumentException argEx)
+                catch (KeyNotFoundException ex)
                 {
-                    return SafeBadRequest(argEx.Message);
+                    return SafeNotFound(ex.Message);
                 }
-                catch (DbUpdateException dbEx)
+                catch (InvalidOperationException ex)
                 {
-                    _logger.LogError(dbEx, "Errore database durante l'aggiornamento categoria ingrediente {Id}", id);
-                    return SafeInternalError("Errore durante l'aggiornamento");
+                    return SafeBadRequest(ex.Message);
                 }
                 catch (Exception ex)
                 {
@@ -199,59 +207,121 @@ namespace BBltZen.Controllers
                 }
             }
 
-            [HttpGet("exists/{nome}")]
-            public async Task<ActionResult<bool>> CheckNomeExists(string nome)
-            {
-                try
-                {
-                    if (string.IsNullOrWhiteSpace(nome))
-                        return SafeBadRequest<bool>("Nome categoria non valido");
+            //[HttpGet("exists/{nome}")]
+            //public async Task<ActionResult<bool>> CheckNomeExists(string nome)
+            //{
+            //    try
+            //    {
+            //        if (string.IsNullOrWhiteSpace(nome))
+            //            return SafeBadRequest<bool>("Nome categoria non valido");
 
-                    bool exists = await _repository.ExistsByNomeAsync(nome);
-                    return Ok(exists);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Errore durante verifica esistenza nome categoria {Nome}", nome);
-                    return SafeInternalError<bool>("Errore durante la verifica");
-                }
+            //        bool exists = await _repository.ExistsByNomeAsync(nome);
+            //        return Ok(exists);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        _logger.LogError(ex, "Errore durante verifica esistenza nome categoria {Nome}", nome);
+            //        return SafeInternalError<bool>("Errore durante la verifica");
+            //    }
 
-            }
+            //}
 
             // ✅ NUOVI ENDPOINT PER FRONTEND
 
-            [HttpGet("frontend")]
-            public async Task<ActionResult<IEnumerable<CategoriaIngredienteFrontendDTO>>> GetAllPerFrontend()
+            //[HttpGet("frontend")]
+            //public async Task<ActionResult<IEnumerable<CategoriaIngredienteFrontendDTO>>> GetAllPerFrontend()
+            //{
+            //    try
+            //    {
+            //        var categorie = await _repository.GetAllPerFrontendAsync();
+            //        return Ok(categorie);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        _logger.LogError(ex, "Errore durante il recupero di tutte le categorie per frontend");
+            //        return SafeInternalError<IEnumerable<CategoriaIngredienteFrontendDTO>>("Errore durante il recupero delle categorie");
+            //    }
+            //}
+
+            //[HttpGet("frontend/{nome}")]
+            //public async Task<ActionResult<CategoriaIngredienteFrontendDTO>> GetByNomePerFrontend(string nome)
+            //{
+            //    try
+            //    {
+            //        if (string.IsNullOrWhiteSpace(nome))
+            //            return SafeBadRequest<CategoriaIngredienteFrontendDTO>("Nome categoria non valido");
+
+            //        var categoria = await _repository.GetByNomePerFrontendAsync(nome);
+            //        return categoria == null
+            //            ? SafeNotFound<CategoriaIngredienteFrontendDTO>("Categoria ingrediente")
+            //            : Ok(categoria);
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        _logger.LogError(ex, "Errore durante il recupero della categoria per nome {Nome}", nome);
+            //        return SafeInternalError<CategoriaIngredienteFrontendDTO>("Errore durante il recupero della categoria");
+            //    }
+            //}
+
+            // ✅ 9. GET /api/CategoriaIngrediente/nome (parametro opzionale)
+            [HttpGet("nome")]
+            [AllowAnonymous]
+            public async Task<ActionResult> GetByNome(
+                [FromQuery] string? nome = null,
+                [FromQuery] int page = 1,
+                [FromQuery] int pageSize = 10)
             {
                 try
                 {
-                    var categorie = await _repository.GetAllPerFrontendAsync();
-                    return Ok(categorie);
+                    // ✅ VALIDAZIONE SICUREZZA
+                    if (!Repository.Service.Helper.SecurityHelper.IsValidInput(nome, maxLength: 50))
+                        return SafeBadRequest("Input non valido");
+
+                    var result = await _repository.GetByNomeAsync(nome, page, pageSize);
+
+                    // ✅ MESSAGGIO DINAMICO
+                    result.Message = !string.IsNullOrWhiteSpace(nome)
+                        ? (result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} categorie che iniziano con '{nome}' (pagina {result.Page} di {result.TotalPages})"
+                            : $"Nessuna categoria trovata che inizia con '{nome}'")
+                        : $"Trovate {result.TotalCount} categorie (pagina {result.Page} di {result.TotalPages})";
+
+                    return Ok(result);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Errore durante il recupero di tutte le categorie per frontend");
-                    return SafeInternalError<IEnumerable<CategoriaIngredienteFrontendDTO>>("Errore durante il recupero delle categorie");
+                    _logger.LogError(ex, "Errore durante il recupero categorie per nome {Nome}", nome);
+                    return SafeInternalError("Errore durante il recupero delle categorie");
                 }
             }
 
-            [HttpGet("frontend/{nome}")]
-            public async Task<ActionResult<CategoriaIngredienteFrontendDTO>> GetByNomePerFrontend(string nome)
+            // ✅ 10. GET /api/CategoriaIngrediente/frontend/nome (parametro opzionale)
+            [HttpGet("frontend/nome")]
+            [AllowAnonymous]
+            public async Task<ActionResult> GetByNomePerFrontend(
+                [FromQuery] string? nome = null,
+                [FromQuery] int page = 1,
+                [FromQuery] int pageSize = 10)
             {
                 try
                 {
-                    if (string.IsNullOrWhiteSpace(nome))
-                        return SafeBadRequest<CategoriaIngredienteFrontendDTO>("Nome categoria non valido");
+                    if (!Repository.Service.Helper.SecurityHelper.IsValidInput(nome, maxLength: 50))
+                        return SafeBadRequest("Input non valido");
 
-                    var categoria = await _repository.GetByNomePerFrontendAsync(nome);
-                    return categoria == null
-                        ? SafeNotFound<CategoriaIngredienteFrontendDTO>("Categoria ingrediente")
-                        : Ok(categoria);
+                    var result = await _repository.GetByNomePerFrontendAsync(nome, page, pageSize);
+
+                    result.Message = !string.IsNullOrWhiteSpace(nome)
+                        ? (result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} categorie che iniziano con '{nome}' (pagina {result.Page} di {result.TotalPages})"
+                            : $"Nessuna categoria trovata che inizia con '{nome}'")
+                        : $"Trovate {result.TotalCount} categorie (pagina {result.Page} di {result.TotalPages})";
+
+                    return Ok(result);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Errore durante il recupero della categoria per nome {Nome}", nome);
-                    return SafeInternalError<CategoriaIngredienteFrontendDTO>("Errore durante il recupero della categoria");
+                    _logger.LogError(ex, "Errore durante il recupero categorie frontend per nome {Nome}", nome);
+                    return SafeInternalError("Errore durante il recupero delle categorie");
                 }
             }
         }

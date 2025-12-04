@@ -25,13 +25,17 @@ namespace BBltZen.Controllers
         // ✅ 2. POST /api/UnitaDiMisura
         // ✅ 2. POST /api/UnitaDiMisura - CORRETTO
         [HttpPost]
-        // [Authorize(Roles = "admin,manager")]
         public async Task<ActionResult<UnitaDiMisuraDTO>> Create([FromBody] UnitaDiMisuraDTO unitaDto)
         {
             try
             {
                 if (!IsModelValid(unitaDto))
                     return SafeBadRequest("Dati unità di misura non validi");
+
+                // ✅ VALIDAZIONE SICUREZZA CON SecurityHelper
+                if (!SecurityHelper.IsValidInput(unitaDto.Sigla, maxLength: 2) ||
+                    !SecurityHelper.IsValidInput(unitaDto.Descrizione, maxLength: 50))
+                    return SafeBadRequest("Input non valido");
 
                 // ✅ SIGLA: Converti in maiuscolo e valida lunghezza
                 unitaDto.Sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla).ToUpperInvariant();
@@ -42,16 +46,16 @@ namespace BBltZen.Controllers
                 // ✅ DESCRIZIONE: Normalizza
                 unitaDto.Descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
 
-                // ✅ CONTROLLO UNIVOCITÀ SIGLA (case-insensitive)
+                // ✅ CONTROLLO UNIVOCITÀ SIGLA (con StringHelper)
                 var existingBySigla = await _context.UnitaDiMisura
-                    .FirstOrDefaultAsync(u => u.Sigla.ToUpper() == unitaDto.Sigla.ToUpper());
+                    .FirstOrDefaultAsync(u => StringHelper.EqualsCaseInsensitive(u.Sigla, unitaDto.Sigla));
 
                 if (existingBySigla != null)
                     return SafeBadRequest($"Esiste già un'unità di misura con la sigla '{unitaDto.Sigla}'");
 
-                // ✅ CONTROLLO UNIVOCITÀ DESCRIZIONE (case-insensitive)
+                // ✅ CONTROLLO UNIVOCITÀ DESCRIZIONE (con StringHelper)
                 var existingByDesc = await _context.UnitaDiMisura
-                    .FirstOrDefaultAsync(u => u.Descrizione.ToUpper() == unitaDto.Descrizione.ToUpper());
+                    .FirstOrDefaultAsync(u => StringHelper.EqualsCaseInsensitive(u.Descrizione, unitaDto.Descrizione));
 
                 if (existingByDesc != null)
                     return SafeBadRequest($"Esiste già un'unità di misura con la descrizione '{unitaDto.Descrizione}'");
@@ -118,13 +122,17 @@ namespace BBltZen.Controllers
 
         // ✅ 4. PUT /api/UnitaDiMisura/{id}
         [HttpPut("{id}")]
-        // [Authorize(Roles = "admin,manager")]
         public async Task<ActionResult> Update(int id, [FromBody] UnitaDiMisuraDTO unitaDto)
         {
             try
             {
                 if (id != unitaDto.UnitaMisuraId)
                     return SafeBadRequest("ID non corrispondente");
+
+                // ✅ VALIDAZIONE SICUREZZA CON SecurityHelper
+                if (!SecurityHelper.IsValidInput(unitaDto.Sigla, maxLength: 2) ||
+                    !SecurityHelper.IsValidInput(unitaDto.Descrizione, maxLength: 50))
+                    return SafeBadRequest("Input non valido");
 
                 // ✅ SIGLA: Converti in maiuscolo e valida lunghezza
                 unitaDto.Sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla).ToUpperInvariant();
@@ -135,17 +143,19 @@ namespace BBltZen.Controllers
                 // ✅ DESCRIZIONE: Normalizza
                 unitaDto.Descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
 
-                // ✅ CONTROLLO DUPICATI SIGLA (case-insensitive)
+                // ✅ CONTROLLO DUPICATI SIGLA (con StringHelper)
                 var existingBySigla = await _context.UnitaDiMisura
                     .FirstOrDefaultAsync(u => u.UnitaMisuraId != id &&
-                                             u.Sigla.ToUpper() == unitaDto.Sigla.ToUpper());
+                                             StringHelper.EqualsCaseInsensitive(u.Sigla, unitaDto.Sigla));
+
                 if (existingBySigla != null)
                     return SafeBadRequest($"Esiste già un'unità di misura con la sigla '{unitaDto.Sigla}'");
 
-                // ✅ CONTROLLO DUPICATI DESCRIZIONE (case-insensitive)
+                // ✅ CONTROLLO DUPICATI DESCRIZIONE (con StringHelper)
                 var existingByDesc = await _context.UnitaDiMisura
                     .FirstOrDefaultAsync(u => u.UnitaMisuraId != id &&
-                                             u.Descrizione.ToUpper() == unitaDto.Descrizione.ToUpper());
+                                             StringHelper.EqualsCaseInsensitive(u.Descrizione, unitaDto.Descrizione));
+
                 if (existingByDesc != null)
                     return SafeBadRequest($"Esiste già un'unità di misura con la descrizione '{unitaDto.Descrizione}'");
 
@@ -228,27 +238,55 @@ namespace BBltZen.Controllers
         // ✅ 6. GET /api/UnitaDiMisura/sigla - MODIFICATO (come Tavolo)
         [HttpGet("sigla")]
         [AllowAnonymous]
-        public async Task<ActionResult> GetBySigla(
-            [FromQuery] string? sigla = null,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+        public async Task<ActionResult> GetBySigla([FromQuery] string? sigla = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                // ✅ VALIDAZIONE SICUREZZA
+                // ✅ VALIDAZIONE SICUREZZA CON SecurityHelper
                 if (!SecurityHelper.IsValidInput(sigla, maxLength: 2))
                     return SafeBadRequest("Input non valido");
 
                 var result = await _repository.GetBySiglaAsync(sigla, page, pageSize);
 
-                // ✅ MESSAGGIO DINAMICO (come Tavolo)
-                result.Message = !string.IsNullOrWhiteSpace(sigla)
-                    ? (result.TotalCount > 0
-                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{sigla}' (pagina {result.Page} di {result.TotalPages})"
-                        : $"Nessuna unità di misura trovata che inizia con '{sigla}'")
-                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
-
-                return Ok(result);
+                // ✅ MESSAGGIO MIGLIORATO (pattern consistente)
+                if (string.IsNullOrWhiteSpace(sigla))
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura"
+                            : "Nessuna unità di misura trovata",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
+                else
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{sigla}'"
+                            : $"Nessuna unità di misura trovata che inizia con '{sigla}'",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -260,10 +298,7 @@ namespace BBltZen.Controllers
         // ✅ 8. GET /api/UnitaDiMisura/frontend/sigla - MODIFICATO (come Tavolo)
         [HttpGet("frontend/sigla")]
         [AllowAnonymous]
-        public async Task<ActionResult> GetBySiglaPerFrontend(
-            [FromQuery] string? sigla = null,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+        public async Task<ActionResult> GetBySiglaPerFrontend([FromQuery] string? sigla = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -272,13 +307,45 @@ namespace BBltZen.Controllers
 
                 var result = await _repository.GetBySiglaPerFrontendAsync(sigla, page, pageSize);
 
-                result.Message = !string.IsNullOrWhiteSpace(sigla)
-                    ? (result.TotalCount > 0
-                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{sigla}' (pagina {result.Page} di {result.TotalPages})"
-                        : $"Nessuna unità di misura trovata che inizia con '{sigla}'")
-                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
-
-                return Ok(result);
+                // ✅ MESSAGGIO MIGLIORATO (pattern consistente)
+                if (string.IsNullOrWhiteSpace(sigla))
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura"
+                            : "Nessuna unità di misura trovata",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
+                else
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{sigla}'"
+                            : $"Nessuna unità di misura trovata che inizia con '{sigla}'",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -290,25 +357,55 @@ namespace BBltZen.Controllers
         // ✅ 9. GET /api/UnitaDiMisura/descrizione - NUOVO (come Tavolo)
         [HttpGet("descrizione")]
         [AllowAnonymous]
-        public async Task<ActionResult> GetByDescrizione(
-            [FromQuery] string? descrizione = null,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+        public async Task<ActionResult> GetByDescrizione([FromQuery] string? descrizione = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
+                // ✅ VALIDAZIONE SICUREZZA CON SecurityHelper
                 if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
                     return SafeBadRequest("Input non valido");
 
                 var result = await _repository.GetByDescrizioneAsync(descrizione, page, pageSize);
 
-                result.Message = !string.IsNullOrWhiteSpace(descrizione)
-                    ? (result.TotalCount > 0
-                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{descrizione}' (pagina {result.Page} di {result.TotalPages})"
-                        : $"Nessuna unità di misura trovata che inizia con '{descrizione}'")
-                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
-
-                return Ok(result);
+                // ✅ MESSAGGIO MIGLIORATO (pattern consistente con GetBySigla)
+                if (string.IsNullOrWhiteSpace(descrizione))
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura"
+                            : "Nessuna unità di misura trovata",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
+                else
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{descrizione}'"
+                            : $"Nessuna unità di misura trovata che inizia con '{descrizione}'",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -320,25 +417,55 @@ namespace BBltZen.Controllers
         // ✅ 10. GET /api/UnitaDiMisura/frontend/descrizione - NUOVO (come Tavolo)
         [HttpGet("frontend/descrizione")]
         [AllowAnonymous]
-        public async Task<ActionResult> GetByDescrizionePerFrontend(
-            [FromQuery] string? descrizione = null,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+        public async Task<ActionResult> GetByDescrizionePerFrontend([FromQuery] string? descrizione = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
+                // ✅ VALIDAZIONE SICUREZZA CON SecurityHelper
                 if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
                     return SafeBadRequest("Input non valido");
 
                 var result = await _repository.GetByDescrizionePerFrontendAsync(descrizione, page, pageSize);
 
-                result.Message = !string.IsNullOrWhiteSpace(descrizione)
-                    ? (result.TotalCount > 0
-                        ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{descrizione}' (pagina {result.Page} di {result.TotalPages})"
-                        : $"Nessuna unità di misura trovata che inizia con '{descrizione}'")
-                    : $"Trovate {result.TotalCount} unità di misura (pagina {result.Page} di {result.TotalPages})";
-
-                return Ok(result);
+                // ✅ MESSAGGIO MIGLIORATO (pattern consistente con GetBySiglaPerFrontend)
+                if (string.IsNullOrWhiteSpace(descrizione))
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura"
+                            : "Nessuna unità di misura trovata",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
+                else
+                {
+                    return Ok(new
+                    {
+                        Message = result.TotalCount > 0
+                            ? $"Trovate {result.TotalCount} unità di misura che iniziano con '{descrizione}'"
+                            : $"Nessuna unità di misura trovata che inizia con '{descrizione}'",
+                        result.Data,
+                        Pagination = new
+                        {
+                            result.Page,
+                            result.PageSize,
+                            result.TotalCount,
+                            result.TotalPages,
+                            result.HasPrevious,
+                            result.HasNext
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {

@@ -12,7 +12,7 @@ namespace Repository.Service
         private readonly BubbleTeaContext _context = context;
         private readonly ILogger<UnitaDiMisuraRepository> _logger = logger;
 
-        private UnitaDiMisuraDTO MapToDTO(UnitaDiMisura unita)
+        private static UnitaDiMisuraDTO MapToDTO(UnitaDiMisura unita)
         {
             return new UnitaDiMisuraDTO
             {
@@ -43,8 +43,8 @@ namespace Repository.Service
 
             if (!string.IsNullOrWhiteSpace(sigla))
             {
-                var normalizedSigla = SecurityHelper.NormalizeSafe(sigla);
-                query = query.Where(u => u.Sigla != null && u.Sigla.ToUpper().StartsWith(normalizedSigla));
+                query = query.Where(u => u.Sigla != null &&
+                       StringHelper.StartsWithCaseInsensitive(u.Sigla, sigla));
             }
 
             var totalCount = await query.CountAsync();
@@ -76,8 +76,8 @@ namespace Repository.Service
 
             if (!string.IsNullOrWhiteSpace(descrizione))
             {
-                var normalizedDesc = SecurityHelper.NormalizeSafe(descrizione);
-                query = query.Where(u => u.Descrizione != null && u.Descrizione.ToUpper().StartsWith(normalizedDesc));
+                query = query.Where(u => u.Descrizione != null &&
+                       StringHelper.StartsWithCaseInsensitive(u.Descrizione, descrizione));
             }
 
             var totalCount = await query.CountAsync();
@@ -109,8 +109,8 @@ namespace Repository.Service
 
             if (!string.IsNullOrWhiteSpace(sigla))
             {
-                var normalizedSigla = SecurityHelper.NormalizeSafe(sigla);
-                query = query.Where(u => u.Sigla != null && u.Sigla.ToUpper().StartsWith(normalizedSigla));
+                query = query.Where(u => u.Sigla != null &&
+                       StringHelper.StartsWithCaseInsensitive(u.Sigla, sigla));
             }
 
             var totalCount = await query.CountAsync();
@@ -142,8 +142,8 @@ namespace Repository.Service
 
             if (!string.IsNullOrWhiteSpace(descrizione))
             {
-                var normalizedDesc = SecurityHelper.NormalizeSafe(descrizione);
-                query = query.Where(u => u.Descrizione != null && u.Descrizione.ToUpper().StartsWith(normalizedDesc));
+                query = query.Where(u => u.Descrizione != null &&
+                       StringHelper.StartsWithCaseInsensitive(u.Descrizione, descrizione));
             }
 
             var totalCount = await query.CountAsync();
@@ -197,24 +197,29 @@ namespace Repository.Service
 
         public async Task<UnitaDiMisuraDTO> AddAsync(UnitaDiMisuraDTO unitaDto)
         {
-            // ✅ CONTROLLO DUPICATI SIGLA
+            // ✅ VALIDAZIONE INPUT
+            if (!SecurityHelper.IsValidInput(unitaDto.Sigla, maxLength: 2) ||
+                !SecurityHelper.IsValidInput(unitaDto.Descrizione, maxLength: 50))
+                throw new ArgumentException("Input non valido");
+
+            // ✅ CONTROLLO UNIVOCITÀ SIGLA (con StringHelper)
             var existingBySigla = await _context.UnitaDiMisura
-                .FirstOrDefaultAsync(u => u.Sigla.ToUpper() == unitaDto.Sigla.ToUpper());
+                .FirstOrDefaultAsync(u => StringHelper.EqualsCaseInsensitive(u.Sigla, unitaDto.Sigla));
 
             if (existingBySigla != null)
                 throw new InvalidOperationException($"Esiste già un'unità di misura con la sigla '{unitaDto.Sigla}'");
 
-            // ✅ CONTROLLO DUPICATI DESCRIZIONE
+            // ✅ CONTROLLO UNIVOCITÀ DESCRIZIONE (con StringHelper)
             var existingByDesc = await _context.UnitaDiMisura
-                .FirstOrDefaultAsync(u => u.Descrizione.ToUpper() == unitaDto.Descrizione.ToUpper());
+                .FirstOrDefaultAsync(u => StringHelper.EqualsCaseInsensitive(u.Descrizione, unitaDto.Descrizione));
 
             if (existingByDesc != null)
                 throw new InvalidOperationException($"Esiste già un'unità di misura con la descrizione '{unitaDto.Descrizione}'");
 
             var unita = new UnitaDiMisura
             {
-                Sigla = unitaDto.Sigla.Trim().ToUpper(),
-                Descrizione = unitaDto.Descrizione.Trim()
+                Sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla).ToUpperInvariant(), // ✅ Sigla sempre maiuscola
+                Descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione)
             };
 
             _context.UnitaDiMisura.Add(unita);
@@ -226,26 +231,33 @@ namespace Repository.Service
 
         public async Task UpdateAsync(UnitaDiMisuraDTO unitaDto)
         {
-            // ✅ CONTROLLO DUPICATI SIGLA (escludendo se stesso)
+            // ✅ VALIDAZIONE INPUT
+            if (!SecurityHelper.IsValidInput(unitaDto.Sigla, maxLength: 2) ||
+                !SecurityHelper.IsValidInput(unitaDto.Descrizione, maxLength: 50))
+                throw new ArgumentException("Input non valido");
+
+            var unita = await _context.UnitaDiMisura
+                .FirstOrDefaultAsync(u => u.UnitaMisuraId == unitaDto.UnitaMisuraId)
+                ?? throw new KeyNotFoundException($"Unità di misura con ID {unitaDto.UnitaMisuraId} non trovata");
+
+            // ✅ CONTROLLO UNIVOCITÀ SIGLA (con StringHelper)
             var existingBySigla = await _context.UnitaDiMisura
                 .FirstOrDefaultAsync(u => u.UnitaMisuraId != unitaDto.UnitaMisuraId &&
-                                         u.Sigla.ToUpper() == unitaDto.Sigla.ToUpper());
+                                         StringHelper.EqualsCaseInsensitive(u.Sigla, unitaDto.Sigla));
 
             if (existingBySigla != null)
                 throw new InvalidOperationException($"Esiste già un'unità di misura con la sigla '{unitaDto.Sigla}'");
 
-            // ✅ CONTROLLO DUPICATI DESCRIZIONE (escludendo se stesso)
+            // ✅ CONTROLLO UNIVOCITÀ DESCRIZIONE (con StringHelper)
             var existingByDesc = await _context.UnitaDiMisura
                 .FirstOrDefaultAsync(u => u.UnitaMisuraId != unitaDto.UnitaMisuraId &&
-                                         u.Descrizione.ToUpper() == unitaDto.Descrizione.ToUpper());
+                                         StringHelper.EqualsCaseInsensitive(u.Descrizione, unitaDto.Descrizione));
 
             if (existingByDesc != null)
                 throw new InvalidOperationException($"Esiste già un'unità di misura con la descrizione '{unitaDto.Descrizione}'");
 
-            var unita = await _context.UnitaDiMisura
-                .FirstOrDefaultAsync(u => u.UnitaMisuraId == unitaDto.UnitaMisuraId) ?? throw new KeyNotFoundException($"Unità di misura con ID {unitaDto.UnitaMisuraId} non trovata");
-            unita.Sigla = unitaDto.Sigla.Trim().ToUpper();
-            unita.Descrizione = unitaDto.Descrizione.Trim();
+            unita.Sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla).ToUpperInvariant();
+            unita.Descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
 
             _context.UnitaDiMisura.Update(unita);
             await _context.SaveChangesAsync();
@@ -276,25 +288,27 @@ namespace Repository.Service
         public async Task<bool> SiglaExistsAsync(string sigla)
         {
             return await _context.UnitaDiMisura
-                .AnyAsync(u => u.Sigla.ToUpper() == sigla.ToUpper());
+                .AnyAsync(u => StringHelper.EqualsCaseInsensitive(u.Sigla, sigla));
         }
 
         public async Task<bool> SiglaExistsForOtherAsync(int id, string sigla)
         {
             return await _context.UnitaDiMisura
-                .AnyAsync(u => u.UnitaMisuraId != id && u.Sigla.ToUpper() == sigla.ToUpper());
+                .AnyAsync(u => u.UnitaMisuraId != id &&
+                              StringHelper.EqualsCaseInsensitive(u.Sigla, sigla));
         }
 
         public async Task<bool> DescrizioneExistsAsync(string descrizione)
         {
             return await _context.UnitaDiMisura
-                .AnyAsync(u => u.Descrizione.ToUpper() == descrizione.ToUpper());
+                .AnyAsync(u => StringHelper.EqualsCaseInsensitive(u.Descrizione, descrizione));
         }
 
         public async Task<bool> DescrizioneExistsForOtherAsync(int id, string descrizione)
         {
             return await _context.UnitaDiMisura
-                .AnyAsync(u => u.UnitaMisuraId != id && u.Descrizione.ToUpper() == descrizione.ToUpper());
+                .AnyAsync(u => u.UnitaMisuraId != id &&
+                              StringHelper.EqualsCaseInsensitive(u.Descrizione, descrizione));
         }
 
         public async Task<bool> HasDependenciesAsync(int id)

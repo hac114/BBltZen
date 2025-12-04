@@ -142,10 +142,12 @@ namespace RepositoryTest
         public async Task UpdateAsync_Should_Throw_When_Entity_Not_Found()
         {
             // Arrange
+            await CleanTableAsync<UnitaDiMisura>(); // ✅ USA IL METODO EREDITATO
+
             var updateDto = new UnitaDiMisuraDTO
             {
                 UnitaMisuraId = 999,
-                Sigla = "TEST",
+                Sigla = "TE", // ✅ 2 CARATTERI
                 Descrizione = "Test"
             };
 
@@ -356,8 +358,10 @@ namespace RepositoryTest
         public async Task HasDependenciesAsync_Should_Return_False_InMemory()
         {
             // Arrange
-            var addedUnita = await _unitaDiMisuraRepository.AddAsync(
-                new UnitaDiMisuraDTO { Sigla = "TEST", Descrizione = "Test" });
+            await CleanTableAsync<UnitaDiMisura>(); // ✅ USA IL METODO EREDITATO
+
+            var unitaDto = new UnitaDiMisuraDTO { Sigla = "TE", Descrizione = "Test" };
+            var addedUnita = await _unitaDiMisuraRepository.AddAsync(unitaDto);
 
             // Act
             var hasDependencies = await _unitaDiMisuraRepository.HasDependenciesAsync(addedUnita.UnitaMisuraId);
