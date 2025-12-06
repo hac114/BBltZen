@@ -19,6 +19,7 @@ namespace Repository.Service
             _context = context;
         }
 
+        // ------------------ MAPPINGS ------------------
         private static LogAttivitaDTO MapToDTO(LogAttivita logAttivita)
         {
             return new LogAttivitaDTO
@@ -32,136 +33,226 @@ namespace Repository.Service
             };
         }
 
-        private async Task<IEnumerable<LogAttivitaDTO>> GetAllAsync()
-        {
-            return await _context.LogAttivita
-                .AsNoTracking()
-                .OrderByDescending(l => l.DataEsecuzione)
-                .Select(l => MapToDTO(l))
-                .ToListAsync();
-        }
-
-        public async Task<LogAttivitaDTO?> GetByIdAsync(int logId)
-        {
-            var logAttivita = await _context.LogAttivita
-                .AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LogId == logId);
-
-            return logAttivita == null ? null : MapToDTO(logAttivita);
-        }
-
-        public async Task<IEnumerable<LogAttivitaDTO>> GetByTipoAttivitaAsync(string tipoAttivita)
-        {
-            if (string.IsNullOrWhiteSpace(tipoAttivita))
-                return await GetAllAsync();
-
-            var normalizedSearch = StringHelper.NormalizeSearchTerm(tipoAttivita);
-
-            return await _context.LogAttivita
-                .AsNoTracking()
-                .Where(l => l.TipoAttivita.Contains(normalizedSearch, StringComparison.CurrentCultureIgnoreCase))
-                .OrderByDescending(l => l.DataEsecuzione)
-                .Select(l => MapToDTO(l))
-                .ToListAsync();
-        }
-
-        //public async Task<IEnumerable<LogAttivitaDTO>> GetByPeriodoAsync(DateTime dataInizio, DateTime dataFine)
-        //{
-        //    return await _context.LogAttivita
-        //        .AsNoTracking()
-        //        .Where(l => l.DataEsecuzione >= dataInizio && l.DataEsecuzione <= dataFine)
-        //        .OrderByDescending(l => l.DataEsecuzione)
-        //        .Select(l => MapToDTO(l))
-        //        .ToListAsync();
-        //}
-
+        // ------------------ CRUD BASE ------------------
         public async Task<LogAttivitaDTO> AddAsync(LogAttivitaDTO logAttivitaDto)
         {
             if (logAttivitaDto == null)
                 throw new ArgumentNullException(nameof(logAttivitaDto));
 
+            if (!SecurityHelper.IsValidInput(logAttivitaDto.TipoAttivita, 50) ||
+                !SecurityHelper.IsValidInput(logAttivitaDto.Descrizione, 500) ||
+                (logAttivitaDto.Dettagli != null && !SecurityHelper.IsValidInput(logAttivitaDto.Dettagli, 2000)))
+            {
+                throw new ArgumentException("Input non valido o troppo lungo");
+            }
+
             var logAttivita = new LogAttivita
             {
-                TipoAttivita = logAttivitaDto.TipoAttivita,
-                Descrizione = logAttivitaDto.Descrizione,
-                DataEsecuzione = DateTime.Now, // ✅ SEMPRE DateTime.Now
-                Dettagli = logAttivitaDto.Dettagli,
+                TipoAttivita = logAttivitaDto.TipoAttivita.Trim(),
+                Descrizione = logAttivitaDto.Descrizione.Trim(),
+                DataEsecuzione = DateTime.Now,
+                Dettagli = logAttivitaDto.Dettagli?.Trim(),
                 UtenteId = logAttivitaDto.UtenteId
             };
 
             _context.LogAttivita.Add(logAttivita);
             await _context.SaveChangesAsync();
 
-            // ✅ AGGIORNA DTO CON ID GENERATO
             logAttivitaDto.LogId = logAttivita.LogId;
             logAttivitaDto.DataEsecuzione = logAttivita.DataEsecuzione;
 
-            return logAttivitaDto; // ✅ IMPORTANTE: ritorna DTO
-        }        
+            return logAttivitaDto;
+        }
 
         public async Task<bool> ExistsAsync(int logId)
         {
-            return await _context.LogAttivita
-                .AnyAsync(l => l.LogId == logId);
+            return await _context.LogAttivita.AnyAsync(l => l.LogId == logId);
         }
+
+        public async Task<PaginatedResponseDTO<LogAttivitaDTO>> GetByIdAsync(int? id = null, int page = 1, int pageSize = 10)
+        {
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+
+            if (!id.HasValue)
+            {
+                var queryAll = _context.LogAttivita
+                    .AsNoTracking()
+                    .OrderByDescending(l => l.DataEsecuzione);
+
+                var totalCount = await queryAll.CountAsync();
+
+                // Mapping inline dopo il caricamento
+                var items = await queryAll
+                    .Skip((safePage - 1) * safePageSize)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var dtoItems = items.Select(l => new LogAttivitaDTO
+                {
+                    LogId = l.LogId,
+                    TipoAttivita = l.TipoAttivita,
+                    Descrizione = l.Descrizione,
+                    DataEsecuzione = l.DataEsecuzione,
+                    Dettagli = l.Dettagli,
+                    UtenteId = l.UtenteId
+                }).ToList();
+
+                return new PaginatedResponseDTO<LogAttivitaDTO>
+                {
+                    Data = dtoItems,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = totalCount > 0 ? $"Trovati {totalCount} log attività" : "Nessun log attività trovato"
+                };
+            }
+
+            if (id <= 0)
+                return new PaginatedResponseDTO<LogAttivitaDTO> { Message = "ID non valido" };
+
+            var log = await _context.LogAttivita
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LogId == id.Value);
+
+            if (log == null)
+                return new PaginatedResponseDTO<LogAttivitaDTO> { Message = $"Log attività con ID {id} non trovato" };
+
+            return new PaginatedResponseDTO<LogAttivitaDTO>
+            {
+                Data = new List<LogAttivitaDTO>
+                {
+                    new LogAttivitaDTO
+                    {
+                        LogId = log.LogId,
+                        TipoAttivita = log.TipoAttivita,
+                        Descrizione = log.Descrizione,
+                        DataEsecuzione = log.DataEsecuzione,
+                        Dettagli = log.Dettagli,
+                        UtenteId = log.UtenteId
+                    }
+                },
+                Page = 1,
+                PageSize = 1,
+                TotalCount = 1,
+                Message = $"Log attività {id} trovato"
+            };
+        }
+
+        public async Task<PaginatedResponseDTO<LogAttivitaDTO>> GetByTipoAttivitaAsync(string? tipoAttivita = null, int page = 1, int pageSize = 10)
+        {
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+
+            if (tipoAttivita != null && !SecurityHelper.IsValidInput(tipoAttivita, 50))
+                return new PaginatedResponseDTO<LogAttivitaDTO> { Message = "Tipo attività non valido" };
+
+            var query = _context.LogAttivita.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(tipoAttivita))
+            {
+                var normalizedTipo = SecurityHelper.NormalizeSafe(tipoAttivita);
+                query = query.Where(l => l.TipoAttivita != null && l.TipoAttivita.ToUpper().StartsWith(normalizedTipo));
+            }
+
+            query = query.OrderByDescending(l => l.DataEsecuzione);
+
+            var totalCount = await query.CountAsync();
+
+            // Carico i dati e poi faccio il mapping in memoria
+            var itemsFromDb = await query
+                .Skip((safePage - 1) * safePageSize)
+                .Take(safePageSize)
+                .ToListAsync();
+
+            var items = itemsFromDb.Select(l => new LogAttivitaDTO
+            {
+                LogId = l.LogId,
+                TipoAttivita = l.TipoAttivita,
+                Descrizione = l.Descrizione,
+                DataEsecuzione = l.DataEsecuzione,
+                Dettagli = l.Dettagli,
+                UtenteId = l.UtenteId
+            }).ToList();
+
+            return new PaginatedResponseDTO<LogAttivitaDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount,
+                Message = !string.IsNullOrWhiteSpace(tipoAttivita)
+                    ? (totalCount > 0 ? $"Trovati {totalCount} log attività per tipo '{tipoAttivita}'"
+                                       : $"Nessun log attività trovato per tipo '{tipoAttivita}'")
+                    : (totalCount > 0 ? $"Trovati {totalCount} log attività" : "Nessun log attività trovato")
+            };
+        }
+
+
+        public async Task<PaginatedResponseDTO<LogAttivitaDTO>> GetByUtenteIdAsync(int? utenteId = null, int page = 1, int pageSize = 10)
+        {
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+
+            var query = _context.LogAttivita.AsNoTracking().AsQueryable();
+
+            if (utenteId.HasValue && utenteId.Value > 0)
+                query = query.Where(l => l.UtenteId == utenteId.Value);
+
+            query = query.OrderByDescending(l => l.DataEsecuzione);
+
+            var totalCount = await query.CountAsync();
+
+            // Carico i dati e faccio il mapping in memoria
+            var itemsFromDb = await query
+                .Skip((safePage - 1) * safePageSize)
+                .Take(safePageSize)
+                .ToListAsync();
+
+            var items = itemsFromDb.Select(l => new LogAttivitaDTO
+            {
+                LogId = l.LogId,
+                TipoAttivita = l.TipoAttivita,
+                Descrizione = l.Descrizione,
+                DataEsecuzione = l.DataEsecuzione,
+                Dettagli = l.Dettagli,
+                UtenteId = l.UtenteId
+            }).ToList();
+
+            return new PaginatedResponseDTO<LogAttivitaDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount,
+                Message = utenteId.HasValue
+                    ? (totalCount > 0 ? $"Trovati {totalCount} log attività per utente {utenteId}" : $"Nessun log attività trovato per utente {utenteId}")
+                    : (totalCount > 0 ? $"Trovati {totalCount} log attività" : "Nessun log attività trovato")
+            };
+        }
+
 
         public async Task<int> GetNumeroAttivitaAsync(DateTime? dataInizio = null, DateTime? dataFine = null)
         {
             var query = _context.LogAttivita.AsQueryable();
-
-            if (dataInizio.HasValue)
-            {
-                query = query.Where(l => l.DataEsecuzione >= dataInizio.Value);
-            }
-
-            if (dataFine.HasValue)
-            {
-                query = query.Where(l => l.DataEsecuzione <= dataFine.Value);
-            }
-
+            if (dataInizio.HasValue) query = query.Where(l => l.DataEsecuzione >= dataInizio.Value);
+            if (dataFine.HasValue) query = query.Where(l => l.DataEsecuzione <= dataFine.Value);
             return await query.CountAsync();
-        }
-
-        public async Task<IEnumerable<LogAttivitaDTO>> GetByUtenteIdAsync(int? utenteId = null)
-        {
-            var query = _context.LogAttivita.AsQueryable();
-
-            if (utenteId.HasValue)
-            {
-                query = query.Where(l => l.UtenteId == utenteId.Value);
-            }
-
-            return await query
-                .AsNoTracking()
-                .OrderByDescending(l => l.DataEsecuzione)
-                .Select(l => MapToDTO(l))
-                .ToListAsync();
         }
 
         public async Task<Dictionary<string, int>> GetStatisticheAttivitaAsync(DateTime? dataInizio = null, DateTime? dataFine = null)
         {
             var query = _context.LogAttivita.AsQueryable();
+            if (dataInizio.HasValue) query = query.Where(l => l.DataEsecuzione >= dataInizio.Value);
+            if (dataFine.HasValue) query = query.Where(l => l.DataEsecuzione <= dataFine.Value);
 
-            if (dataInizio.HasValue)
-                query = query.Where(l => l.DataEsecuzione >= dataInizio.Value);
-
-            if (dataFine.HasValue)
-                query = query.Where(l => l.DataEsecuzione <= dataFine.Value);
-
-            var statistiche = await query
+            return await query
                 .GroupBy(l => l.TipoAttivita)
-                .Select(g => new { TipoAttivita = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.TipoAttivita, x => x.Count);
-
-            return statistiche;
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Count);
         }
 
-        // ✅ METODO CLEANUP CORRETTO
         public async Task<int> CleanupOldLogsAsync(int giorniRitenzione = -1)
         {
             var query = _context.LogAttivita.AsQueryable();
 
-            // ✅ SE giorniRitenzione = -1, ELIMINA TUTTO
             if (giorniRitenzione != -1)
             {
                 var cutoffDate = DateTime.Now.AddDays(-giorniRitenzione);
@@ -177,7 +268,6 @@ namespace Repository.Service
                 await _context.SaveChangesAsync();
             }
 
-            // ✅ LOG DELLA PULIZIA (USA 'giorniRitenzione' invece di 'retention')
             var cleanupLog = new LogAttivita
             {
                 TipoAttivita = "manutenzione",
@@ -197,154 +287,180 @@ namespace Repository.Service
             return deletedCount;
         }
 
-        // ✅ METODI FRONTEND AGGIORNATI CON JOIN E TIPO_UTENTE
-
-        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetAllPerFrontendAsync()
+        // ------------------ METODI FRONTEND ------------------
+        public async Task<PaginatedResponseDTO<LogAttivitaFrontendDTO>> GetAllPerFrontendAsync(int page = 1, int pageSize = 10)
         {
-            return await _context.LogAttivita
-                .AsNoTracking()
-                .Include(l => l.Utente) // ✅ JOIN CON UTENTI
-                .OrderByDescending(l => l.DataEsecuzione)
-                .Select(l => new LogAttivitaFrontendDTO
-                {
-                    LogId = l.LogId,
-                    TipoAttivita = l.TipoAttivita,
-                    Descrizione = l.Descrizione,
-                    DataEsecuzione = l.DataEsecuzione,
-                    Dettagli = l.Dettagli,
-                    UtenteId = l.UtenteId,
-                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null // ✅ TIPO UTENTE
-                })
-                .ToListAsync();
-        }
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
 
-        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetByPeriodoPerFrontendAsync(DateTime dataInizio, DateTime dataFine)
-        {
-            return await _context.LogAttivita
-                .AsNoTracking()
-                .Include(l => l.Utente) // ✅ JOIN CON UTENTI
-                .Where(l => l.DataEsecuzione >= dataInizio && l.DataEsecuzione <= dataFine)
-                .OrderByDescending(l => l.DataEsecuzione)
-                .Select(l => new LogAttivitaFrontendDTO
-                {
-                    LogId = l.LogId,
-                    TipoAttivita = l.TipoAttivita,
-                    Descrizione = l.Descrizione,
-                    DataEsecuzione = l.DataEsecuzione,
-                    Dettagli = l.Dettagli,
-                    UtenteId = l.UtenteId,
-                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null // ✅ TIPO UTENTE
-                })
-                .ToListAsync();
-        }
-
-        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetByTipoAttivitaPerFrontendAsync(string tipoAttivita)
-        {
-            if (string.IsNullOrWhiteSpace(tipoAttivita))
-                return await GetAllPerFrontendAsync();
-
-            var normalizedSearch = StringHelper.NormalizeSearchTerm(tipoAttivita);
-
-            return await _context.LogAttivita
+            var query = _context.LogAttivita
                 .AsNoTracking()
                 .Include(l => l.Utente)
-                .Where(l => l.TipoAttivita.Contains(tipoAttivita, StringComparison.InvariantCultureIgnoreCase))
-                .OrderByDescending(l => l.DataEsecuzione)
-                .Select(l => new LogAttivitaFrontendDTO
-                {
-                    LogId = l.LogId,
-                    TipoAttivita = l.TipoAttivita,
-                    Descrizione = l.Descrizione,
-                    DataEsecuzione = l.DataEsecuzione,
-                    Dettagli = l.Dettagli,
-                    UtenteId = l.UtenteId,
-                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
-                })
-                .ToListAsync();
+                .OrderByDescending(l => l.DataEsecuzione);
+
+            var totalCount = await query.CountAsync();
+            var items = await query.Skip((safePage - 1) * safePageSize)
+                                   .Take(safePageSize)
+                                   .Select(l => new LogAttivitaFrontendDTO
+                                   {
+                                       LogId = l.LogId,
+                                       TipoAttivita = l.TipoAttivita,
+                                       Descrizione = l.Descrizione,
+                                       DataEsecuzione = l.DataEsecuzione,
+                                       Dettagli = l.Dettagli,
+                                       UtenteId = l.UtenteId,
+                                       TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
+                                   })
+                                   .ToListAsync();
+
+            return new PaginatedResponseDTO<LogAttivitaFrontendDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount,
+                Message = totalCount > 0 ? $"Trovati {totalCount} log attività" : "Nessun log attività trovato"
+            };
         }
 
-        // ✅ NUOVI METODI INTELLIGENTI NEL REPOSITORY
-        //public async Task<IEnumerable<LogAttivitaFrontendDTO>> SearchIntelligenteAsync(string searchTerm)
-        //{
-        //    if (string.IsNullOrWhiteSpace(searchTerm))
-        //        return await GetAllPerFrontendAsync();
-
-        //    searchTerm = searchTerm.Trim().ToLower(System.Globalization.CultureInfo.CurrentCulture);
-
-        //    return await _context.LogAttivita
-        //        .AsNoTracking()
-        //        .Include(l => l.Utente)
-        //        .Where(l =>
-        //            l.TipoAttivita.Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase) ||
-        //            l.Descrizione.Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase) ||
-        //            (l.Dettagli != null && l.Dettagli.Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase)) ||
-        //            (l.Utente != null && l.Utente.TipoUtente.Contains(searchTerm, StringComparison.CurrentCultureIgnoreCase))
-        //        )
-        //        .OrderByDescending(l => l.DataEsecuzione)
-        //        .Select(l => new LogAttivitaFrontendDTO
-        //        {
-        //            LogId = l.LogId,
-        //            TipoAttivita = l.TipoAttivita,
-        //            Descrizione = l.Descrizione,
-        //            DataEsecuzione = l.DataEsecuzione,
-        //            Dettagli = l.Dettagli,
-        //            UtenteId = l.UtenteId,
-        //            TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
-        //        })
-        //        .ToListAsync();
-        //}
-
-        //public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetByTipoAttivitaIntelligenteAsync(string tipoAttivita)
-        //{
-        //    if (string.IsNullOrWhiteSpace(tipoAttivita))
-        //        return await GetAllPerFrontendAsync();
-
-        //    return await _context.LogAttivita
-        //        .AsNoTracking()
-        //        .Include(l => l.Utente)
-        //        .Where(l => l.TipoAttivita.Contains(tipoAttivita, StringComparison.InvariantCultureIgnoreCase))
-        //        .OrderByDescending(l => l.DataEsecuzione)
-        //        .Select(l => new LogAttivitaFrontendDTO
-        //        {
-        //            LogId = l.LogId,
-        //            TipoAttivita = l.TipoAttivita,
-        //            Descrizione = l.Descrizione,
-        //            DataEsecuzione = l.DataEsecuzione,
-        //            Dettagli = l.Dettagli,
-        //            UtenteId = l.UtenteId,
-        //            TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
-        //        })
-        //        .ToListAsync();
-        //}
-
-        // ✅ NUOVO METODO: FILTRO PER TIPO_UTENTE
-        public async Task<IEnumerable<LogAttivitaFrontendDTO>> GetByTipoUtenteAsync(string tipoUtente)
+        public async Task<PaginatedResponseDTO<LogAttivitaFrontendDTO>> GetByPeriodoPerFrontendAsync(DateTime? dataInizio = null, DateTime? dataFine = null, int page = 1, int pageSize = 10)
         {
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+
             var query = _context.LogAttivita
                 .AsNoTracking()
                 .Include(l => l.Utente)
                 .AsQueryable();
 
-            // ✅ FILTRA SOLO SE SPECIFICATO (string, non nullable)
-            if (!string.IsNullOrWhiteSpace(tipoUtente))
+            if (dataInizio.HasValue)
+                query = query.Where(l => l.DataEsecuzione >= dataInizio.Value);
+            if (dataFine.HasValue)
+                query = query.Where(l => l.DataEsecuzione <= dataFine.Value);
+
+            query = query.OrderByDescending(l => l.DataEsecuzione);
+
+            var totalCount = await query.CountAsync();
+            var items = await query.Skip((safePage - 1) * safePageSize)
+                                   .Take(safePageSize)
+                                   .Select(l => new LogAttivitaFrontendDTO
+                                   {
+                                       LogId = l.LogId,
+                                       TipoAttivita = l.TipoAttivita,
+                                       Descrizione = l.Descrizione,
+                                       DataEsecuzione = l.DataEsecuzione,
+                                       Dettagli = l.Dettagli,
+                                       UtenteId = l.UtenteId,
+                                       TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
+                                   })
+                                   .ToListAsync();
+
+            string message = (dataInizio.HasValue || dataFine.HasValue) ? "Risultati filtrati per periodo" : "Tutti i risultati";
+
+            return new PaginatedResponseDTO<LogAttivitaFrontendDTO>
             {
-                query = query.Where(l => l.Utente != null &&
-                                       l.Utente.TipoUtente.Contains(tipoUtente, StringComparison.InvariantCultureIgnoreCase));
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount,
+                Message = message
+            };
+        }
+
+        public async Task<PaginatedResponseDTO<LogAttivitaFrontendDTO>> GetByTipoAttivitaPerFrontendAsync(string? tipoAttivita = null, int page = 1, int pageSize = 10)
+        {
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+
+            if (tipoAttivita != null && !SecurityHelper.IsValidInput(tipoAttivita, 50))
+                return new PaginatedResponseDTO<LogAttivitaFrontendDTO> { Message = "Tipo attività non valido" };
+
+            var query = _context.LogAttivita
+                .AsNoTracking()
+                .Include(l => l.Utente)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(tipoAttivita))
+            {
+                var normalizedTipo = SecurityHelper.NormalizeSafe(tipoAttivita);
+                query = query.Where(l => l.TipoAttivita != null && l.TipoAttivita.ToUpper().StartsWith(normalizedTipo));
             }
 
-            return await query
-                .OrderByDescending(l => l.DataEsecuzione)
-                .Select(l => new LogAttivitaFrontendDTO
-                {
-                    LogId = l.LogId,
-                    TipoAttivita = l.TipoAttivita,
-                    Descrizione = l.Descrizione,
-                    DataEsecuzione = l.DataEsecuzione,
-                    Dettagli = l.Dettagli,
-                    UtenteId = l.UtenteId,
-                    TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
-                })
-                .ToListAsync();
+            query = query.OrderByDescending(l => l.DataEsecuzione);
+
+            var totalCount = await query.CountAsync();
+            var items = await query.Skip((safePage - 1) * safePageSize)
+                                   .Take(safePageSize)
+                                   .Select(l => new LogAttivitaFrontendDTO
+                                   {
+                                       LogId = l.LogId,
+                                       TipoAttivita = l.TipoAttivita,
+                                       Descrizione = l.Descrizione,
+                                       DataEsecuzione = l.DataEsecuzione,
+                                       Dettagli = l.Dettagli,
+                                       UtenteId = l.UtenteId,
+                                       TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
+                                   })
+                                   .ToListAsync();
+
+            return new PaginatedResponseDTO<LogAttivitaFrontendDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount,
+                Message = !string.IsNullOrWhiteSpace(tipoAttivita)
+                    ? (totalCount > 0 ? $"Trovati {totalCount} log attività per tipo '{tipoAttivita}'"
+                                       : $"Nessun log attività trovato per tipo '{tipoAttivita}'")
+                    : (totalCount > 0 ? $"Trovati {totalCount} log attività" : "Nessun log attività trovato")
+            };
+        }
+
+        public async Task<PaginatedResponseDTO<LogAttivitaFrontendDTO>> GetByTipoUtenteAsync(string? tipoUtente = null, int page = 1, int pageSize = 10)
+        {
+            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+
+            if (tipoUtente != null && !SecurityHelper.IsValidInput(tipoUtente, 20))
+                return new PaginatedResponseDTO<LogAttivitaFrontendDTO> { Message = "Tipo utente non valido" };
+
+            var query = _context.LogAttivita
+                .AsNoTracking()
+                .Include(l => l.Utente)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(tipoUtente))
+            {
+                var normalizedTipoUtente = SecurityHelper.NormalizeSafe(tipoUtente);
+                query = query.Where(l => l.Utente != null &&
+                                         l.Utente.TipoUtente != null &&
+                                         l.Utente.TipoUtente.ToUpper().StartsWith(normalizedTipoUtente));
+            }
+
+            query = query.OrderByDescending(l => l.DataEsecuzione);
+
+            var totalCount = await query.CountAsync();
+            var items = await query.Skip((safePage - 1) * safePageSize)
+                                   .Take(safePageSize)
+                                   .Select(l => new LogAttivitaFrontendDTO
+                                   {
+                                       LogId = l.LogId,
+                                       TipoAttivita = l.TipoAttivita,
+                                       Descrizione = l.Descrizione,
+                                       DataEsecuzione = l.DataEsecuzione,
+                                       Dettagli = l.Dettagli,
+                                       UtenteId = l.UtenteId,
+                                       TipoUtente = l.Utente != null ? l.Utente.TipoUtente : null
+                                   })
+                                   .ToListAsync();
+
+            return new PaginatedResponseDTO<LogAttivitaFrontendDTO>
+            {
+                Data = items,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalCount = totalCount,
+                Message = !string.IsNullOrWhiteSpace(tipoUtente)
+                    ? (totalCount > 0 ? $"Trovati {totalCount} log attività per tipo utente '{tipoUtente}'"
+                                       : $"Nessun log attività trovato per tipo utente '{tipoUtente}'")
+                    : (totalCount > 0 ? $"Trovati {totalCount} log attività" : "Nessun log attività trovato")
+            };
         }
     }
 }

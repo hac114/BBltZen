@@ -3,6 +3,7 @@ using DTO;
 using Repository.Interface;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -16,138 +17,146 @@ namespace BBltZen.Controllers
     [Route("api/[controller]")]
     //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
     public class LogAttivitaController(
-    ILogAttivitaRepository repository,
-    BubbleTeaContext context,
-    IWebHostEnvironment environment,
-    ILogger<LogAttivitaController> logger)
-    : SecureBaseController(environment, logger)
+        ILogAttivitaRepository repository,
+        BubbleTeaContext context,
+        IWebHostEnvironment environment,
+        ILogger<LogAttivitaController> logger)
+        : SecureBaseController(environment, logger)
     {
         private readonly ILogAttivitaRepository _repository = repository;
         private readonly BubbleTeaContext _context = context;
 
-        //[HttpGet]
-        //[AllowAnonymous] // ✅ AGGIUNTO ESPLICITAMENTE
-        //public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetAll()
-        //{
-        //    try
-        //    {
-        //        var result = await _repository.GetAllAsync();
-
-        //        LogAuditTrail("GET_ALL", "LogAttivita", "All");
-        //        LogSecurityEvent("LogAttivitaGetAll", new
-        //        {
-        //            UserId = GetCurrentUserId(),
-        //            Count = result.Count()
-        //        });
-
-        //        return Ok(result);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore nel recupero di tutti i log attività");
-        //        return SafeInternalError<IEnumerable<LogAttivitaDTO>>("Errore durante il recupero dei log attività");
-        //    }
-        //}
-
-        [HttpGet("{logId}")]
+        // GET /api/LogAttivita?id=...
+        [HttpGet("id")]
         [AllowAnonymous]
-        public async Task<ActionResult<object>> GetById(int logId) // ✅ CAMBIA IN object
+        public async Task<ActionResult<object>> GetById([FromQuery] int? id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (logId <= 0)
-                    return SafeBadRequest<object>("ID log attività non valido");
+                var result = await _repository.GetByIdAsync(id, page, pageSize);
 
-                var result = await _repository.GetByIdAsync(logId);
-
-                if (result == null)
-                    return SafeNotFound<object>("Log attività non trovato");
-
-                // ✅ INFORMAZIONI ARRICCHITE
-                var response = new
-                {
-                    Message = $"Log attività {logId} trovato",
-                    result.LogId,
-                    result.TipoAttivita,
-                    result.Descrizione,
-                    result.DataEsecuzione,
-                    result.Dettagli,
-                    result.UtenteId,
-                    // ✅ DATI CALCOLATI
-                    DataFormattata = result.DataEsecuzione.ToString("dd/MM/yyyy HH:mm"),
-                    Stato = "Completato", // ✅ POTREMMO AGGIUNGERE STATO NEL MODELLO
-                    TipoVisualizzazione = result.TipoAttivita.ToLower().Replace(" ", "-")
-                };
-
-                LogAuditTrail("GET_LOG_ATTIVITA_BY_ID", "LogAttivita", logId.ToString());
-
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero log attività {LogId}", logId);
-                return SafeInternalError<object>("Errore interno nel recupero log attività");
-            }
-        }
-
-        [HttpGet("tipo-attivita/{tipoAttivita}")]
-        [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetByTipoAttivita(string tipoAttivita)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(tipoAttivita))
-                    return SafeBadRequest<IEnumerable<LogAttivitaDTO>>("Tipo attività non valido");
-
-                var result = await _repository.GetByTipoAttivitaAsync(tipoAttivita);
+                if (id.HasValue && !result.Data.Any())
+                    return SafeNotFound<object>("Log attività");
 
                 return Ok(new
                 {
-                    Message = result.Any()
-                        ? $"Trovate {result.Count()} attività per '{tipoAttivita}'"
-                        : $"Nessuna attività trovata per '{tipoAttivita}'",
-                    SearchTerm = tipoAttivita,
-                    Count = result.Count(),
-                    Data = result
+                    result.Message,
+                    Pagination = new
+                    {
+                        result.Page,
+                        result.PageSize,
+                        result.TotalCount,
+                        result.TotalPages,
+                        result.HasPrevious,
+                        result.HasNext
+                    },
+                    result.Data
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero log attività per tipo {TipoAttivita}", tipoAttivita);
-                return SafeInternalError<IEnumerable<LogAttivitaDTO>>("Errore durante il recupero dei log attività per tipo");
+                _logger.LogError(ex, "Errore nel recupero log {Id}", id);
+                return SafeInternalError<object>("Errore durante il recupero log");
             }
         }
 
-        //[HttpGet("periodo")]
-        //[AllowAnonymous]
-        //public async Task<ActionResult<IEnumerable<LogAttivitaDTO>>> GetByPeriodo([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
-        //{
-        //    try
-        //    {
-        //        // ✅ VALORI DI DEFAULT
-        //        dataInizio ??= DateTime.Today.AddDays(-7); // Ultimi 7 giorni
-        //        dataFine ??= DateTime.Now; // Fino ad ora
 
-        //        if (dataInizio > dataFine)
-        //            return SafeBadRequest<IEnumerable<LogAttivitaDTO>>("Intervallo date non valido");
+        // GET /api/LogAttivita/tipo-attivita?tipoAttivita=...
+        [HttpGet("tipo-attivita")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> GetByTipoAttivita([FromQuery] string? tipoAttivita, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                var result = await _repository.GetByTipoAttivitaAsync(tipoAttivita, page, pageSize);
 
-        //        var result = await _repository.GetByPeriodoAsync(dataInizio.Value, dataFine.Value);
+                return Ok(new
+                {
+                    result.Message,
+                    SearchTerm = tipoAttivita,
+                    Pagination = new
+                    {
+                        result.Page,
+                        result.PageSize,
+                        result.TotalCount,
+                        result.TotalPages,
+                        result.HasPrevious,
+                        result.HasNext
+                    },
+                    result.Data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero log per tipo attivita {TipoAttivita}", tipoAttivita);
+                return SafeInternalError<object>("Errore durante il recupero log per tipo attivita");
+            }
+        }
 
-        //        // ✅ MESSAGGIO CON DATE USATE
-        //        return Ok(new
-        //        {
-        //            Message = $"Trovate {result.Count()} attività dal {dataInizio:dd/MM/yyyy} al {dataFine:dd/MM/yyyy}",
-        //            Periodo = new { Da = dataInizio, A = dataFine },
-        //            Count = result.Count(),
-        //            Data = result
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore nel recupero log attività per periodo {DataInizio} - {DataFine}", dataInizio, dataFine);
-        //        return SafeInternalError<IEnumerable<LogAttivitaDTO>>("Errore interno nel recupero log attività per periodo");
-        //    }
-        //}
+        // GET /api/LogAttivita/frontend/tipo-attivita?tipoAttivita=...
+        [HttpGet("frontend/tipo-attivita")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> GetByTipoAttivitaPerFrontend([FromQuery] string? tipoAttivita, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                var result = await _repository.GetByTipoAttivitaPerFrontendAsync(tipoAttivita, page, pageSize);
+
+                return Ok(new
+                {
+                    result.Message,
+                    SearchTerm = tipoAttivita,
+                    Pagination = new
+                    {
+                        result.Page,
+                        result.PageSize,
+                        result.TotalCount,
+                        result.TotalPages,
+                        result.HasPrevious,
+                        result.HasNext
+                    },
+                    result.Data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero log frontend per tipo attivita {TipoAttivita}", tipoAttivita);
+                return SafeInternalError<object>("Errore durante il recupero log frontend per tipo attivita");
+            }
+        }
+
+        // GET /api/LogAttivita/frontend/tipo-utente?tipoUtente=...
+        [HttpGet("frontend/tipo-utente")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> GetByTipoUtente([FromQuery] string? tipoUtente, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                var normalized = string.IsNullOrWhiteSpace(tipoUtente) ? null : tipoUtente.Trim().ToUpper();
+                var result = await _repository.GetByTipoUtenteAsync(normalized, page, pageSize);
+
+                return Ok(new
+                {
+                    result.Message,
+                    SearchTerm = tipoUtente,
+                    Pagination = new
+                    {
+                        result.Page,
+                        result.PageSize,
+                        result.TotalCount,
+                        result.TotalPages,
+                        result.HasPrevious,
+                        result.HasNext
+                    },
+                    result.Data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore nel recupero log frontend per tipo utente {TipoUtente}", tipoUtente);
+                return SafeInternalError<object>("Errore durante il recupero log frontend per tipo utente");
+            }
+        }
 
         [HttpGet("statistiche/numero-attivita")]
         [AllowAnonymous]
@@ -155,7 +164,6 @@ namespace BBltZen.Controllers
         {
             try
             {
-                // ✅ VALORI DI DEFAULT (30 giorni) - CORREGGI ORDINE
                 dataInizio ??= DateTime.Today.AddDays(-30);
                 dataFine ??= DateTime.Now;
 
@@ -166,7 +174,6 @@ namespace BBltZen.Controllers
 
                 return Ok(new
                 {
-                    // ✅ MESSAGGIO CORRETTO - DATA INIZIO PRIMA
                     Message = $"Numero attività: {result} dal {dataInizio:dd/MM/yyyy} al {dataFine:dd/MM/yyyy}",
                     Periodo = new
                     {
@@ -184,7 +191,6 @@ namespace BBltZen.Controllers
         }
 
         [HttpPost]
-        //[Authorize(Roles = "admin,system")] // ✅ COMMENTATO PER TEST
         public async Task<ActionResult<LogAttivitaDTO>> Create([FromBody] LogAttivitaDTO logAttivitaDto)
         {
             try
@@ -192,14 +198,11 @@ namespace BBltZen.Controllers
                 if (!IsModelValid(logAttivitaDto))
                     return SafeBadRequest<LogAttivitaDTO>("Dati log attività non validi");
 
-                // ✅ VERIFICA UTENTE SOLO SE SPECIFICATO (ora opzionale)
                 if (logAttivitaDto.UtenteId.HasValue && !await _context.Utenti.AnyAsync(u => u.UtenteId == logAttivitaDto.UtenteId.Value))
                     return SafeBadRequest<LogAttivitaDTO>("Utente non trovato");
 
-                // ✅ CORREZIONE: Usa il risultato del repository
                 var result = await _repository.AddAsync(logAttivitaDto);
 
-                // ✅ AUDIT OTTIMIZZATO
                 LogAuditTrail("CREATE", "LogAttivita", result.LogId.ToString());
                 LogSecurityEvent("LogAttivitaCreated", new
                 {
@@ -228,51 +231,39 @@ namespace BBltZen.Controllers
             }
         }
 
-        [HttpGet("utente/{utenteId?}")] // ✅ GIÀ OPZIONALE - VERIFICA IL CODICE
+        [HttpGet("utente")]
         [AllowAnonymous]
-        public async Task<ActionResult<object>> GetByUtenteId(int? utenteId = null)
+        public async Task<ActionResult<object>> GetByUtenteId(
+            [FromQuery] int? utenteId,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (utenteId.HasValue && utenteId <= 0)
-                    return SafeBadRequest<object>("ID utente non valido");
+                var result = await _repository.GetByUtenteIdAsync(utenteId, page, pageSize);
 
-                // ✅ VERIFICA UTENTE SOLO SE SPECIFICATO
-                if (utenteId.HasValue && !await _context.Utenti.AnyAsync(u => u.UtenteId == utenteId.Value))
+                if (utenteId.HasValue && (result.Data == null || !result.Data.Any()))
                     return SafeNotFound<object>("Utente");
 
-                var result = await _repository.GetByUtenteIdAsync(utenteId);
-
-                // ✅ INFORMAZIONI ARRICCHITE
-                var response = new
+                return Ok(new
                 {
-                    Message = utenteId.HasValue
-                        ? $"Trovate {result.Count()} attività per l'utente {utenteId}"
-                        : $"Trovate {result.Count()} attività (tutti gli utenti)",
-                    UtenteId = utenteId,
-                    Count = result.Count(),
-                    Periodo = new
+                    result.Message,
+                    Pagination = new
                     {
-                        DataMinima = result.Any() ? result.Min(l => l.DataEsecuzione) : (DateTime?)null,
-                        DataMassima = result.Any() ? result.Max(l => l.DataEsecuzione) : (DateTime?)null
+                        result.Page,
+                        result.PageSize,
+                        result.TotalCount,
+                        result.TotalPages,
+                        result.HasPrevious,
+                        result.HasNext
                     },
-                    Statistiche = new
-                    {
-                        TipiAttivita = result.GroupBy(l => l.TipoAttivita)
-                                            .ToDictionary(g => g.Key, g => g.Count()),
-                        AttivitaRecenti = result.Count(l => l.DataEsecuzione > DateTime.Now.AddHours(-24))
-                    },
-                    Data = result
-                };
-
-                LogAuditTrail("GET_BY_UTENTE", "LogAttivita", utenteId?.ToString() ?? "all");
-
-                return Ok(response);
+                    result.Data
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero log attività per utente {UtenteId}", utenteId);
-                return SafeInternalError<object>("Errore durante il recupero dei log attività per utente");
+                _logger.LogError(ex, "Errore nel recupero attività per utente {UtenteId}", utenteId);
+                return SafeInternalError<object>("Errore durante il recupero dei log attività");
             }
         }
 
@@ -282,7 +273,6 @@ namespace BBltZen.Controllers
         {
             try
             {
-                // ✅ VALORI DI DEFAULT (30 giorni) - CORREGGI ORDINE
                 dataInizio ??= DateTime.Today.AddDays(-30);
                 dataFine ??= DateTime.Now;
 
@@ -293,7 +283,6 @@ namespace BBltZen.Controllers
 
                 return Ok(new
                 {
-                    // ✅ MESSAGGIO CORRETTO - DATA INIZIO PRIMA
                     Message = $"Statistiche attività dal {dataInizio:dd/MM/yyyy} al {dataFine:dd/MM/yyyy}",
                     Periodo = new
                     {
@@ -311,105 +300,52 @@ namespace BBltZen.Controllers
             }
         }
 
-        // ✅ NUOVI ENDPOINT PER FRONTEND
-
-        [HttpGet("frontend")]
-        [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<LogAttivitaFrontendDTO>>> GetAllPerFrontend()
-        {
-            try
-            {
-                var result = await _repository.GetAllPerFrontendAsync();
-
-                LogAuditTrail("GET_ALL_FRONTEND", "LogAttivita", "All");
-                LogSecurityEvent("LogAttivitaGetAllFrontend", new
-                {
-                    UserId = GetCurrentUserId(),
-                    Count = result.Count()
-                });
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero di tutti i log attività per frontend");
-                return SafeInternalError<IEnumerable<LogAttivitaFrontendDTO>>("Errore durante il recupero dei log attività");
-            }
-        }
-
         [HttpGet("frontend/periodo")]
-        [AllowAnonymous]        
-        public async Task<ActionResult<IEnumerable<LogAttivitaFrontendDTO>>> GetByPeriodoPerFrontend([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
-        {
-            try
-            {
-                // ✅ VALORI DI DEFAULT
-                dataInizio ??= DateTime.Today.AddDays(-7); // Ultimi 7 giorni
-                dataFine ??= DateTime.Now; // Fino ad ora
-
-                if (dataInizio > dataFine)
-                    return SafeBadRequest<IEnumerable<LogAttivitaFrontendDTO>>("Intervallo date non valido");
-
-                var result = await _repository.GetByPeriodoPerFrontendAsync(dataInizio.Value, dataFine.Value);
-
-                return Ok(new
-                {
-                    Message = $"Trovate {result.Count()} attività dal {dataInizio:dd/MM/yyyy} al {dataFine:dd/MM/yyyy}",
-                    Periodo = new { Da = dataInizio, A = dataFine },
-                    Count = result.Count(),
-                    Data = result
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero log attività per periodo frontend {DataInizio} - {DataFine}", dataInizio, dataFine);
-                return SafeInternalError<IEnumerable<LogAttivitaFrontendDTO>>("Errore interno nel recupero log attività per periodo");
-            }
-        }
-
-        [HttpGet("frontend/tipo-attivita/{tipoAttivita}")]
         [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<LogAttivitaFrontendDTO>>> GetByTipoAttivitaPerFrontend(string tipoAttivita)
+        public async Task<ActionResult<object>> GetByPeriodoPerFrontend(
+            [FromQuery] DateTime? dataInizio = null,
+            [FromQuery] DateTime? dataFine = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(tipoAttivita))
-                    return SafeBadRequest<IEnumerable<LogAttivitaFrontendDTO>>("Tipo attività non valido");
+                DateTime da = dataInizio ?? DateTime.Today.AddDays(-7);
+                DateTime a = dataFine ?? DateTime.Now;
 
-                var result = await _repository.GetByTipoAttivitaPerFrontendAsync(tipoAttivita);
+                if (da > a)
+                    return SafeBadRequest<object>("Intervallo date non valido");
 
-                // ✅ MESSAGGIO PER RISULTATI VUOTI
-                if (!result.Any())
-                    return Ok(new
-                    {
-                        Message = $"Nessuna attività trovata per il tipo '{tipoAttivita}'",
-                        Count = 0,
-                        Data = Array.Empty<LogAttivitaFrontendDTO>()
-                    });
-
-                LogAuditTrail("GET_BY_TIPO_FRONTEND", "LogAttivita", tipoAttivita);
+                var result = await _repository.GetByPeriodoPerFrontendAsync(da, a, page, pageSize);
 
                 return Ok(new
                 {
-                    Message = $"Trovate {result.Count()} attività per il tipo '{tipoAttivita}'",
-                    Count = result.Count(),
-                    Data = result
+                    result.Message,
+                    Periodo = new { Da = da, A = a },
+                    Pagination = new
+                    {
+                        result.Page,
+                        result.PageSize,
+                        result.TotalCount,
+                        result.TotalPages,
+                        result.HasPrevious,
+                        result.HasNext
+                    },
+                    result.Data
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero log attività per tipo frontend {TipoAttivita}", tipoAttivita);
-                return SafeInternalError<IEnumerable<LogAttivitaFrontendDTO>>("Errore durante il recupero dei log attività per tipo");
+                _logger.LogError(ex, "Errore nel recupero log per periodo {Da} - {A}", dataInizio, dataFine);
+                return SafeInternalError<object>("Errore durante il recupero dei log attività");
             }
         }
 
         [HttpPost("cleanup")]
-        //[Authorize(Roles = "admin,system")] // ✅ SOLO ADMIN
         public async Task<ActionResult<object>> CleanupOldLogs([FromQuery] int? giorniRitenzione = null)
         {
             try
             {
-                // ✅ SE NULL, PULISCE TUTTO (-1 = TUTTO)
                 int retention = giorniRitenzione ?? -1;
 
                 if (retention < -1)
@@ -417,7 +353,6 @@ namespace BBltZen.Controllers
 
                 var deletedCount = await _repository.CleanupOldLogsAsync(retention);
 
-                // ✅ MESSAGGIO DINAMICO
                 string message = retention == -1
                     ? $"Puliti tutti i log attività: {deletedCount} record eliminati"
                     : $"Puliti {deletedCount} log attività vecchi di {retention} giorni";
@@ -439,98 +374,5 @@ namespace BBltZen.Controllers
                 return SafeInternalError<object>("Errore durante la pulizia dei log");
             }
         }
-
-        //// ✅ ENDPOINT RICERCA INTELLIGENTE
-        //[HttpGet("frontend/search")]
-        //[AllowAnonymous]
-        //public async Task<ActionResult<IEnumerable<LogAttivitaFrontendDTO>>> SearchIntelligente([FromQuery] string q)
-        //{
-        //    try
-        //    {
-        //        if (string.IsNullOrWhiteSpace(q))
-        //            return SafeBadRequest<IEnumerable<LogAttivitaFrontendDTO>>("Termine di ricerca non valido");
-
-        //        var result = await _repository.SearchIntelligenteAsync(q);
-
-        //        return Ok(new
-        //        {
-        //            Message = result.Any()
-        //                ? $"Trovate {result.Count()} attività per '{q}'"
-        //                : $"Nessuna attività trovata per '{q}'",
-        //            SearchTerm = q,
-        //            Count = result.Count(),
-        //            Data = result
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore nella ricerca intelligente per '{SearchTerm}'", q);
-        //        return SafeInternalError<IEnumerable<LogAttivitaFrontendDTO>>("Errore durante la ricerca");
-        //    }
-        //}
-
-        // ✅ ENDPOINT TIPO ATTIVITÀ INTELLIGENTE
-        //[HttpGet("frontend/tipo-attivita-intelligente/{tipoAttivita}")]
-        //[AllowAnonymous]
-        //public async Task<ActionResult<IEnumerable<LogAttivitaFrontendDTO>>> GetByTipoAttivitaIntelligente(string tipoAttivita)
-        //{
-        //    try
-        //    {
-        //        if (string.IsNullOrWhiteSpace(tipoAttivita))
-        //            return SafeBadRequest<IEnumerable<LogAttivitaFrontendDTO>>("Tipo attività non valido");
-
-        //        var result = await _repository.GetByTipoAttivitaIntelligenteAsync(tipoAttivita);
-
-        //        return Ok(new
-        //        {
-        //            Message = result.Any()
-        //                ? $"Trovate {result.Count()} attività per il tipo '{tipoAttivita}'"
-        //                : $"Nessuna attività trovata per il tipo '{tipoAttivita}'",
-        //            TipoAttivita = tipoAttivita,
-        //            Count = result.Count(),
-        //            Data = result
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore nel recupero log attività per tipo intelligente {TipoAttivita}", tipoAttivita);
-        //        return SafeInternalError<IEnumerable<LogAttivitaFrontendDTO>>("Errore durante il recupero dei log attività");
-        //    }
-        //}
-
-        // ✅ NUOVO ENDPOINT: FILTRO PER TIPO UTENTE
-        [HttpGet("frontend/tipo-utente/{tipoUtente?}")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetByTipoUtente(string? tipoUtente = null)
-        {
-            try
-            {
-                // ✅ USA STRINGA VUOTA SE NULL
-                string searchTerm = tipoUtente ?? string.Empty;
-
-                var result = await _repository.GetByTipoUtenteAsync(searchTerm);
-
-                // ✅ MESSAGGIO DINAMICO
-                bool hasFilter = !string.IsNullOrWhiteSpace(searchTerm);
-
-                return Ok(new
-                {
-                    Message = hasFilter
-                        ? $"Trovate {result.Count()} attività per il tipo utente '{searchTerm.Trim()}'"
-                        : $"Trovate {result.Count()} attività (tutti i tipi utente)",
-                    TipoUtente = hasFilter ? searchTerm.Trim() : "Tutti",
-                    Count = result.Count(),
-                    DettaglioTipi = result.GroupBy(l => l.TipoUtente ?? "Sistema")
-                                        .ToDictionary(g => g.Key, g => g.Count()),
-                    Data = result
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero log attività per tipo utente {TipoUtente}", tipoUtente);
-                return SafeInternalError<object>("Errore durante il recupero dei log attività per tipo utente");
-            }
-        }
     }
-    
 }
