@@ -36,13 +36,18 @@ namespace Repository.Service
         }
 
         // ✅ METODO HELPER PER STRINGHE SICURE
+        // Opzionale: per coerenza assoluta
         private static string? SafeString(string? input, int maxLength, bool allowNull = false)
         {
             if (string.IsNullOrWhiteSpace(input))
                 return allowNull ? null : string.Empty;
 
-            var trimmed = StringHelper.NormalizeSearchTerm(input);
-            return SecurityHelper.IsValidInput(trimmed, maxLength) ? trimmed : string.Empty;
+            // Validazione PRIMA (anche se dal DB)
+            if (!SecurityHelper.IsValidInput(input, maxLength))
+                return string.Empty;
+
+            // Poi normalizzazione
+            return StringHelper.NormalizeSearchTerm(input);
         }
 
         // ✅ METODO HELPER PER NOME UTENTE SICURO
@@ -524,33 +529,39 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(logAttivitaDto.Descrizione))
                     return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse("Il campo 'Descrizione' è obbligatorio");
 
-                // ✅ 2. NORMALIZZAZIONE E VALIDAZIONE
+                // ✅ 2. VALIDAZIONE SICUREZZA SULL'INPUT ORIGINALE
+                if (!SecurityHelper.IsValidInput(logAttivitaDto.TipoAttivita, 50))
+                    return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
+                        "Il campo 'TipoAttivita' non è valido o contiene caratteri pericolosi");
+
+                if (!SecurityHelper.IsValidInput(logAttivitaDto.Descrizione, 500))
+                    return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
+                        "Il campo 'Descrizione' non è valido o contiene caratteri pericolosi");
+
+                if (!string.IsNullOrWhiteSpace(logAttivitaDto.Dettagli) &&
+                    !SecurityHelper.IsValidInput(logAttivitaDto.Dettagli, 2000))
+                    return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
+                        "Il campo 'Dettagli' non è valido o contiene caratteri pericolosi");
+
+                // ✅ 3. SOLO DOPO la validazione, normalizza
                 var tipoAttivita = StringHelper.NormalizeSearchTerm(logAttivitaDto.TipoAttivita);
                 var descrizione = StringHelper.NormalizeSearchTerm(logAttivitaDto.Descrizione);
                 var dettagli = !string.IsNullOrWhiteSpace(logAttivitaDto.Dettagli)
                     ? StringHelper.NormalizeSearchTerm(logAttivitaDto.Dettagli)
                     : null;
 
-                if (!SecurityHelper.IsValidInput(tipoAttivita, 50))
-                    return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse("Il campo 'TipoAttivita' non è valido o supera i 50 caratteri");
-
-                if (!SecurityHelper.IsValidInput(descrizione, 500))
-                    return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse("Il campo 'Descrizione' non è valido o supera i 500 caratteri");
-
-                if (!string.IsNullOrEmpty(dettagli) && !SecurityHelper.IsValidInput(dettagli, 2000))
-                    return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse("Il campo 'Dettagli' non è valido o supera i 2000 caratteri");
-
-                // ✅ 3. VERIFICA UTENTE (se specificato)
+                // ✅ 4. VERIFICA UTENTE (se specificato) - QUESTA È MANCANTE!
                 if (logAttivitaDto.UtenteId.HasValue && logAttivitaDto.UtenteId.Value > 0)
                 {
                     var utenteEsiste = await _context.Utenti
                         .AnyAsync(u => u.UtenteId == logAttivitaDto.UtenteId.Value);
 
                     if (!utenteEsiste)
-                        return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse($"Utente con ID {logAttivitaDto.UtenteId} non trovato");
+                        return SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
+                            $"Utente con ID {logAttivitaDto.UtenteId} non trovato");
                 }
 
-                // ✅ 4. CREAZIONE ENTITÀ
+                // ✅ 5. CREAZIONE ENTITÀ
                 var logAttivita = new LogAttivita
                 {
                     TipoAttivita = tipoAttivita,
@@ -560,11 +571,11 @@ namespace Repository.Service
                     UtenteId = logAttivitaDto.UtenteId
                 };
 
-                // ✅ 5. SALVATAGGIO
+                // ✅ 6. SALVATAGGIO
                 await _context.LogAttivita.AddAsync(logAttivita);
                 await _context.SaveChangesAsync();
 
-                // ✅ 6. AGGIORNA DTO
+                // ✅ 7. AGGIORNA DTO
                 logAttivitaDto.LogId = logAttivita.LogId;
                 logAttivitaDto.DataEsecuzione = logAttivita.DataEsecuzione;
 

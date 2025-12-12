@@ -97,6 +97,20 @@ namespace Repository.Service
         {
             try
             {
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(sigla, maxLength: 10))
+                {
+                    return new PaginatedResponseDTO<UnitaDiMisuraDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'sigla' contiene caratteri non validi"
+                    };
+                }
+
+                // ✅ SOLO DOPO la validazione, normalizza
                 var searchTerm = StringHelper.NormalizeSearchTerm(sigla);
 
                 if (string.IsNullOrWhiteSpace(searchTerm))
@@ -108,18 +122,6 @@ namespace Repository.Service
                         PageSize = pageSize,
                         TotalCount = 0,
                         Message = "Il parametro 'sigla' è obbligatorio"
-                    };
-                }
-
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 10))
-                {
-                    return new PaginatedResponseDTO<UnitaDiMisuraDTO>
-                    {
-                        Data = [],
-                        Page = 1,
-                        PageSize = pageSize,
-                        TotalCount = 0,
-                        Message = "Il parametro 'sigla' contiene caratteri non validi"
                     };
                 }
 
@@ -175,11 +177,25 @@ namespace Repository.Service
                 };
             }
         }
-        
+
         public async Task<PaginatedResponseDTO<UnitaDiMisuraDTO>> GetByDescrizioneAsync(string descrizione, int page = 1, int pageSize = 10)
         {
             try
             {
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
+                {
+                    return new PaginatedResponseDTO<UnitaDiMisuraDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'descrizione' contiene caratteri non validi"
+                    };
+                }
+
+                // ✅ SOLO DOPO la validazione, normalizza
                 var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
 
                 if (string.IsNullOrWhiteSpace(searchTerm))
@@ -191,18 +207,6 @@ namespace Repository.Service
                         PageSize = pageSize,
                         TotalCount = 0,
                         Message = "Il parametro 'descrizione' è obbligatorio"
-                    };
-                }
-
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 50))
-                {
-                    return new PaginatedResponseDTO<UnitaDiMisuraDTO>
-                    {
-                        Data = [],
-                        Page = 1,
-                        PageSize = pageSize,
-                        TotalCount = 0,
-                        Message = "Il parametro 'descrizione' contiene caratteri non validi"
                     };
                 }
 
@@ -319,14 +323,16 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(unitaDto.Descrizione))
                     return SingleResponseDTO<UnitaDiMisuraDTO>.ErrorResponse("Descrizione obbligatoria");
 
-                var sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla);
-                var descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
-
-                if (!SecurityHelper.IsValidInput(sigla, 10))
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(unitaDto.Sigla, 10))
                     return SingleResponseDTO<UnitaDiMisuraDTO>.ErrorResponse("Sigla non valida");
 
-                if (!SecurityHelper.IsValidInput(descrizione, 50))
+                if (!SecurityHelper.IsValidInput(unitaDto.Descrizione, 50))
                     return SingleResponseDTO<UnitaDiMisuraDTO>.ErrorResponse("Descrizione non valida");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla);
+                var descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
 
                 // ✅ Controllo duplicati (usa metodi interni)
                 if (await SiglaExistsInternalAsync(sigla))
@@ -372,14 +378,16 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(unitaDto.Descrizione))
                     return SingleResponseDTO<bool>.ErrorResponse("Descrizione obbligatoria");
 
-                var sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla);
-                var descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
-
-                if (!SecurityHelper.IsValidInput(sigla, 10))
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(unitaDto.Sigla, 10))
                     return SingleResponseDTO<bool>.ErrorResponse("Sigla non valida");
 
-                if (!SecurityHelper.IsValidInput(descrizione, 50))
+                if (!SecurityHelper.IsValidInput(unitaDto.Descrizione, 50))
                     return SingleResponseDTO<bool>.ErrorResponse("Descrizione non valida");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var sigla = StringHelper.NormalizeSearchTerm(unitaDto.Sigla);
+                var descrizione = StringHelper.NormalizeSearchTerm(unitaDto.Descrizione);
 
                 var unitaDiMisura = await _context.UnitaDiMisura
                     .FirstOrDefaultAsync(u => u.UnitaMisuraId == unitaDto.UnitaMisuraId);
@@ -498,7 +506,7 @@ namespace Repository.Service
                 _logger.LogError(ex, "Errore in ExistsAsync per unitaDiMisuraId: {UnitaDiMisuraId}", unitaDiMisuraId);
                 return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza dell'unità di misura");
             }
-        }        
+        }
 
         public async Task<SingleResponseDTO<bool>> SiglaExistsAsync(string sigla)
         {
@@ -507,10 +515,12 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(sigla))
                     return SingleResponseDTO<bool>.ErrorResponse("La sigla è obbligatoria");
 
-                var searchTerm = StringHelper.NormalizeSearchTerm(sigla);
-
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 10))
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(sigla, maxLength: 10))
                     return SingleResponseDTO<bool>.ErrorResponse("La sigla contiene caratteri non validi");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(sigla);
 
                 var exists = await _context.UnitaDiMisura
                     .AsNoTracking()
@@ -527,7 +537,7 @@ namespace Repository.Service
                 _logger.LogError(ex, "Errore in SiglaExistsAsync per sigla: {Sigla}", sigla);
                 return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza per sigla");
             }
-        }        
+        }
 
         public async Task<SingleResponseDTO<bool>> DescrizioneExistsAsync(string descrizione)
         {
@@ -536,10 +546,12 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(descrizione))
                     return SingleResponseDTO<bool>.ErrorResponse("La descrizione è obbligatoria");
 
-                var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
-
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 50))
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
                     return SingleResponseDTO<bool>.ErrorResponse("La descrizione contiene caratteri non validi");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
 
                 var exists = await _context.UnitaDiMisura
                     .AsNoTracking()
@@ -556,6 +568,6 @@ namespace Repository.Service
                 _logger.LogError(ex, "Errore in DescrizioneExistsAsync per descrizione: {Descrizione}", descrizione);
                 return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza per descrizione");
             }
-        }         
+        }
     }
 }

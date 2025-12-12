@@ -132,10 +132,23 @@ namespace Repository.Service
         {
             try
             {
-                // ✅ 1. NORMALIZZAZIONE input con StringHelper
+                // ✅ 1. Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 100))
+                {
+                    return new PaginatedResponseDTO<TaxRatesDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'descrizione' contiene caratteri non validi"
+                    };
+                }
+
+                // ✅ 2. SOLO DOPO la validazione, normalizza
                 var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
 
-                // ✅ 2. Validazione input (dopo normalizzazione)
+                // ✅ 3. Verifica se è vuoto dopo la normalizzazione
                 if (string.IsNullOrWhiteSpace(searchTerm))
                 {
                     return new PaginatedResponseDTO<TaxRatesDTO>
@@ -148,31 +161,17 @@ namespace Repository.Service
                     };
                 }
 
-                // ✅ 3. Validazione sicurezza con lunghezza specifica per descrizione
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 100))
-                {
-                    return new PaginatedResponseDTO<TaxRatesDTO>
-                    {
-                        Data = [],
-                        Page = 1,
-                        PageSize = pageSize,
-                        TotalCount = 0,
-                        Message = "Il parametro 'descrizione' contiene caratteri non validi"
-                    };
-                }
-
                 // ✅ 4. Validazione paginazione
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
                 // ✅ 5. Query con "INIZIA CON" case-insensitive
-                // Usiamo direttamente StringHelper.StartsWithCaseInsensitive
                 var query = _context.TaxRates
                     .AsNoTracking()
                     .Where(t => t.Descrizione != null &&
                                StringHelper.StartsWithCaseInsensitive(t.Descrizione, searchTerm))
                     .OrderByDescending(t => t.Aliquota)
-                    .ThenBy(t => t.Descrizione); // ✅ Ordinamento secondario per descrizione
+                    .ThenBy(t => t.Descrizione);
 
                 // ✅ 6. Conteggio e paginazione
                 var totalCount = await query.CountAsync();
@@ -182,7 +181,7 @@ namespace Repository.Service
                     .Select(t => MapToDTO(t))
                     .ToListAsync();
 
-                // ✅ 7. Messaggio appropriato (usando il termine normalizzato)
+                // ✅ 7. Messaggio appropriato
                 string message;
                 if (totalCount == 0)
                 {
@@ -208,8 +207,6 @@ namespace Repository.Service
             }
             catch (Exception)
             {
-                // ✅ 8. Logging opzionale (se vuoi mantenere consistenza con altri metodi)
-                // In alternativa, puoi rimuovere il try-catch e lasciare che l'eccezione salga
                 return new PaginatedResponseDTO<TaxRatesDTO>
                 {
                     Data = [],
@@ -223,6 +220,8 @@ namespace Repository.Service
 
         private async Task<bool> ExistsByAliquotaDescrizioneInternalAsync(decimal aliquota, string descrizione, int? excludeId = null)
         {
+            // Il parametro 'descrizione' dovrebbe già essere normalizzato quando arriva qui
+            // Ma per sicurezza, possiamo normalizzare di nuovo
             var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
 
             var query = _context.TaxRates
@@ -251,10 +250,12 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(taxRateDto.Descrizione))
                     return SingleResponseDTO<TaxRatesDTO>.ErrorResponse("Descrizione obbligatoria");
 
-                var descrizione = StringHelper.NormalizeSearchTerm(taxRateDto.Descrizione);
-
-                if (!SecurityHelper.IsValidInput(descrizione, 100))
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(taxRateDto.Descrizione, 100))
                     return SingleResponseDTO<TaxRatesDTO>.ErrorResponse("Descrizione non valida");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var descrizione = StringHelper.NormalizeSearchTerm(taxRateDto.Descrizione);
 
                 // ✅ Controllo duplicati (usa metodo interno)
                 if (await ExistsByAliquotaDescrizioneInternalAsync(taxRateDto.Aliquota, descrizione, null))
@@ -300,10 +301,12 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(taxRateDto.Descrizione))
                     return SingleResponseDTO<bool>.ErrorResponse("Descrizione obbligatoria");
 
-                var descrizione = StringHelper.NormalizeSearchTerm(taxRateDto.Descrizione);
-
-                if (!SecurityHelper.IsValidInput(descrizione, 100))
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(taxRateDto.Descrizione, 100))
                     return SingleResponseDTO<bool>.ErrorResponse("Descrizione non valida");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var descrizione = StringHelper.NormalizeSearchTerm(taxRateDto.Descrizione);
 
                 var taxRate = await _context.TaxRates
                     .FirstOrDefaultAsync(t => t.TaxRateId == taxRateDto.TaxRateId);
@@ -438,20 +441,6 @@ namespace Repository.Service
             }
         }
 
-        //private async Task<bool> ExistsByAliquotaDescrizioneAsync(decimal aliquota, string descrizione, int? excludeId = null)
-        //{
-        //    var query = _context.TaxRates
-        //        .AsNoTracking()
-        //        .Where(t => t.Aliquota == aliquota && t.Descrizione == descrizione);
-
-        //    if (excludeId.HasValue)
-        //    {
-        //        query = query.Where(t => t.TaxRateId != excludeId.Value);
-        //    }
-
-        //    return await query.AnyAsync();
-        //}
-
         public async Task<SingleResponseDTO<bool>> ExistsByAliquotaDescrizioneAsync(decimal aliquota, string descrizione)
         {
             try
@@ -462,10 +451,12 @@ namespace Repository.Service
                 if (string.IsNullOrWhiteSpace(descrizione))
                     return SingleResponseDTO<bool>.ErrorResponse("La descrizione è obbligatoria");
 
-                var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
-
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 100))
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 100))
                     return SingleResponseDTO<bool>.ErrorResponse("La descrizione contiene caratteri non validi");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
 
                 var exists = await ExistsByAliquotaDescrizioneInternalAsync(aliquota, searchTerm, null);
 

@@ -2,6 +2,7 @@
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Repository.Helper;
 using Repository.Service;
 using System;
 using System.Linq;
@@ -679,8 +680,8 @@ namespace RepositoryTest
             // Arrange
             var dto = new LogAttivitaDTO
             {
-                TipoAttivita = "Test",
-                Descrizione = "Test description",
+                TipoAttivita = "ValidType",
+                Descrizione = "Valid description",
                 UtenteId = 999 // Non esistente
             };
 
@@ -689,10 +690,11 @@ namespace RepositoryTest
 
             // Assert
             Assert.NotNull(result);
-            Assert.False(result.Success); // ✅ SingleResponseDTO HA Success
+            Assert.False(result.Success);
             Assert.Null(result.Data);
             Assert.Contains("Utente con ID 999 non trovato", result.Message);
         }
+
         [Fact]
         public async Task AddAsync_WithNullDto_ShouldReturnError()
         {
@@ -728,6 +730,35 @@ namespace RepositoryTest
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
             Assert.True(result.Data.LogId > 0);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithHtmlTags_ShouldFailValidation()
+        {
+            // Arrange
+            var input = "<script>Test</script>";
+            var dto = new LogAttivitaDTO
+            {
+                TipoAttivita = input,
+                Descrizione = "Normal description",
+                UtenteId = 1
+            };
+
+            // Debug: cosa fanno gli Helper?
+            var normalized = StringHelper.NormalizeSearchTerm(input);
+            var isValid = SecurityHelper.IsValidInput(normalized, 50);
+
+            Console.WriteLine($"Input: '{input}'");
+            Console.WriteLine($"Normalized: '{normalized}'");
+            Console.WriteLine($"IsValid: {isValid}");
+
+            // Act
+            var result = await _repository.AddAsync(dto);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.False(result.Success, $"Expected to fail but succeeded. Message: {result.Message}");
+            Assert.Null(result.Data);
         }
 
         #endregion
@@ -901,14 +932,14 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task AddAsync_WithVeryLongStrings_ShouldBeTruncated()
+        public async Task AddAsync_WithVeryLongStrings_ShouldFailValidation()
         {
-            // Arrange
-            var longString = new string('A', 1000);
+            // Arrange - Stringa più lunga del limite (50 caratteri)
+            var longString = new string('A', 51);
             var dto = new LogAttivitaDTO
             {
                 TipoAttivita = longString,
-                Descrizione = "Test",
+                Descrizione = "Valid description",
                 UtenteId = 1
             };
 
@@ -917,8 +948,11 @@ namespace RepositoryTest
 
             // Assert
             Assert.NotNull(result);
-            Assert.False(result.Success); // ✅ SingleResponseDTO HA Success
-            Assert.Contains("supera i 50 caratteri", result.Message);
+            Assert.False(result.Success);
+            Assert.Null(result.Data);
+            // Nuovo messaggio di errore
+            Assert.Contains("TipoAttivita", result.Message);
+            Assert.Contains("non è valido", result.Message);
         }
 
         [Fact]

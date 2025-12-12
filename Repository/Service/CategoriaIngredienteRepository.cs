@@ -95,8 +95,23 @@ namespace Repository.Service
         {
             try
             {
+                // ✅ 1. VALIDAZIONE SICUREZZA SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(categoria, maxLength: 50))
+                {
+                    return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'categoria' contiene caratteri non validi"
+                    };
+                }
+
+                // ✅ 2. SOLO DOPO la validazione, normalizza
                 var searchTerm = StringHelper.NormalizeSearchTerm(categoria);
 
+                // ✅ 3. Verifica se è vuoto dopo la normalizzazione
                 if (string.IsNullOrWhiteSpace(searchTerm))
                 {
                     return new PaginatedResponseDTO<CategoriaIngredienteDTO>
@@ -109,27 +124,18 @@ namespace Repository.Service
                     };
                 }
 
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 50))
-                {
-                    return new PaginatedResponseDTO<CategoriaIngredienteDTO>
-                    {
-                        Data = [],
-                        Page = 1,
-                        PageSize = pageSize,
-                        TotalCount = 0,
-                        Message = "Il parametro 'categoria' contiene caratteri non validi"
-                    };
-                }
-
+                // ✅ 4. Validazione paginazione
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
+                // ✅ 5. Query con "INIZIA CON" case-insensitive
                 var query = _context.CategoriaIngrediente
                     .AsNoTracking()
                     .Where(c => c.Categoria != null &&
                                StringHelper.StartsWithCaseInsensitive(c.Categoria, searchTerm))
                     .OrderBy(c => c.Categoria);
 
+                // ✅ 6. Conteggio e paginazione
                 var totalCount = await query.CountAsync();
                 var items = await query
                     .Skip(skip)
@@ -137,6 +143,7 @@ namespace Repository.Service
                     .Select(c => MapToDTO(c))
                     .ToListAsync();
 
+                // ✅ 7. Messaggio appropriato
                 string message;
                 if (totalCount == 0)
                 {
@@ -202,12 +209,14 @@ namespace Repository.Service
             try
             {
                 if (string.IsNullOrWhiteSpace(categoria))
-                    return SingleResponseDTO<bool>.ErrorResponse("Il nome della categoria è obbligatorio");
+                    return SingleResponseDTO<bool>.ErrorResponse("Il nome della categoria è obbligatorio");                
 
-                var searchTerm = StringHelper.NormalizeSearchTerm(categoria);
-
-                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 50))
+                // ✅ NUOVO: Valida PRIMA l'input originale
+                if (!SecurityHelper.IsValidInput(categoria, maxLength: 50))
                     return SingleResponseDTO<bool>.ErrorResponse("Il nome della categoria contiene caratteri non validi");
+
+                // ✅ Poi normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(categoria);
 
                 var exists = await _context.CategoriaIngrediente
                     .AsNoTracking()
@@ -224,7 +233,7 @@ namespace Repository.Service
                 _logger.LogError(ex, "Errore in ExistsByNomeAsync per categoria: {Categoria}", categoria);
                 return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza della categoria per nome");
             }
-        }        
+        }
 
         private async Task<bool> ExistsByNomeInternalAsync(string categoria)
         {
@@ -237,16 +246,16 @@ namespace Repository.Service
                 .AnyAsync(c => StringHelper.EqualsCaseInsensitive(c.Categoria, searchTerm));
         }
 
-        private async Task<bool> ExistsByNomeForOtherAsync(int excludeId, string categoria)
-        {
-            if (string.IsNullOrWhiteSpace(categoria))
-                return false;
+        //private async Task<bool> ExistsByNomeForOtherAsync(int excludeId, string categoria)
+        //{
+        //    if (string.IsNullOrWhiteSpace(categoria))
+        //        return false;
 
-            return await _context.CategoriaIngrediente
-                .AsNoTracking()
-                .AnyAsync(c => c.CategoriaId != excludeId &&
-                              StringHelper.EqualsCaseInsensitive(c.Categoria, categoria.Trim()));
-        }
+        //    return await _context.CategoriaIngrediente
+        //        .AsNoTracking()
+        //        .AnyAsync(c => c.CategoriaId != excludeId &&
+        //                      StringHelper.EqualsCaseInsensitive(c.Categoria, categoria.Trim()));
+        //}
 
         private async Task<bool> ExistsByNomeForOtherInternalAsync(int excludeId, string categoria)
         {
@@ -268,12 +277,14 @@ namespace Repository.Service
 
                 // ✅ Validazioni input
                 if (string.IsNullOrWhiteSpace(categoriaDto.Categoria))
-                    return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse("Nome categoria obbligatorio");
+                    return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse("Nome categoria obbligatorio");                
 
-                var searchTerm = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria);
-
-                if (!SecurityHelper.IsValidInput(searchTerm, 50))
+                // ✅ NUOVO: Valida PRIMA l'input originale
+                if (!SecurityHelper.IsValidInput(categoriaDto.Categoria, 50))
                     return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse("Nome categoria non valido");
+
+                // ✅ Poi normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria);
 
                 // ✅ Controllo duplicati (usa metodo interno)
                 if (await ExistsByNomeInternalAsync(searchTerm))
@@ -309,12 +320,14 @@ namespace Repository.Service
 
                 // ✅ Validazioni input
                 if (string.IsNullOrWhiteSpace(categoriaDto.Categoria))
-                    return SingleResponseDTO<bool>.ErrorResponse("Nome categoria obbligatorio");
+                    return SingleResponseDTO<bool>.ErrorResponse("Nome categoria obbligatorio");                
 
-                var searchTerm = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria);
-
-                if (!SecurityHelper.IsValidInput(searchTerm, 50))
+                // ✅ NUOVO: Valida PRIMA l'input originale
+                if (!SecurityHelper.IsValidInput(categoriaDto.Categoria, 50))
                     return SingleResponseDTO<bool>.ErrorResponse("Nome categoria non valido");
+
+                // ✅ Poi normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria);
 
                 var categoria = await _context.CategoriaIngrediente
                     .FirstOrDefaultAsync(c => c.CategoriaId == categoriaDto.CategoriaId);

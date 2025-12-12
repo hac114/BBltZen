@@ -32,7 +32,16 @@ namespace Repository.Helper
             if (string.IsNullOrWhiteSpace(input))
                 return string.Empty;
 
-            return input.Trim();
+            // 1. Trim
+            var trimmed = input.Trim();
+
+            // 2. Rimuove tag HTML di base (opzionale, ma consigliato)
+            var sanitized = System.Text.RegularExpressions.Regex.Replace(
+                trimmed,
+                @"<[^>]*>",
+                string.Empty);
+
+            return sanitized;
         }
 
         // ✅ RICERCA INIZIALI/MULTIPLE PAROLE
@@ -71,6 +80,28 @@ namespace Repository.Helper
                 return false;
 
             return source.Trim().Equals(searchTerm.Trim(), StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        // Per future implementazioni con URL
+        public static bool IsValidUrlInput(string? input, int maxLength = 500)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return true;
+
+            // Permetti :// per http:// o https://
+            var dangerousPatterns = new[]
+            { 
+                // SQL Injection
+                ";", "--", "/*", "*/", "@@", "xp_", "sp_", "exec",
+                // JavaScript pericoloso
+                "<script", "</script>", "javascript:",
+                "onclick=", "onload=", "onerror="
+                // NOTA: Non blocchiamo 'http://' o 'https://'
+            };
+
+            return input.Length <= maxLength &&
+                   !dangerousPatterns.Any(pattern =>
+                       input.Contains(pattern, StringComparison.InvariantCultureIgnoreCase));
         }
     }
 }

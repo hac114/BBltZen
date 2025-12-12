@@ -16,10 +16,21 @@ namespace Repository.Helper
             if (string.IsNullOrWhiteSpace(input))
                 return true;
 
-            var dangerousPatterns = new[] { ";", "--", "/*", "*/", "@@", "xp_", "sp_", "exec" };
+            // ✅ Pattern SQL injection e HTML/JavaScript
+            var dangerousPatterns = new[]
+            { 
+                // SQL Injection
+                ";", "--", "/*", "*/", "@@", "xp_", "sp_", "exec",
+                // HTML/JavaScript
+                "<script", "</script>", "javascript:",
+                "onclick=", "onload=", "onerror=", "onmouseover=",
+                "<iframe", "</iframe>", "<object", "</object>",
+                "<embed", "</embed>", "<applet", "</applet>"
+            };
+
             return input.Length <= maxLength &&
                    !dangerousPatterns.Any(pattern =>
-                       input.Contains(pattern, StringComparison.InvariantCultureIgnoreCase)); // ✅ CORRETTO
+                       input.Contains(pattern, StringComparison.InvariantCultureIgnoreCase));
         }
 
         // ✅ NORMALIZZAZIONE SICURA
@@ -28,7 +39,6 @@ namespace Repository.Helper
             if (string.IsNullOrWhiteSpace(input)) return string.Empty;
             return input.Trim().ToUpperInvariant();
         }
-
 
         // ✅ PAGINAZIONE SICURA
         public static (int page, int pageSize) ValidatePagination(int? page, int? pageSize)

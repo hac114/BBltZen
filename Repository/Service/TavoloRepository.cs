@@ -255,7 +255,7 @@ namespace Repository.Service
                     };
                 }
 
-                // ✅ Validazione sicurezza
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
                 if (!SecurityHelper.IsValidInput(zona, maxLength: 50))
                 {
                     return new PaginatedResponseDTO<TavoloDTO>
@@ -272,7 +272,7 @@ namespace Repository.Service
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
-                // ✅ RICERCA "INIZIA CON" usando StringHelper
+                // ✅ RICERCA "INIZIA CON" usando StringHelper (usa l'input originale)
                 var query = _context.Tavolo
                     .AsNoTracking()
                     .Where(t => t.Zona != null &&
@@ -334,11 +334,15 @@ namespace Repository.Service
                 if (tavoloDto.Numero <= 0)
                     return SingleResponseDTO<TavoloDTO>.ErrorResponse("Il numero del tavolo deve essere maggiore di 0");
 
+                string? zonaNormalizzata = null;
                 if (!string.IsNullOrWhiteSpace(tavoloDto.Zona))
                 {
-                    var zona = StringHelper.NormalizeSearchTerm(tavoloDto.Zona);
-                    if (!SecurityHelper.IsValidInput(zona, maxLength: 50))
+                    // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                    if (!SecurityHelper.IsValidInput(tavoloDto.Zona, maxLength: 50))
                         return SingleResponseDTO<TavoloDTO>.ErrorResponse("Il campo 'Zona' contiene caratteri non validi");
+
+                    // ✅ SOLO DOPO la validazione, normalizza
+                    zonaNormalizzata = StringHelper.NormalizeSearchTerm(tavoloDto.Zona);
                 }
 
                 // ✅ Controllo duplicati (usa metodo interno)
@@ -349,9 +353,7 @@ namespace Repository.Service
                 var tavolo = new Tavolo
                 {
                     Numero = tavoloDto.Numero,
-                    Zona = !string.IsNullOrWhiteSpace(tavoloDto.Zona)
-                        ? StringHelper.NormalizeSearchTerm(tavoloDto.Zona)
-                        : tavoloDto.Zona,
+                    Zona = zonaNormalizzata,
                     Disponibile = tavoloDto.Disponibile
                 };
 
@@ -381,11 +383,15 @@ namespace Repository.Service
                 if (tavoloDto.Numero <= 0)
                     return SingleResponseDTO<bool>.ErrorResponse("Il numero del tavolo deve essere maggiore di 0");
 
+                string? nuovaZonaNormalizzata = null;
                 if (!string.IsNullOrWhiteSpace(tavoloDto.Zona))
                 {
-                    var zona = StringHelper.NormalizeSearchTerm(tavoloDto.Zona);
-                    if (!SecurityHelper.IsValidInput(zona, maxLength: 50))
+                    // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                    if (!SecurityHelper.IsValidInput(tavoloDto.Zona, maxLength: 50))
                         return SingleResponseDTO<bool>.ErrorResponse("Il campo 'Zona' contiene caratteri non validi");
+
+                    // ✅ SOLO DOPO la validazione, normalizza
+                    nuovaZonaNormalizzata = StringHelper.NormalizeSearchTerm(tavoloDto.Zona);
                 }
 
                 var tavolo = await _context.Tavolo
@@ -409,13 +415,9 @@ namespace Repository.Service
                     hasChanges = true;
                 }
 
-                var nuovaZona = !string.IsNullOrWhiteSpace(tavoloDto.Zona)
-                    ? StringHelper.NormalizeSearchTerm(tavoloDto.Zona)
-                    : tavoloDto.Zona;
-
-                if (tavolo.Zona != nuovaZona)
+                if (tavolo.Zona != nuovaZonaNormalizzata)
                 {
-                    tavolo.Zona = nuovaZona;
+                    tavolo.Zona = nuovaZonaNormalizzata;
                     hasChanges = true;
                 }
 
