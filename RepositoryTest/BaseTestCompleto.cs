@@ -1,4 +1,5 @@
 ﻿using Database;
+using Database.Models;
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -65,35 +66,35 @@ namespace RepositoryTest
                     _context.Tavolo.AddRange(
                         new Tavolo
                         {
-                            TavoloId = 1, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            TavoloId = 1, 
                             Numero = 1,
                             Zona = "Interno",
                             Disponibile = true
                         },
                         new Tavolo
                         {
-                            TavoloId = 2, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            TavoloId = 2,
                             Numero = 2,
                             Zona = "Interno",
                             Disponibile = true
                         },
                         new Tavolo
                         {
-                            TavoloId = 3, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            TavoloId = 3, 
                             Numero = 3,
                             Zona = "Terrazza",
                             Disponibile = false
                         },
                         new Tavolo
                         {
-                            TavoloId = 4, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            TavoloId = 4, 
                             Numero = 4,
                             Zona = "Terrazza",
                             Disponibile = true
                         },
                         new Tavolo
                         {
-                            TavoloId = 5, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            TavoloId = 5, 
                             Numero = 5,
                             Zona = "Bar",
                             Disponibile = true
@@ -108,19 +109,19 @@ namespace RepositoryTest
                     _context.UnitaDiMisura.AddRange(
                         new UnitaDiMisura
                         {
-                            UnitaMisuraId = 1, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            UnitaMisuraId = 1,
                             Sigla = "ML",
                             Descrizione = "Millilitri"
                         },
                         new UnitaDiMisura
                         {
-                            UnitaMisuraId = 2, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            UnitaMisuraId = 2,
                             Sigla = "GR",
                             Descrizione = "Grammi"
                         },
                         new UnitaDiMisura
                         {
-                            UnitaMisuraId = 3, // ✅ AGGIUNTO ID PER DIPENDENZE
+                            UnitaMisuraId = 3,
                             Sigla = "PZ",
                             Descrizione = "Pezzi"
                         }

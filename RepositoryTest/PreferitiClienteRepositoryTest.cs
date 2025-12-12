@@ -1,4 +1,5 @@
-﻿using DTO;
+﻿using Database.Models;
+using DTO;
 using Repository.Interface;
 using Repository.Service;
 using System;
@@ -234,17 +235,17 @@ namespace RepositoryTest
 
         private async Task CleanTablesForPreferitiTest()
         {
-            await CleanTableAsync<Database.PreferitiCliente>();
-            await CleanTableAsync<Database.Cliente>();
-            await CleanTableAsync<Database.BevandaStandard>();
-            await CleanTableAsync<Database.Tavolo>();
-            await CleanTableAsync<Database.Articolo>();
-            await CleanTableAsync<Database.Personalizzazione>();
-            await CleanTableAsync<Database.DimensioneBicchiere>();
-            await CleanTableAsync<Database.UnitaDiMisura>();
+            await CleanTableAsync<PreferitiCliente>();
+            await CleanTableAsync<Cliente>();
+            await CleanTableAsync<BevandaStandard>();
+            await CleanTableAsync<Tavolo>();
+            await CleanTableAsync<Articolo>();
+            await CleanTableAsync<Personalizzazione>();
+            await CleanTableAsync<DimensioneBicchiere>();
+            await CleanTableAsync<UnitaDiMisura>();
 
             // Setup UnitaDiMisura per DimensioneBicchiere
-            var unitaMisura = new Database.UnitaDiMisura
+            var unitaMisura = new UnitaDiMisura
             {
                 Sigla = "ml",
                 Descrizione = "Millilitri"
@@ -253,7 +254,7 @@ namespace RepositoryTest
             await _context.SaveChangesAsync();
 
             // Setup DimensioneBicchiere
-            var dimensioneBicchiere = new Database.DimensioneBicchiere
+            var dimensioneBicchiere = new DimensioneBicchiere
             {
                 Sigla = "M",
                 Descrizione = "Bicchiere Medio",
@@ -265,7 +266,7 @@ namespace RepositoryTest
             _context.DimensioneBicchiere.Add(dimensioneBicchiere);
 
             // Setup Articolo
-            var articolo = new Database.Articolo
+            var articolo = new Articolo
             {
                 Tipo = "BS",
                 DataCreazione = DateTime.Now,
@@ -274,7 +275,7 @@ namespace RepositoryTest
             _context.Articolo.Add(articolo);
 
             // Setup Personalizzazione
-            var personalizzazione = new Database.Personalizzazione
+            var personalizzazione = new Personalizzazione
             {
                 Nome = "Personalizzazione Test",
                 Descrizione = "Descrizione test per personalizzazione"
@@ -284,7 +285,7 @@ namespace RepositoryTest
             await _context.SaveChangesAsync();
 
             // Setup Tavolo
-            var tavolo = new Database.Tavolo
+            var tavolo = new Tavolo
             {
                 Numero = 1,
                 Zona = "Test",
@@ -294,14 +295,14 @@ namespace RepositoryTest
             await _context.SaveChangesAsync();
 
             // Setup Cliente
-            var cliente = new Database.Cliente
+            var cliente = new Cliente
             {
                 TavoloId = tavolo.TavoloId
             };
             _context.Cliente.Add(cliente);
 
             // Setup BevandaStandard
-            var bevanda = new Database.BevandaStandard
+            var bevanda = new BevandaStandard
             {
                 ArticoloId = articolo.ArticoloId,
                 PersonalizzazioneId = personalizzazione.PersonalizzazioneId,

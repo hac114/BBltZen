@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using Database;
 using System.Linq;
 using System;
+using Database.Models;
 
 namespace BBltZen.Controllers
 {

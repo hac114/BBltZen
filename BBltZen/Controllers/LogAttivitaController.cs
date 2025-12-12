@@ -1,377 +1,234 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using DTO;
+﻿using DTO;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Repository.Interface;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Hosting;
-using Database;
-using Microsoft.EntityFrameworkCore;
 
 namespace BBltZen.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
-    //[Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
-    public class LogAttivitaController(
-        ILogAttivitaRepository repository,
-        BubbleTeaContext context,
-        IWebHostEnvironment environment,
-        ILogger<LogAttivitaController> logger)
-        : SecureBaseController(environment, logger)
+    [ApiController]
+    //[Authorize] // ✅ TODO: Riattivare quando l'autenticazione sarà configurata
+    public class LogAttivitaController(ILogAttivitaRepository repository, ILogger<LogAttivitaController> logger) : ControllerBase
     {
         private readonly ILogAttivitaRepository _repository = repository;
-        private readonly BubbleTeaContext _context = context;
+        private readonly ILogger<LogAttivitaController> _logger = logger;
 
-        // GET /api/LogAttivita?id=...
-        [HttpGet("id")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetById([FromQuery] int? id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        // ✅ GET: api/LogAttivita
+        [HttpGet]
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var result = await _repository.GetByIdAsync(id, page, pageSize);
-
-                if (id.HasValue && !result.Data.Any())
-                    return SafeNotFound<object>("Log attività");
-
-                return Ok(new
-                {
-                    result.Message,
-                    Pagination = new
-                    {
-                        result.Page,
-                        result.PageSize,
-                        result.TotalCount,
-                        result.TotalPages,
-                        result.HasPrevious,
-                        result.HasNext
-                    },
-                    result.Data
-                });
+                var result = await _repository.GetAllAsync(page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero log {Id}", id);
-                return SafeInternalError<object>("Errore durante il recupero log");
+                _logger.LogError(ex, "Errore in GetAll");
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
+        // ✅ GET: api/LogAttivita/5
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<SingleResponseDTO<LogAttivitaDTO>>> GetById(int id)
+        {
+            try
+            {
+                var result = await _repository.GetByIdAsync(id);
 
-        // GET /api/LogAttivita/tipo-attivita?tipoAttivita=...
-        [HttpGet("tipo-attivita")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetByTipoAttivita([FromQuery] string? tipoAttivita, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+                // ✅ CONTROLLER SEMPLICISSIMO!
+                return result.Success
+                    ? Ok(result)
+                    : NotFound(result); // Restituisce comunque il DTO con messaggio
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetById per ID: {Id}", id);
+                return StatusCode(500, SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
+                    "Errore interno del server"));
+            }
+        }
+
+        // ✅ GET: api/LogAttivita/tipo/Login
+        [HttpGet("tipo/{tipoAttivita}")]
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByTipoAttivita(string tipoAttivita, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
                 var result = await _repository.GetByTipoAttivitaAsync(tipoAttivita, page, pageSize);
-
-                return Ok(new
-                {
-                    result.Message,
-                    SearchTerm = tipoAttivita,
-                    Pagination = new
-                    {
-                        result.Page,
-                        result.PageSize,
-                        result.TotalCount,
-                        result.TotalPages,
-                        result.HasPrevious,
-                        result.HasNext
-                    },
-                    result.Data
-                });
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero log per tipo attivita {TipoAttivita}", tipoAttivita);
-                return SafeInternalError<object>("Errore durante il recupero log per tipo attivita");
+                _logger.LogError(ex, "Errore in GetByTipoAttivita per tipo: {Tipo}", tipoAttivita);
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // GET /api/LogAttivita/frontend/tipo-attivita?tipoAttivita=...
-        [HttpGet("frontend/tipo-attivita")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetByTipoAttivitaPerFrontend([FromQuery] string? tipoAttivita, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        // ✅ GET: api/LogAttivita/utente/5
+        [HttpGet("utente/{utenteId:int}")]
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByUtenteId(int utenteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var result = await _repository.GetByTipoAttivitaPerFrontendAsync(tipoAttivita, page, pageSize);
+                if (utenteId <= 0)
+                    return BadRequest("ID utente non valido");
 
-                return Ok(new
-                {
-                    result.Message,
-                    SearchTerm = tipoAttivita,
-                    Pagination = new
-                    {
-                        result.Page,
-                        result.PageSize,
-                        result.TotalCount,
-                        result.TotalPages,
-                        result.HasPrevious,
-                        result.HasNext
-                    },
-                    result.Data
-                });
+                var result = await _repository.GetByUtenteIdAsync(utenteId, page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero log frontend per tipo attivita {TipoAttivita}", tipoAttivita);
-                return SafeInternalError<object>("Errore durante il recupero log frontend per tipo attivita");
+                _logger.LogError(ex, "Errore in GetByUtenteId per utenteId: {UtenteId}", utenteId);
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // GET /api/LogAttivita/frontend/tipo-utente?tipoUtente=...
-        [HttpGet("frontend/tipo-utente")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetByTipoUtente([FromQuery] string? tipoUtente, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        // ✅ GET: api/LogAttivita/tipo-utente/Admin
+        [HttpGet("tipo-utente/{tipoUtente}")]
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByTipoUtente(string tipoUtente, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var normalized = string.IsNullOrWhiteSpace(tipoUtente) ? null : tipoUtente.Trim().ToUpper();
-                var result = await _repository.GetByTipoUtenteAsync(normalized, page, pageSize);
-
-                return Ok(new
-                {
-                    result.Message,
-                    SearchTerm = tipoUtente,
-                    Pagination = new
-                    {
-                        result.Page,
-                        result.PageSize,
-                        result.TotalCount,
-                        result.TotalPages,
-                        result.HasPrevious,
-                        result.HasNext
-                    },
-                    result.Data
-                });
+                var result = await _repository.GetByTipoUtenteAsync(tipoUtente, page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero log frontend per tipo utente {TipoUtente}", tipoUtente);
-                return SafeInternalError<object>("Errore durante il recupero log frontend per tipo utente");
+                _logger.LogError(ex, "Errore in GetByTipoUtente per tipoUtente: {TipoUtente}", tipoUtente);
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        [HttpGet("statistiche/numero-attivita")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetNumeroAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
+        // ✅ GET: api/LogAttivita/statistiche/conteggio
+        [HttpGet("statistiche/conteggio")]
+        public async Task<ActionResult<SingleResponseDTO<int>>> GetNumeroAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
         {
             try
             {
-                dataInizio ??= DateTime.Today.AddDays(-30);
-                dataFine ??= DateTime.Now;
+                var result = await _repository.GetNumeroAttivitaAsync(dataInizio, dataFine);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetNumeroAttivita");
+                return StatusCode(500, SingleResponseDTO<int>.ErrorResponse("Errore interno del server"));
+            }
+        }
+
+        // ✅ GET: api/LogAttivita/filtro/data
+        [HttpGet("filtro/data")]
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByDateRange([FromQuery] DateTime dataInizio, [FromQuery] DateTime dataFine, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                if (dataInizio == default)
+                    return BadRequest("Il parametro 'dataInizio' è obbligatorio");
+
+                if (dataFine == default)
+                    return BadRequest("Il parametro 'dataFine' è obbligatorio");
 
                 if (dataInizio > dataFine)
-                    return SafeBadRequest<object>("Intervallo date non valido");
+                    return BadRequest("La data di inizio non può essere successiva alla data di fine");
 
-                var result = await _repository.GetNumeroAttivitaAsync(dataInizio, dataFine);
-
-                return Ok(new
-                {
-                    Message = $"Numero attività: {result} dal {dataInizio:dd/MM/yyyy} al {dataFine:dd/MM/yyyy}",
-                    Periodo = new
-                    {
-                        Da = dataInizio.Value.ToString("dd/MM/yyyy HH:mm"),
-                        A = dataFine.Value.ToString("dd/MM/yyyy HH:mm")
-                    },
-                    Count = result
-                });
+                var result = await _repository.GetByDateRangeAsync(dataInizio, dataFine, page, pageSize);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero statistiche numero attività");
-                return SafeInternalError<object>("Errore interno nel recupero statistiche attività");
+                _logger.LogError(ex, "Errore in GetByDateRange per periodo: {DataInizio} - {DataFine}", dataInizio, dataFine);
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        [HttpPost]
-        public async Task<ActionResult<LogAttivitaDTO>> Create([FromBody] LogAttivitaDTO logAttivitaDto)
+        // ✅ GET: api/LogAttivita/statistiche/riepilogo
+        [HttpGet("statistiche/riepilogo")]
+        public async Task<ActionResult<SingleResponseDTO<Dictionary<string, int>>>> GetStatisticheAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
         {
             try
             {
-                if (!IsModelValid(logAttivitaDto))
-                    return SafeBadRequest<LogAttivitaDTO>("Dati log attività non validi");
+                var result = await _repository.GetStatisticheAttivitaAsync(dataInizio, dataFine);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetStatisticheAttivita");
+                return StatusCode(500, SingleResponseDTO<Dictionary<string, int>>.ErrorResponse("Errore interno del server"));
+            }
+        }
 
-                if (logAttivitaDto.UtenteId.HasValue && !await _context.Utenti.AnyAsync(u => u.UtenteId == logAttivitaDto.UtenteId.Value))
-                    return SafeBadRequest<LogAttivitaDTO>("Utente non trovato");
+        // ✅ POST: api/LogAttivita - METODO ADATTATO
+        [HttpPost]
+        public async Task<ActionResult<SingleResponseDTO<LogAttivitaDTO>>> Create([FromBody] LogAttivitaDTO logAttivitaDto)
+        {
+            try
+            {
+                // 1. Validazione HTTP MINIMA (solo null check)
+                if (logAttivitaDto == null)
+                    return BadRequest("Dati obbligatori");
 
+                // 2. UNA SOLA chiamata al Repository
                 var result = await _repository.AddAsync(logAttivitaDto);
 
-                LogAuditTrail("CREATE", "LogAttivita", result.LogId.ToString());
-                LogSecurityEvent("LogAttivitaCreated", new
-                {
-                    result.LogId,
-                    result.TipoAttivita,
-                    result.UtenteId,
-                    UserId = GetCurrentUserId(),
-                    UserName = User.Identity?.Name
-                });
-
-                return CreatedAtAction(nameof(GetById), new { logId = result.LogId }, result);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione del log attività");
-                return SafeInternalError<LogAttivitaDTO>("Errore durante il salvataggio del log attività");
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest<LogAttivitaDTO>(argEx.Message);
+                // 3. Response HTTP basata sul successo del repository
+                return result.Success
+                    ? Ok(result)  // Il repository gestisce già i messaggi di successo/errore
+                    : BadRequest(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nella creazione log attività");
-                return SafeInternalError<LogAttivitaDTO>("Errore durante la creazione del log attività");
+                // 4. Logging errori + response generica
+                _logger.LogError(ex, "Errore in Create");
+                return StatusCode(500, SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
+                    "Errore interno del server"));
             }
         }
 
-        [HttpGet("utente")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetByUtenteId(
-            [FromQuery] int? utenteId,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+        // ✅ DELETE: api/LogAttivita/cleanup - METODO ADATTATO
+        [HttpDelete("cleanup")]
+        //[Authorize(Roles = "Admin")] // ✅ TODO: Riattivare quando l'autenticazione sarà configurata
+        public async Task<ActionResult<SingleResponseDTO<int>>> CleanupOldLogs([FromQuery] int giorniRitenzione = 90)
         {
             try
             {
-                var result = await _repository.GetByUtenteIdAsync(utenteId, page, pageSize);
+                // 1. UNA SOLA chiamata al Repository (lui gestisce la validazione)
+                var result = await _repository.CleanupOldLogsAsync(giorniRitenzione);
 
-                if (utenteId.HasValue && (result.Data == null || !result.Data.Any()))
-                    return SafeNotFound<object>("Utente");
-
-                return Ok(new
-                {
-                    result.Message,
-                    Pagination = new
-                    {
-                        result.Page,
-                        result.PageSize,
-                        result.TotalCount,
-                        result.TotalPages,
-                        result.HasPrevious,
-                        result.HasNext
-                    },
-                    result.Data
-                });
+                // 2. Response HTTP basata sul successo del repository
+                return result.Success
+                    ? Ok(result)  // Il repository gestisce già i messaggi di successo/errore
+                    : BadRequest(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero attività per utente {UtenteId}", utenteId);
-                return SafeInternalError<object>("Errore durante il recupero dei log attività");
+                // 3. Logging errori + response generica
+                _logger.LogError(ex, "Errore in CleanupOldLogs per giorni: {Giorni}", giorniRitenzione);
+                return StatusCode(500, SingleResponseDTO<int>.ErrorResponse(
+                    "Errore interno del server"));
             }
         }
 
-        [HttpGet("statistiche/tipi-attivita")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetStatisticheAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
+        // ✅ GET: api/LogAttivita/exists/5
+        [HttpGet("exists/{logId:int}")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Exists(int logId)
         {
             try
             {
-                dataInizio ??= DateTime.Today.AddDays(-30);
-                dataFine ??= DateTime.Now;
-
-                if (dataInizio > dataFine)
-                    return SafeBadRequest<object>("Intervallo date non valido");
-
-                var result = await _repository.GetStatisticheAttivitaAsync(dataInizio, dataFine);
-
-                return Ok(new
-                {
-                    Message = $"Statistiche attività dal {dataInizio:dd/MM/yyyy} al {dataFine:dd/MM/yyyy}",
-                    Periodo = new
-                    {
-                        Da = dataInizio.Value.ToString("dd/MM/yyyy HH:mm"),
-                        A = dataFine.Value.ToString("dd/MM/yyyy HH:mm")
-                    },
-                    Statistiche = result,
-                    Totale = result.Values.Sum()
-                });
+                var result = await _repository.ExistsAsync(logId);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore nel recupero statistiche attività");
-                return SafeInternalError<object>("Errore durante il recupero delle statistiche");
-            }
-        }
-
-        [HttpGet("frontend/periodo")]
-        [AllowAnonymous]
-        public async Task<ActionResult<object>> GetByPeriodoPerFrontend(
-            [FromQuery] DateTime? dataInizio = null,
-            [FromQuery] DateTime? dataFine = null,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
-        {
-            try
-            {
-                DateTime da = dataInizio ?? DateTime.Today.AddDays(-7);
-                DateTime a = dataFine ?? DateTime.Now;
-
-                if (da > a)
-                    return SafeBadRequest<object>("Intervallo date non valido");
-
-                var result = await _repository.GetByPeriodoPerFrontendAsync(da, a, page, pageSize);
-
-                return Ok(new
-                {
-                    result.Message,
-                    Periodo = new { Da = da, A = a },
-                    Pagination = new
-                    {
-                        result.Page,
-                        result.PageSize,
-                        result.TotalCount,
-                        result.TotalPages,
-                        result.HasPrevious,
-                        result.HasNext
-                    },
-                    result.Data
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel recupero log per periodo {Da} - {A}", dataInizio, dataFine);
-                return SafeInternalError<object>("Errore durante il recupero dei log attività");
-            }
-        }
-
-        [HttpPost("cleanup")]
-        public async Task<ActionResult<object>> CleanupOldLogs([FromQuery] int? giorniRitenzione = null)
-        {
-            try
-            {
-                int retention = giorniRitenzione ?? -1;
-
-                if (retention < -1)
-                    return SafeBadRequest<object>("Giorni ritenzione non validi");
-
-                var deletedCount = await _repository.CleanupOldLogsAsync(retention);
-
-                string message = retention == -1
-                    ? $"Puliti tutti i log attività: {deletedCount} record eliminati"
-                    : $"Puliti {deletedCount} log attività vecchi di {retention} giorni";
-
-                LogAuditTrail("CLEANUP_LOGS", "LogAttivita",
-                    $"Deleted: {deletedCount}, Retention: {(retention == -1 ? "ALL" : retention.ToString())} giorni");
-
-                return Ok(new
-                {
-                    Message = message,
-                    LogsEliminati = deletedCount,
-                    GiorniRitenzione = retention == -1 ? "TUTTI" : retention.ToString(),
-                    Timestamp = DateTime.Now
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante il cleanup dei log attività");
-                return SafeInternalError<object>("Errore durante la pulizia dei log");
+                _logger.LogError(ex, "Errore in Exists per LogId: {LogId}", logId);
+                return StatusCode(500, SingleResponseDTO<bool>.ErrorResponse("Errore interno del server"));
             }
         }
     }

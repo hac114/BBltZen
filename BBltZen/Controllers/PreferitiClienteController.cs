@@ -4,8 +4,8 @@ using Repository.Interface;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Database;
 using Microsoft.EntityFrameworkCore;
+using Database.Models;
 
 namespace BBltZen.Controllers
 {

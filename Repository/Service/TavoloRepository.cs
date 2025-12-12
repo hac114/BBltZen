@@ -1,8 +1,9 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Repository.Helper;
 using Repository.Interface;
-using Repository.Service.Helper;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,9 +11,10 @@ using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class TavoloRepository(BubbleTeaContext context) : ITavoloRepository
+    public class TavoloRepository(BubbleTeaContext context, ILogger<TavoloRepository> logger) : ITavoloRepository
     {
         private readonly BubbleTeaContext _context = context;
+        private readonly ILogger<TavoloRepository> _logger = logger;
 
         private static TavoloDTO MapToDTO(Tavolo tavolo)
         {
@@ -20,390 +22,655 @@ namespace Repository.Service
             {
                 TavoloId = tavolo.TavoloId,
                 Numero = tavolo.Numero,
-                Zona = tavolo.Zona,
-                Disponibile = tavolo.Disponibile
+                Disponibile = tavolo.Disponibile,
+                Zona = tavolo.Zona
             };
-        }
-
-        private static TavoloFrontendDTO MapToFrontendDTO(Tavolo tavolo)
-        {
-            return new TavoloFrontendDTO
-            {
-                Numero = tavolo.Numero,
-                Disponibile = GetDisponibileText(tavolo.Disponibile),
-                Zona = FormatZona(tavolo.Zona ?? string.Empty)
-            };
-        }
-
-        private static string GetDisponibileText(bool disponibile) => disponibile ? "SI" : "NO";
-
-        private static string FormatZona(string zona) => string.IsNullOrEmpty(zona) ? "" : zona.ToUpper();
+        }       
 
         // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
         public async Task<PaginatedResponseDTO<TavoloDTO>> GetAllAsync(int page = 1, int pageSize = 10)
         {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            var query = _context.Tavolo
-                .AsNoTracking()
-                .OrderBy(t => t.Numero);
-
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(t => MapToDTO(t))
-                .ToListAsync();
-
-            return new PaginatedResponseDTO<TavoloDTO>
+            try
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
+                // ✅ 1. Validazione paginazione (SOLO questa è ESSENZIALE)
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                // ✅ 2. Query base SEMPLICE
+                var query = _context.Tavolo
+                    .AsNoTracking()
+                    .OrderBy(t => t.Numero); // Ordinamento fisso, niente parametri extra
+
+                // ✅ 3. Conteggio e paginazione
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(t => MapToDTO(t))
+                    .ToListAsync();
+
+                // ✅ 4. Risposta pulita
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = items,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = totalCount == 0
+                        ? "Nessun tavolo trovato"
+                        : $"Trovati {totalCount} tavoli"
+                };
+            }
+            catch (Exception)
+            {
+                // ✅ 5. Gestione errori minimale
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero dei tavoli"
+                };
+            }
         }
 
-        public async Task<TavoloDTO?> GetByIdAsync(int? tavoloId = null)
+        public async Task<SingleResponseDTO<TavoloDTO>> GetByIdAsync(int tavoloId)
         {
-            // ✅ SE NULL, RESTITUISCE NULL (il controller gestirà il caso)
-            if (!tavoloId.HasValue)
-                return null;
+            try
+            {
+                if (tavoloId <= 0)
+                    return SingleResponseDTO<TavoloDTO>.ErrorResponse("ID tavolo non valido");
 
-            // ✅ VALIDAZIONE SICUREZZA
-            if (tavoloId <= 0)
-                return null;
+                var tavolo = await _context.Tavolo
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
 
-            var tavolo = await _context.Tavolo
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId.Value);
+                if (tavolo == null)
+                    return SingleResponseDTO<TavoloDTO>.NotFoundResponse(
+                        $"Tavolo con ID {tavoloId} non trovato");
 
-            return tavolo == null ? null : MapToDTO(tavolo);
+                return SingleResponseDTO<TavoloDTO>.SuccessResponse(
+                    MapToDTO(tavolo),
+                    $"Tavolo con ID {tavoloId} trovato (Numero: {tavolo.Numero})");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByIdAsync per tavoloId: {TavoloId}", tavoloId);
+                return SingleResponseDTO<TavoloDTO>.ErrorResponse(
+                    "Errore interno nel recupero del tavolo");
+            }
         }
 
-        public async Task<TavoloDTO?> GetByNumeroAsync(int? numero = null)
+        public async Task<SingleResponseDTO<TavoloDTO>> GetByNumeroAsync(int numero)
         {
-            // ✅ SE NULL, RESTITUISCE NULL (il controller gestirà il caso)
-            if (!numero.HasValue)
-                return null;
+            try
+            {
+                if (numero <= 0)
+                    return SingleResponseDTO<TavoloDTO>.ErrorResponse("Il numero tavolo deve essere maggiore di 0");
 
-            // ✅ VALIDAZIONE SICUREZZA
-            if (numero <= 0)
-                return null;
+                var tavolo = await _context.Tavolo
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Numero == numero);
 
-            var tavolo = await _context.Tavolo
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Numero == numero.Value);
+                if (tavolo == null)
+                    return SingleResponseDTO<TavoloDTO>.NotFoundResponse(
+                        $"Tavolo con numero {numero} non trovato");
 
-            return tavolo == null ? null : MapToDTO(tavolo);
+                return SingleResponseDTO<TavoloDTO>.SuccessResponse(
+                    MapToDTO(tavolo),
+                    $"Tavolo con numero {numero} trovato (ID: {tavolo.TavoloId})");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByNumeroAsync per numero: {Numero}", numero);
+                return SingleResponseDTO<TavoloDTO>.ErrorResponse(
+                    "Errore interno nel recupero del tavolo per numero");
+            }
         }
 
         // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
         public async Task<PaginatedResponseDTO<TavoloDTO>> GetDisponibiliAsync(int page = 1, int pageSize = 10)
         {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            var query = _context.Tavolo
-                .AsNoTracking()
-                .Where(t => t.Disponibile)
-                .OrderBy(t => t.Numero);
-
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(t => MapToDTO(t))
-                .ToListAsync();
-
-            return new PaginatedResponseDTO<TavoloDTO>
+            try
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
+                // ✅ 1. Validazione paginazione (coerente con GetAllAsync)
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                // ✅ 2. Query semplice (solo aggiunto Where per disponibilità)
+                var query = _context.Tavolo
+                    .AsNoTracking()
+                    .Where(t => t.Disponibile)
+                    .OrderBy(t => t.Numero);
+
+                // ✅ 3. Conteggio e paginazione
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(t => MapToDTO(t))
+                    .ToListAsync();
+
+                // ✅ 4. Messaggio specifico per disponibili
+                string message;
+                if (totalCount == 0)
+                {
+                    message = "Nessun tavolo disponibile trovato";
+                }
+                else if (totalCount == 1)
+                {
+                    message = "Trovato 1 tavolo disponibile";
+                }
+                else
+                {
+                    message = $"Trovati {totalCount} tavoli disponibili";
+                }
+
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = items,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception)
+            {
+                // ✅ 5. Gestione errori minimale (coerente)
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero dei tavoli disponibili"
+                };
+            }
+        }
+        
+        public async Task<PaginatedResponseDTO<TavoloDTO>> GetOccupatiAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.Tavolo
+                    .AsNoTracking()
+                    .Where(t => !t.Disponibile)
+                    .OrderBy(t => t.Numero);
+
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(t => MapToDTO(t))
+                    .ToListAsync();
+
+                string message = totalCount == 0
+                    ? "Nessun tavolo occupato trovato"
+                    : totalCount == 1
+                        ? "Trovato 1 tavolo occupato"
+                        : $"Trovati {totalCount} tavoli occupati";
+
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = items,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception)
+            {
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero dei tavoli occupati"
+                };
+            }
         }
 
         // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
-        public async Task<PaginatedResponseDTO<TavoloDTO>> GetByZonaAsync(string? zona = null, int page = 1, int pageSize = 10)
+        public async Task<PaginatedResponseDTO<TavoloDTO>> GetByZonaAsync(string zona, int page = 1, int pageSize = 10)
         {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            // ✅ VALIDAZIONE SICUREZZA INPUT
-            if (!SecurityHelper.IsValidInput(zona))
-                return new PaginatedResponseDTO<TavoloDTO> { Message = "Input non valido" };
-
-            var query = _context.Tavolo.AsQueryable();
-
-            // ✅ FILTRA SOLO SE ZONA SPECIFICATA - USA STRINGHELPER
-            if (!string.IsNullOrWhiteSpace(zona))
+            try
             {
-                var normalizedZona = StringHelper.NormalizeSearchTerm(zona);
-                query = query.Where(t => t.Zona != null &&
-                       StringHelper.StartsWithCaseInsensitive(t.Zona, normalizedZona));
+                // ✅ Validazione input
+                if (string.IsNullOrWhiteSpace(zona))
+                {
+                    return new PaginatedResponseDTO<TavoloDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'zona' è obbligatorio"
+                    };
+                }
+
+                // ✅ Validazione sicurezza
+                if (!SecurityHelper.IsValidInput(zona, maxLength: 50))
+                {
+                    return new PaginatedResponseDTO<TavoloDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'zona' non è valido"
+                    };
+                }
+
+                // ✅ Validazione paginazione
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                // ✅ RICERCA "INIZIA CON" usando StringHelper
+                var query = _context.Tavolo
+                    .AsNoTracking()
+                    .Where(t => t.Zona != null &&
+                               StringHelper.StartsWithCaseInsensitive(t.Zona, zona))
+                    .OrderBy(t => t.Numero);
+
+                // ✅ Conteggio e paginazione
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(t => MapToDTO(t))
+                    .ToListAsync();
+
+                // ✅ Messaggio appropriato
+                string message;
+                if (totalCount == 0)
+                {
+                    message = $"Nessun tavolo trovato per zona che inizia con '{zona}'";
+                }
+                else if (totalCount == 1)
+                {
+                    message = $"Trovato 1 tavolo per zona che inizia con '{zona}'";
+                }
+                else
+                {
+                    message = $"Trovati {totalCount} tavoli per zona che inizia con '{zona}'";
+                }
+
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = items,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
             }
-
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .OrderBy(t => t.Numero)
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(t => MapToDTO(t))
-                .ToListAsync();
-
-            return new PaginatedResponseDTO<TavoloDTO>
+            catch (Exception)
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
+                return new PaginatedResponseDTO<TavoloDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero dei tavoli per zona"
+                };
+            }
         }
 
-        public async Task<TavoloDTO> AddAsync(TavoloDTO tavoloDto)
+        public async Task<SingleResponseDTO<TavoloDTO>> AddAsync(TavoloDTO tavoloDto)
         {
-            ArgumentNullException.ThrowIfNull(tavoloDto);
-
-            // ✅ VALIDAZIONE SICUREZZA
-            if (tavoloDto.Numero <= 0)
+            try
             {
-                throw new ArgumentException("Numero tavolo non valido");
+                ArgumentNullException.ThrowIfNull(tavoloDto);
+
+                // ✅ Validazione input
+                if (tavoloDto.Numero <= 0)
+                    return SingleResponseDTO<TavoloDTO>.ErrorResponse("Il numero del tavolo deve essere maggiore di 0");
+
+                if (!string.IsNullOrWhiteSpace(tavoloDto.Zona))
+                {
+                    var zona = StringHelper.NormalizeSearchTerm(tavoloDto.Zona);
+                    if (!SecurityHelper.IsValidInput(zona, maxLength: 50))
+                        return SingleResponseDTO<TavoloDTO>.ErrorResponse("Il campo 'Zona' contiene caratteri non validi");
+                }
+
+                // ✅ Controllo duplicati (usa metodo interno)
+                if (await NumeroExistsInternalAsync(tavoloDto.Numero, null))
+                    return SingleResponseDTO<TavoloDTO>.ErrorResponse(
+                        $"Esiste già un tavolo con numero {tavoloDto.Numero}");
+
+                var tavolo = new Tavolo
+                {
+                    Numero = tavoloDto.Numero,
+                    Zona = !string.IsNullOrWhiteSpace(tavoloDto.Zona)
+                        ? StringHelper.NormalizeSearchTerm(tavoloDto.Zona)
+                        : tavoloDto.Zona,
+                    Disponibile = tavoloDto.Disponibile
+                };
+
+                _context.Tavolo.Add(tavolo);
+                await _context.SaveChangesAsync();
+
+                tavoloDto.TavoloId = tavolo.TavoloId;
+
+                return SingleResponseDTO<TavoloDTO>.SuccessResponse(
+                    tavoloDto,
+                    $"Tavolo {tavolo.Numero} creato con successo (ID: {tavolo.TavoloId})");
             }
-
-            if (!SecurityHelper.IsValidInput(tavoloDto.Zona))
+            catch (Exception ex)
             {
-                throw new ArgumentException("Zona non valida");
+                _logger.LogError(ex, "Errore in AddAsync per tavoloDto: {@TavoloDto}", tavoloDto);
+                return SingleResponseDTO<TavoloDTO>.ErrorResponse("Errore interno durante la creazione del tavolo");
             }
-
-            if (await NumeroExistsAsync(tavoloDto.Numero))
-            {
-                throw new ArgumentException($"Esiste già un tavolo con numero {tavoloDto.Numero}");
-            }
-
-            var tavolo = new Tavolo
-            {
-                Numero = tavoloDto.Numero,
-                Zona = tavoloDto.Zona,
-                Disponibile = tavoloDto.Disponibile
-            };
-
-            _context.Tavolo.Add(tavolo);
-            await _context.SaveChangesAsync();
-
-            tavoloDto.TavoloId = tavolo.TavoloId;
-            return tavoloDto;
         }
 
-        public async Task UpdateAsync(TavoloDTO tavoloDto)
+        public async Task<SingleResponseDTO<bool>> UpdateAsync(TavoloDTO tavoloDto)
         {
-            var tavolo = await _context.Tavolo
-                .FirstOrDefaultAsync(t => t.TavoloId == tavoloDto.TavoloId);
-
-            if (tavolo == null)
+            try
             {
-                return;
-            }
+                ArgumentNullException.ThrowIfNull(tavoloDto);
 
-            if (await NumeroExistsAsync(tavoloDto.Numero, tavoloDto.TavoloId))
+                // ✅ Validazione input
+                if (tavoloDto.Numero <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("Il numero del tavolo deve essere maggiore di 0");
+
+                if (!string.IsNullOrWhiteSpace(tavoloDto.Zona))
+                {
+                    var zona = StringHelper.NormalizeSearchTerm(tavoloDto.Zona);
+                    if (!SecurityHelper.IsValidInput(zona, maxLength: 50))
+                        return SingleResponseDTO<bool>.ErrorResponse("Il campo 'Zona' contiene caratteri non validi");
+                }
+
+                var tavolo = await _context.Tavolo
+                    .FirstOrDefaultAsync(t => t.TavoloId == tavoloDto.TavoloId);
+
+                if (tavolo == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Tavolo con ID {tavoloDto.TavoloId} non trovato");
+
+                // ✅ Controllo duplicati ESCLUDENDO questo tavolo (usa metodo interno)
+                if (await NumeroExistsInternalAsync(tavoloDto.Numero, tavoloDto.TavoloId))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        $"Esiste già un altro tavolo con numero {tavoloDto.Numero}");
+
+                // ✅ Aggiorna solo se ci sono cambiamenti
+                bool hasChanges = false;
+
+                if (tavolo.Numero != tavoloDto.Numero)
+                {
+                    tavolo.Numero = tavoloDto.Numero;
+                    hasChanges = true;
+                }
+
+                var nuovaZona = !string.IsNullOrWhiteSpace(tavoloDto.Zona)
+                    ? StringHelper.NormalizeSearchTerm(tavoloDto.Zona)
+                    : tavoloDto.Zona;
+
+                if (tavolo.Zona != nuovaZona)
+                {
+                    tavolo.Zona = nuovaZona;
+                    hasChanges = true;
+                }
+
+                if (tavolo.Disponibile != tavoloDto.Disponibile)
+                {
+                    tavolo.Disponibile = tavoloDto.Disponibile;
+                    hasChanges = true;
+                }
+
+                if (hasChanges)
+                {
+                    await _context.SaveChangesAsync();
+                    return SingleResponseDTO<bool>.SuccessResponse(
+                        true,
+                        $"Tavolo con ID {tavoloDto.TavoloId} aggiornato con successo");
+                }
+                else
+                {
+                    return SingleResponseDTO<bool>.SuccessResponse(
+                        false,
+                        $"Nessuna modifica necessaria per il tavolo con ID {tavoloDto.TavoloId}");
+                }
+            }
+            catch (Exception ex)
             {
-                throw new ArgumentException($"Esiste già un altro tavolo con numero {tavoloDto.Numero}");
+                _logger.LogError(ex, "Errore in UpdateAsync per tavoloDto: {@TavoloDto}", tavoloDto);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante l'aggiornamento del tavolo");
             }
-
-            tavolo.Numero = tavoloDto.Numero;
-            tavolo.Zona = tavoloDto.Zona;
-            tavolo.Disponibile = tavoloDto.Disponibile;
-
-            await _context.SaveChangesAsync();
         }
 
-        public async Task DeleteAsync(int tavoloId)
+        public async Task<SingleResponseDTO<bool>> DeleteAsync(int tavoloId)
         {
-            var tavolo = await _context.Tavolo
-                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
-
-            if (tavolo != null)
+            try
             {
+                if (tavoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID tavolo non valido");
+
+                var tavolo = await _context.Tavolo.FindAsync(tavoloId);
+                if (tavolo == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Tavolo con ID {tavoloId} non trovato");
+
+                if (await HasDependenciesAsync(tavoloId))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        $"Impossibile eliminare il tavolo {tavolo.Numero} perché ci sono dipendenze attive");
+
                 _context.Tavolo.Remove(tavolo);
                 await _context.SaveChangesAsync();
+
+                return SingleResponseDTO<bool>.SuccessResponse(
+                    true,
+                    $"Tavolo {tavolo.Numero} (ID: {tavoloId}) eliminato con successo");
             }
-            // ✅ SILENT FAIL - Nessuna eccezione se non trovato
-        }
-
-        public async Task<bool> ExistsAsync(int tavoloId)
-        {
-            return await _context.Tavolo.AnyAsync(t => t.TavoloId == tavoloId);
-        }
-
-        public async Task<bool> NumeroExistsAsync(int numero, int? excludeId = null)
-        {
-            if (excludeId.HasValue)
+            catch (Exception ex)
             {
-                return await _context.Tavolo.AnyAsync(t => t.Numero == numero && t.TavoloId != excludeId.Value);
+                _logger.LogError(ex, "Errore in DeleteAsync per tavoloId: {TavoloId}", tavoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante l'eliminazione del tavolo");
             }
-
-            return await _context.Tavolo.AnyAsync(t => t.Numero == numero);
         }
 
-        // ✅ METODI FRONTEND PAGINATI - CORRETTI PER INTERFACCIA
-        //public async Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetAllPerFrontendAsync(int page = 1, int pageSize = 10)
-        //{
-        //    var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-        //    var skip = (safePage - 1) * safePageSize;
-
-        //    var query = _context.Tavolo
-        //        .AsNoTracking()
-        //        .OrderBy(t => t.Numero);
-
-        //    var totalCount = await query.CountAsync();
-        //    var items = await query
-        //        .Skip(skip)
-        //        .Take(safePageSize)
-        //        .Select(t => MapToFrontendDTO(t))
-        //        .ToListAsync();
-
-        //    return new PaginatedResponseDTO<TavoloFrontendDTO>
-        //    {
-        //        Data = items,
-        //        Page = safePage,
-        //        PageSize = safePageSize,
-        //        TotalCount = totalCount
-        //    };
-        //}
-
-        // ✅ METODO PAGINATO - CORRETTO PER INTERFACCIA
-        public async Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetDisponibiliPerFrontendAsync(int page = 1, int pageSize = 10)
+        private async Task<bool> HasDependenciesAsync(int tavoloId)
         {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
+            // ✅ Controlla le dipendenze REALI di Tavolo (dal modello)
+            return await _context.Cliente.AnyAsync(c => c.TavoloId == tavoloId) ||
+                   await _context.SessioniQr.AnyAsync(s => s.TavoloId == tavoloId);
+        }
 
+        public async Task<SingleResponseDTO<bool>> ExistsAsync(int tavoloId)
+        {
+            try
+            {
+                if (tavoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID tavolo non valido");
+
+                var exists = await _context.Tavolo
+                    .AsNoTracking()
+                    .AnyAsync(t => t.TavoloId == tavoloId);
+
+                string message = exists
+                    ? $"Tavolo con ID {tavoloId} esiste"
+                    : $"Tavolo con ID {tavoloId} non trovato";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsAsync per tavoloId: {TavoloId}", tavoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza del tavolo");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> NumeroExistsAsync(int numero, int? excludeId = null)
+        {
+            try
+            {
+                if (numero <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("Il numero del tavolo deve essere maggiore di 0");
+
+                var exists = await NumeroExistsInternalAsync(numero, excludeId);
+
+                string message = exists
+                    ? $"Tavolo con numero {numero} esiste"
+                    : $"Tavolo con numero {numero} non trovato";
+
+                // Aggiungi dettaglio se excludeId è specificato
+                if (excludeId.HasValue)
+                    message += $" (escludendo ID {excludeId.Value})";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in NumeroExistsAsync per numero: {Numero}, excludeId: {ExcludeId}",
+                    numero, excludeId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza per numero");
+            }
+        }
+
+        private async Task<bool> NumeroExistsInternalAsync(int numero, int? excludeId = null)
+        {
             var query = _context.Tavolo
                 .AsNoTracking()
-                .Where(t => t.Disponibile)
-                .OrderBy(t => t.Numero);
+                .Where(t => t.Numero == numero);
 
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(t => MapToFrontendDTO(t))
-                .ToListAsync();
-
-            return new PaginatedResponseDTO<TavoloFrontendDTO>
+            if (excludeId.HasValue)
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
-        }
-
-        // ✅ METODO PAGINATO - MANTIENE FIRMA ORIGINALE
-        public async Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetByZonaPerFrontendAsync(string? zona = null, int page = 1, int pageSize = 10)
-        {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            if (!SecurityHelper.IsValidInput(zona))
-                return new PaginatedResponseDTO<TavoloFrontendDTO> { Message = "Input non valido" };
-
-            var query = _context.Tavolo.AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(zona))
-            {
-                var normalizedZona = StringHelper.NormalizeSearchTerm(zona);
-                query = query.Where(t => t.Zona != null &&
-                       StringHelper.StartsWithCaseInsensitive(t.Zona, normalizedZona));
+                query = query.Where(t => t.TavoloId != excludeId.Value);
             }
 
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .OrderBy(t => t.Numero)
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(t => MapToFrontendDTO(t))
-                .ToListAsync();
+            return await query.AnyAsync();
+        }
 
-            return new PaginatedResponseDTO<TavoloFrontendDTO>
+        public async Task<SingleResponseDTO<bool>> ToggleDisponibilitaAsync(int tavoloId)
+        {
+            try
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
-        }
+                if (tavoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID tavolo non valido");
 
-        public async Task<TavoloFrontendDTO?> GetByNumeroPerFrontendAsync(int? numero = null)
-        {
-            // ✅ SE NULL, RESTITUISCE NULL (il controller gestirà il caso)
-            if (!numero.HasValue)
-                return null;
+                var tavolo = await _context.Tavolo.FindAsync(tavoloId);
+                if (tavolo == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Tavolo con ID {tavoloId} non trovato");
 
-            // ✅ VALIDAZIONE SICUREZZA
-            if (numero <= 0)
-                return null;
+                var nuovoStato = !tavolo.Disponibile;
+                tavolo.Disponibile = nuovoStato;
+                await _context.SaveChangesAsync();
 
-            var tavolo = await _context.Tavolo
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Numero == numero.Value);
-
-            return tavolo == null ? null : MapToFrontendDTO(tavolo);
-        }
-
-        public async Task<bool> ToggleDisponibilitaAsync(int tavoloId)
-        {
-            // ✅ VALIDAZIONE SICUREZZA
-            if (tavoloId <= 0) return false;
-
-            var tavolo = await _context.Tavolo
-                .FirstOrDefaultAsync(t => t.TavoloId == tavoloId);
-
-            if (tavolo == null)
-                return false;
-
-            tavolo.Disponibile = !tavolo.Disponibile;
-            await _context.SaveChangesAsync();
-
-            return tavolo.Disponibile;
-        }
-
-        public async Task<bool> ToggleDisponibilitaByNumeroAsync(int numero)
-        {
-            // ✅ VALIDAZIONE SICUREZZA
-            if (numero <= 0) return false;
-
-            var tavolo = await _context.Tavolo
-                .FirstOrDefaultAsync(t => t.Numero == numero);
-
-            if (tavolo == null)
-                return false;
-
-            tavolo.Disponibile = !tavolo.Disponibile;
-            await _context.SaveChangesAsync();
-
-            return tavolo.Disponibile;
-        }
-
-        // ❌ METODO DA ELIMINARE - RIDONDANTE CON GetByZonaAsync
-        /*
-        public async Task<IEnumerable<TavoloDTO>> GetAllByZonaAsync(string? zona = null)
-        {
-            var query = _context.Tavolo.AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(zona))
-            {
-                query = query.Where(t => t.Zona != null &&
-                                       t.Zona.StartsWith(zona, StringComparison.InvariantCultureIgnoreCase));
+                string stato = nuovoStato ? "disponibile" : "occupato";
+                return SingleResponseDTO<bool>.SuccessResponse(
+                    nuovoStato,
+                    $"Tavolo {tavolo.Numero} (ID: {tavoloId}) impostato come {stato}");
             }
-
-            return await query
-                .AsNoTracking()
-                .OrderBy(t => t.Numero)
-                .Select(t => MapToDTO(t))
-                .ToListAsync();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ToggleDisponibilitaAsync per tavoloId: {TavoloId}", tavoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante il cambio di disponibilità");
+            }
         }
-        */
+
+        public async Task<SingleResponseDTO<bool>> ToggleDisponibilitaByNumeroAsync(int numero)
+        {
+            try
+            {
+                if (numero <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("Il numero del tavolo deve essere maggiore di 0");
+
+                var tavolo = await _context.Tavolo
+                    .FirstOrDefaultAsync(t => t.Numero == numero);
+
+                if (tavolo == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Tavolo con numero {numero} non trovato");
+
+                var nuovoStato = !tavolo.Disponibile;
+                tavolo.Disponibile = nuovoStato;
+                await _context.SaveChangesAsync();
+
+                string stato = nuovoStato ? "disponibile" : "occupato";
+                return SingleResponseDTO<bool>.SuccessResponse(
+                    nuovoStato,
+                    $"Tavolo {tavolo.Numero} impostato come {stato}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ToggleDisponibilitaByNumeroAsync per numero: {Numero}", numero);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante il cambio di disponibilità");
+            }
+        }
+
+        // Per statistiche/conteggi rapidi
+        public async Task<SingleResponseDTO<int>> CountAsync()
+        {
+            try
+            {
+                var count = await _context.Tavolo.AsNoTracking().CountAsync();
+                string message = count == 0
+                    ? "Nessun tavolo presente"
+                    : count == 1
+                        ? "C'è 1 tavolo in totale"
+                        : $"Ci sono {count} tavoli in totale";
+
+                return SingleResponseDTO<int>.SuccessResponse(count, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio dei tavoli");
+            }
+        }
+
+        public async Task<SingleResponseDTO<int>> CountDisponibiliAsync()
+        {
+            try
+            {
+                var count = await _context.Tavolo
+                    .AsNoTracking()
+                    .CountAsync(t => t.Disponibile);
+
+                string message = count == 0
+                    ? "Nessun tavolo disponibile"
+                    : count == 1
+                        ? "C'è 1 tavolo disponibile"
+                        : $"Ci sono {count} tavoli disponibili";
+
+                return SingleResponseDTO<int>.SuccessResponse(count, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountDisponibiliAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio dei tavoli disponibili");
+            }
+        }
+
+        public async Task<SingleResponseDTO<int>> CountOccupatiAsync()
+        {
+            try
+            {
+                var count = await _context.Tavolo
+                    .AsNoTracking()
+                    .CountAsync(t => !t.Disponibile);
+
+                string message = count == 0
+                    ? "Nessun tavolo occupato"
+                    : count == 1
+                        ? "C'è 1 tavolo occupato"
+                        : $"Ci sono {count} tavoli occupati";
+
+                return SingleResponseDTO<int>.SuccessResponse(count, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountOccupatiAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio dei tavoli occupati");
+            }
+        }
     }
 }

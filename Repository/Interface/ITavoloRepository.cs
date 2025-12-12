@@ -1,5 +1,4 @@
-﻿// Repository/Interface/ITavoloRepository.cs
-using DTO;
+﻿using DTO;
 
 namespace Repository.Interface
 {
@@ -7,27 +6,28 @@ namespace Repository.Interface
     {
         // ✅ METODI PAGINATI (MODIFICATI)
         Task<PaginatedResponseDTO<TavoloDTO>> GetAllAsync(int page = 1, int pageSize = 10);
-        Task<TavoloDTO?> GetByIdAsync(int? tavoloId = null); // ✅ NULLABLE
-        Task<TavoloDTO?> GetByNumeroAsync(int? numero = null); // ✅ NULLABLE
-        Task<PaginatedResponseDTO<TavoloDTO>> GetDisponibiliAsync(int page = 1, int pageSize = 10);
-        Task<PaginatedResponseDTO<TavoloDTO>> GetByZonaAsync(string? zona = null, int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<TavoloDTO>> GetByIdAsync(int tavoloId);
+        Task<SingleResponseDTO<TavoloDTO>> GetByNumeroAsync(int numero); 
+        Task<PaginatedResponseDTO<TavoloDTO>> GetDisponibiliAsync(int page = 1, int pageSize = 10); 
+        Task<PaginatedResponseDTO<TavoloDTO>> GetOccupatiAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<TavoloDTO>> GetByZonaAsync(string zona, int page = 1, int pageSize = 10);
 
         // ✅ METODI SCRITTURA
-        Task<TavoloDTO> AddAsync(TavoloDTO tavoloDto);
-        Task UpdateAsync(TavoloDTO tavoloDto);
-        Task DeleteAsync(int tavoloId);
+        Task<SingleResponseDTO<TavoloDTO>> AddAsync(TavoloDTO tavoloDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(TavoloDTO tavoloDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int tavoloId);
 
         // ✅ METODI VERIFICA
-        Task<bool> ExistsAsync(int tavoloId);
-        Task<bool> NumeroExistsAsync(int numero, int? excludeId = null);
-
-        // ✅ METODI FRONTEND PAGINATI (MODIFICATI)        
-        Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetDisponibiliPerFrontendAsync(int page = 1, int pageSize = 10);
-        Task<PaginatedResponseDTO<TavoloFrontendDTO>> GetByZonaPerFrontendAsync(string? zona = null, int page = 1, int pageSize = 10);
-        Task<TavoloFrontendDTO?> GetByNumeroPerFrontendAsync(int? numero = null); // ✅ NULLABLE
+        Task<SingleResponseDTO<bool>> ExistsAsync(int tavoloId);
+        Task<SingleResponseDTO<bool>> NumeroExistsAsync(int numero, int? excludeId = null);
 
         // ✅ METODI TOGGLE
-        Task<bool> ToggleDisponibilitaAsync(int tavoloId);
-        Task<bool> ToggleDisponibilitaByNumeroAsync(int numero);
+        Task<SingleResponseDTO<bool>> ToggleDisponibilitaAsync(int tavoloId);
+        Task<SingleResponseDTO<bool>> ToggleDisponibilitaByNumeroAsync(int numero);
+
+        // ✅ METODI CONTEGGI RAPIDI
+        Task<SingleResponseDTO<int>> CountAsync();
+        Task<SingleResponseDTO<int>> CountDisponibiliAsync();
+        Task<SingleResponseDTO<int>> CountOccupatiAsync();
     }
 }

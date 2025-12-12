@@ -1,8 +1,9 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Repository.Interface;
 using Repository.Service;
@@ -41,7 +42,7 @@ namespace RepositoryTest
                 new IngredienteRepository(_context),
                 new IngredientiPersonalizzazioneRepository(_context),
                 new DimensioneBicchiereRepository(_context),
-                new TaxRatesRepository(_context)
+                new TaxRatesRepository(_context, NullLogger<TaxRatesRepository>.Instance)
             );
 
             // Crea servizio avanzato

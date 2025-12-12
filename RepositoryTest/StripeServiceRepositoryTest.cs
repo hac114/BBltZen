@@ -1,4 +1,4 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

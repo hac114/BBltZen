@@ -1,10 +1,10 @@
-﻿using Database;
-using DTO;
+﻿using DTO;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
 using QRCoder;
 using System.Drawing.Imaging;
 using System.Drawing;
+using Database.Models;
 
 namespace Repository.Service
 {

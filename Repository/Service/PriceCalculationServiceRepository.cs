@@ -1,4 +1,4 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -102,7 +102,7 @@ namespace Repository.Service
                 if (dimensione == null)
                     throw new ArgumentException($"Dimensione bicchiere non trovata: {personalizzazione.DimensioneBicchiereId}");
 
-                // 3. Calcola prezzo base dalla dimensione (replica logica DB)
+                // 3. Calcola prezzo base dalla dimensione (ORA ESISTE!)
                 decimal prezzoBase = dimensione.PrezzoBase;
 
                 // 4. Calcola somma ingredienti con moltiplicatore dimensione
@@ -119,14 +119,14 @@ namespace Repository.Service
                     }
                 }
 
-                // 5. Calcola prezzo finale (replica esatta logica DB)
+                // 5. Calcola prezzo finale
                 decimal prezzoFinale = Math.Round(prezzoBase + prezzoIngredienti, 2);
 
                 _cache.Set(cacheKey, prezzoFinale, _cacheDuration);
 
                 _logger.LogInformation(
                     "Calcolato prezzo bevanda custom {PersCustomId}: Base={Base}, Ingredienti={Ingredienti}, Finale={Finale}, Dimensione={Dimensione}",
-                    personalizzazioneCustomId, prezzoBase, prezzoIngredienti, prezzoFinale, dimensione.Descrizione);
+                    personalizzazioneCustomId, prezzoBase, prezzoIngredienti, prezzoFinale, dimensione.Descrizione); // ✅ Se Descrizione esiste
 
                 return prezzoFinale;
             }
@@ -318,7 +318,7 @@ namespace Repository.Service
             {
                 // Precarica dati frequentemente utilizzati
                 await GetTaxRate(1); // Forza caricamento aliquote
-                var dimensioni = await _dimensioneBicchiereRepo.GetAllAsync();
+                var dimensioni = (await _dimensioneBicchiereRepo.GetAllAsync()).Data;
                 _cache.Set(CACHE_KEY_DIMENSIONI, dimensioni.ToDictionary(d => d.DimensioneBicchiereId), TimeSpan.FromHours(12));
 
                 _logger.LogInformation("Precaricamento cache completato: {Count} dimensioni", dimensioni.Count());
@@ -411,8 +411,14 @@ namespace Repository.Service
                     return false;
 
                 // ✅ CORREZIONE: VERIFICA SE L'ALIQUOTA ESISTE REALMENTE NEL DB
-                var taxRate = await _taxRatesRepo.GetByIdAsync(taxRateId);
-                return taxRate != null && taxRate.Aliquota > 0 && taxRate.Aliquota <= 100;
+                var taxRateResponse = await _taxRatesRepo.GetByIdAsync(taxRateId);
+
+                // Controlla se la risposta è successo e se i dati non sono null
+                if (!taxRateResponse.Success || taxRateResponse.Data == null)
+                    return false;
+
+                var taxRate = taxRateResponse.Data;
+                return taxRate.Aliquota > 0 && taxRate.Aliquota <= 100;
             }
             catch (Exception ex)
             {

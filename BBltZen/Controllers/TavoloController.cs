@@ -1,4 +1,4 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,557 +12,305 @@ namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    // [Authorize] // ✅ COMMENTATO PER TEST CON SWAGGER
-    public class TavoloController(
-    ITavoloRepository repository,
-    BubbleTeaContext context, // ✅ AGGIUNTO IL CONTEXT
-    IWebHostEnvironment environment,
-    ILogger<TavoloController> logger)
-    : SecureBaseController(environment, logger)
-
+    // [Authorize] // ✅ Commentato per test Swagger
+    public class TavoloController(ITavoloRepository repository, ILogger<TavoloController> logger) : ControllerBase
     {
         private readonly ITavoloRepository _repository = repository;
-        private readonly BubbleTeaContext _context = context; // ✅ INIZIALIZZATO IL CONTEXT    
+        private readonly ILogger<TavoloController> _logger = logger;
 
-        // ✅ ENDPOINT CRUD ESISTENTI (per admin/backoffice)
-
-        // GET: api/Tavolo
-        //[HttpGet]
-        //[AllowAnonymous] // ✅ OVERRIDE PER ACCESSO PUBBLICO
-        //public async Task<ActionResult<IEnumerable<TavoloDTO>>> GetAll()
-        //{
-        //    try
-        //    {
-        //        var tavoli = await _repository.GetAllAsync();
-        //        return Ok(tavoli);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore durante il recupero di tutti i tavoli");
-        //        return SafeInternalError<IEnumerable<TavoloDTO>>("Errore durante il recupero dei tavoli");
-        //    }
-        //}
-
-        // GET: api/Tavolo/{id?} - ENDPOINT CRUD (BACKOFFICE)
-        // GET: api/Tavolo/{id?}
-        // GET: api/Tavolo/{id}
-        // ✅ 1. GET /api/Tavolo - USA [FromQuery] PER ID
-        [HttpGet("id")]
+        // GET: api/tavolo
+        [HttpGet("")]
         [AllowAnonymous]
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> GetById([FromQuery] int? id, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                // ✅ SE ID NULL → LISTA COMPLETA
-                if (!id.HasValue)
-                {
-                    var result = await _repository.GetAllAsync(page, pageSize);
-                    return Ok(new
-                    {
-                        Message = $"Trovati {result.TotalCount} tavoli",
-                        result.Data,
-                        Pagination = new
-                        {
-                            result.Page,
-                            result.PageSize,
-                            result.TotalCount,
-                            result.TotalPages,
-                            result.HasPrevious,
-                            result.HasNext
-                        }
-                    });
-                }
-
-                // ✅ SE ID VALORIZZATO → SINGOLO ELEMENTO
-                if (id <= 0) return SafeBadRequest("ID tavolo non valido");
-
-                var tavolo = await _repository.GetByIdAsync(id.Value);
-                return tavolo == null ? SafeNotFound("Tavolo") : Ok(tavolo);
+                var result = await _repository.GetAllAsync(page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero del tavolo {Id}", id);
-                return SafeInternalError("Errore durante il recupero del tavolo");
+                _logger.LogError(ex, "GetAll tavoli errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Tavolo/numero/{numero}
-        [HttpGet("numero")]
-        // [AllowAnonymous]
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> GetByNumero([FromQuery] int? numero, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        // GET: api/tavolo/{id}
+        [HttpGet("{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<TavoloDTO>>> GetById(int id)
         {
             try
             {
-                // ✅ SE NUMERO NULL → LISTA COMPLETA
-                if (!numero.HasValue)
-                {
-                    var result = await _repository.GetAllAsync(page, pageSize);
-                    return Ok(new
-                    {
-                        Message = $"Trovati {result.TotalCount} tavoli",
-                        result.Data,
-                        Pagination = new
-                        {
-                            result.Page,
-                            result.PageSize,
-                            result.TotalCount,
-                            result.TotalPages,
-                            result.HasPrevious,
-                            result.HasNext
-                        }
-                    });
-                }
-
-                // ✅ SE NUMERO VALORIZZATO → SINGOLO ELEMENTO
-                if (numero <= 0) return SafeBadRequest("Numero tavolo non valido");
-
-                var tavolo = await _repository.GetByNumeroAsync(numero.Value);
-                return tavolo == null ? SafeNotFound("Tavolo") : Ok(tavolo);
+                var result = await _repository.GetByIdAsync(id);
+                return result.Success ? Ok(result) : NotFound(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero del tavolo numero {Numero}", numero);
-                return SafeInternalError("Errore durante il recupero del tavolo");
+                _logger.LogError(ex, "GetById errore ID: {Id}", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Tavolo/disponibili
+        [HttpGet("numero/{numero:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<TavoloDTO>>> GetByNumero(int numero)
+        {
+            try
+            {
+                var result = await _repository.GetByNumeroAsync(numero);
+                return result.Success ? Ok(result) : NotFound(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetByNumero errore numero: {Numero}", numero);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/tavolo/disponibili
         [HttpGet("disponibili")]
         [AllowAnonymous]
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> GetDisponibili([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetDisponibili([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
                 var result = await _repository.GetDisponibiliAsync(page, pageSize);
-
-                result.Message = result.TotalCount > 0
-                    ? $"Trovati {result.TotalCount} tavoli disponibili (pagina {result.Page} di {result.TotalPages})"
-                    : "Nessun tavolo disponibile trovato";
-
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dei tavoli disponibili pagina {Page}", page);
-                return SafeInternalError("Errore durante il recupero dei tavoli disponibili");
+                _logger.LogError(ex, "GetDisponibili errore pagina: {Page}", page);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Tavolo/zona/{zona}
-        // GET: api/Tavolo/zona
-        [HttpGet("zona")]
-        // [AllowAnonymous]
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> GetByZona([FromQuery] string? zona = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        // GET: api/tavolo/occupati
+        [HttpGet("occupati")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetOccupati([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                var result = await _repository.GetOccupatiAsync(page, pageSize);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetOccupati errore");
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/tavolo/zona/{zona}
+        [HttpGet("zona/{zona}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetByZona(string zona, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
                 var result = await _repository.GetByZonaAsync(zona, page, pageSize);
-
-                // ✅ MESSAGGIO DINAMICO
-                result.Message = !string.IsNullOrWhiteSpace(zona)
-                    ? (result.TotalCount > 0
-                        ? $"Trovati {result.TotalCount} tavoli per la zona '{zona}' (pagina {result.Page} di {result.TotalPages})"
-                        : $"Nessun tavolo trovato per la zona '{zona}'")
-                    : $"Trovati {result.TotalCount} tavoli (tutte le zone, pagina {result.Page} di {result.TotalPages})";
-
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dei tavoli per zona {Zona}", zona);
-                return SafeInternalError("Errore durante il recupero dei tavoli");
+                _logger.LogError(ex, "GetByZona errore zona: {Zona}", zona);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // POST: api/Tavolo
         [HttpPost]
-        // [Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult<TavoloDTO>> Create([FromBody] TavoloDTO tavoloDto)
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<TavoloDTO>>> Create([FromBody] TavoloDTO tavoloDto)
         {
             try
             {
-                if (!IsModelValid(tavoloDto))
-                    return SafeBadRequest("Dati tavolo non validi"); // ✅ CORRETTO: senza <T>
-
-                if (await _repository.NumeroExistsAsync(tavoloDto.Numero))
-                    return SafeBadRequest("Numero tavolo già esistente"); // ✅ CORRETTO: senza <T>
+                if (tavoloDto == null)
+                    return BadRequest("Dati tavolo mancanti");
 
                 var result = await _repository.AddAsync(tavoloDto);
 
-                LogAuditTrail("CREATE", "Tavolo", result.TavoloId.ToString());
-                LogSecurityEvent("TavoloCreated", new
-                {
-                    result.TavoloId,
-                    result.Numero,
-                    result.Zona,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
+                if (!result.Success)
+                    return BadRequest(result);
 
-                return CreatedAtAction(nameof(GetById), new { id = result.TavoloId }, result);
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest(argEx.Message); // ✅ CORRETTO: senza <T>
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione del tavolo");
-                return SafeInternalError("Errore durante il salvataggio"); // ✅ CORRETTO: senza <T>
+                return CreatedAtAction(nameof(GetById), new { id = result.Data?.TavoloId }, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione del tavolo");
-                return SafeInternalError("Errore durante la creazione"); // ✅ CORRETTO: senza <T>
+                _logger.LogError(ex, "Create tavolo errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // PUT: api/Tavolo/5
-        [HttpPut("{id}")]
-        // [Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> Update(int id, [FromBody] TavoloDTO tavoloDto)
+        [HttpPut("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] TavoloDTO tavoloDto)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest("ID tavolo non valido");
+                if (tavoloDto == null)
+                    return BadRequest("Dati mancanti");
 
                 if (id != tavoloDto.TavoloId)
-                    return SafeBadRequest("ID tavolo non corrispondente");
+                    return BadRequest("ID non corrispondente");
 
-                if (!IsModelValid(tavoloDto))
-                    return SafeBadRequest("Dati tavolo non validi");
+                var result = await _repository.UpdateAsync(tavoloDto);
 
-                if (!await _repository.ExistsAsync(id))
-                    return SafeNotFound("Tavolo");
+                if (!result.Success)
+                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
 
-                if (await _repository.NumeroExistsAsync(tavoloDto.Numero, id))
-                    return SafeBadRequest("Numero tavolo già esistente");
-
-                await _repository.UpdateAsync(tavoloDto);
-
-                LogAuditTrail("UPDATE", "Tavolo", tavoloDto.TavoloId.ToString());
-                LogSecurityEvent("TavoloUpdated", new
-                {
-                    tavoloDto.TavoloId,
-                    tavoloDto.Numero,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return NoContent();
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento del tavolo {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                return result.Data ? NoContent() : Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento del tavolo {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                _logger.LogError(ex, "Update tavolo {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // DELETE: api/Tavolo/5
-        [HttpDelete("{id}")]
-        // [Authorize(Roles = "Admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> Delete(int id)
+        [HttpDelete("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Delete(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest("ID tavolo non valido");
+                var result = await _repository.DeleteAsync(id);
 
-                var tavolo = await _repository.GetByIdAsync(id);
-                if (tavolo == null)
-                    return SafeNotFound("Tavolo");
-
-                // ✅ CONTROLLO VINCOLI REFERENZIALI NEL CONTROLLER
-                bool hasClienti = await _context.Cliente.AnyAsync(c => c.TavoloId == id);
-                bool hasSessioni = await _context.SessioniQr.AnyAsync(sq => sq.TavoloId == id);
-
-                if (hasClienti || hasSessioni)
-                {
-                    var errorMessage = "Impossibile eliminare il tavolo: ";
-                    if (hasClienti) errorMessage += "sono presenti clienti associati. ";
-                    if (hasSessioni) errorMessage += "sono presenti sessioni QR associate.";
-
-                    return SafeBadRequest(errorMessage.Trim());
-                }
-
-                await _repository.DeleteAsync(id);
-
-                // ✅ AUDIT & SECURITY
-                LogAuditTrail("DELETE", "Tavolo", id.ToString());
-                LogSecurityEvent("TavoloDeleted", new
-                {
-                    id,
-                    tavolo.Numero,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
+                if (!result.Success)
+                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
 
                 return NoContent();
             }
-            catch (InvalidOperationException invOpEx) // ✅ INMEMORY EXCEPTION
-            {
-                // ✅ GESTIONE SPECIFICA PER DIPENDENZE IN MEMORY
-                if (_environment.IsDevelopment())
-                    return SafeBadRequest($"Errore eliminazione: {invOpEx.Message}");
-                else
-                    return SafeBadRequest("Impossibile eliminare il tavolo: sono presenti dipendenze");
-            }
-            catch (DbUpdateException dbEx) // ✅ DATABASE REAL EXCEPTION
-            {
-                // ✅ GESTIONE SPECIFICA PER DIPENDENZE DATABASE
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione del tavolo {Id}", id);
-
-                if (_environment.IsDevelopment())
-                    return SafeBadRequest($"Errore database: {dbEx.Message}");
-                else
-                    return SafeBadRequest("Impossibile eliminare il tavolo: sono presenti dipendenze");
-            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione del tavolo {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
+                _logger.LogError(ex, "Delete tavolo {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // ✅ NUOVI ENDPOINT PER FRONTEND (formattati per clienti)
-
-        // GET: api/Tavolo/frontend        
-        //[HttpGet("frontend")]
-        //[AllowAnonymous]
-        //public async Task<ActionResult> GetAllPerFrontend([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
-        //{
-        //    try
-        //    {
-        //        var result = await _repository.GetAllPerFrontendAsync(page, pageSize);
-        
-        //        result.Message = result.TotalCount > 0
-        //            ? $"Trovati {result.TotalCount} tavoli (pagina {result.Page} di {result.TotalPages})"
-        //            : "Nessun tavolo trovato";
-
-        //        return Ok(result);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore durante il recupero dei tavoli per frontend pagina {Page}", page);
-        //        return SafeInternalError("Errore durante il caricamento dei tavoli");
-        //    }
-        //}
-
-
-        // GET: api/Tavolo/frontend/disponibili
-        [HttpGet("frontend/disponibili")]
+        // GET: api/tavolo/exists/{id}
+        [HttpGet("exists/{id:int}")]
         [AllowAnonymous]
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> GetDisponibiliPerFrontend([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Exists(int id)
         {
             try
             {
-                var result = await _repository.GetDisponibiliPerFrontendAsync(page, pageSize);
+                var result = await _repository.ExistsAsync(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exists {Id} errore", id);
+                return StatusCode(500, "Errore server");
+            }
+        }
 
-                result.Message = result.TotalCount > 0
-                    ? $"Trovati {result.TotalCount} tavoli disponibili (pagina {result.Page} di {result.TotalPages})"
-                    : "Nessun tavolo disponibile trovato";
+        // GET: api/tavolo/numero-exists/{numero}
+        [HttpGet("numero-exists/{numero:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> NumeroExists(int numero)
+        {
+            try
+            {
+                var result = await _repository.NumeroExistsAsync(numero);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "NumeroExists {Numero} errore", numero);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        [HttpPatch("{id:int}/toggle-disponibilita")]
+        // [Authorize(Roles = "Admin,Impiegato")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> ToggleDisponibilita(int id)
+        {
+            try
+            {
+                var result = await _repository.ToggleDisponibilitaAsync(id);
+
+                if (!result.Success)
+                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
 
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dei tavoli disponibili per frontend pagina {Page}", page);
-                return SafeInternalError("Errore durante il caricamento dei tavoli disponibili");
+                _logger.LogError(ex, "ToggleDisponibilita {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Tavolo/frontend/zona
-        [HttpGet("frontend/zona")]
-        [AllowAnonymous]
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> GetByZonaPerFrontend([FromQuery] string? zona = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        [HttpPatch("numero/{numero:int}/toggle-disponibilita")]
+        // [Authorize(Roles = "Admin,Impiegato")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> ToggleDisponibilitaByNumero(int numero)
         {
             try
             {
-                var result = await _repository.GetByZonaPerFrontendAsync(zona, page, pageSize);
+                var result = await _repository.ToggleDisponibilitaByNumeroAsync(numero);
 
-                // ✅ MESSAGGIO DINAMICO
-                result.Message = !string.IsNullOrWhiteSpace(zona)
-                    ? (result.TotalCount > 0
-                        ? $"Trovati {result.TotalCount} tavoli per la zona '{zona}' (pagina {result.Page} di {result.TotalPages})"
-                        : $"Nessun tavolo trovato per la zona '{zona}'")
-                    : $"Trovati {result.TotalCount} tavoli (tutte le zone, pagina {result.Page} di {result.TotalPages})";
+                if (!result.Success)
+                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
 
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dei tavoli per zona {Zona} per frontend", zona);
-                return SafeInternalError("Errore durante il caricamento dei tavoli");
+                _logger.LogError(ex, "ToggleDisponibilitaByNumero {Numero} errore", numero);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Tavolo/frontend/numero/{numero?} - ENDPOINT FRONTEND (CLIENTI)
-        // GET: api/Tavolo/frontend/numero/{numero?}
-        [HttpGet("frontend/numero")]
+        // GET: api/tavolo/count
+        [HttpGet("count")]
         [AllowAnonymous]
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult> GetByNumeroPerFrontend([FromQuery] int? numero, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<SingleResponseDTO<int>>> Count()
         {
             try
             {
-                // ✅ SE NUMERO NULL → LISTA FRONTEND COMPLETA
-                if (!numero.HasValue)
-                {
-                    var result = await _repository.GetByZonaPerFrontendAsync(null, page, pageSize);
-                    return Ok(new
-                    {
-                        Message = $"Trovati {result.TotalCount} tavoli",
-                        result.Data,
-                        Pagination = new
-                        {
-                            result.Page,
-                            result.PageSize,
-                            result.TotalCount,
-                            result.TotalPages,
-                            result.HasPrevious,
-                            result.HasNext
-                        }
-                    });
-                }
-
-                // ✅ SE NUMERO VALORIZZATO → SINGOLO ELEMENTO FRONTEND
-                if (numero <= 0) return SafeBadRequest("Numero tavolo non valido");
-
-                var tavolo = await _repository.GetByNumeroPerFrontendAsync(numero.Value);
-                return tavolo == null ? SafeNotFound("Tavolo") : Ok(tavolo);
+                var result = await _repository.CountAsync();
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero del tavolo numero {Numero} per frontend", numero);
-                return SafeInternalError("Errore durante il caricamento del tavolo");
+                _logger.LogError(ex, "Count errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // ✅ NUOVI ENDPOINT BUSINESS
-
-        // PATCH: api/Tavolo/5/toggle-disponibilita
-        [HttpPatch("{id}/toggle-disponibilita")]
-        // [Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult<object>> ToggleDisponibilita(int id)
+        // GET: api/tavolo/count/disponibili
+        [HttpGet("count/disponibili")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<int>>> CountDisponibili()
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest<object>("ID tavolo non valido");
-
-                if (!await _repository.ExistsAsync(id))
-                    return SafeNotFound<object>("Tavolo");
-
-                var nuovaDisponibilita = await _repository.ToggleDisponibilitaAsync(id);
-
-                LogAuditTrail("TOGGLE_DISPONIBILITA", "Tavolo", id.ToString());
-                LogSecurityEvent("TavoloDisponibilitaToggled", new
-                {
-                    id,
-                    NuovaDisponibilita = nuovaDisponibilita,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                // ✅ RISPOSTA DETTAGLIATA PER SVILUPPO, SEMPLICE PER PRODUZIONE
-                if (_environment.IsDevelopment())
-                {
-                    return Ok(new
-                    {
-                        TavoloId = id,
-                        Disponibile = nuovaDisponibilita,
-                        Messaggio = $"Disponibilità aggiornata a: {(nuovaDisponibilita ? "SI" : "NO")}",
-                        Timestamp = DateTime.UtcNow
-                    });
-                }
-                else
-                {
-                    return Ok(new
-                    {
-                        Messaggio = "Disponibilità aggiornata con successo",
-                        Disponibile = nuovaDisponibilita ? "SI" : "NO"
-                    });
-                }
+                var result = await _repository.CountDisponibiliAsync();
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il toggle disponibilità del tavolo {Id}", id);
-
-                if (_environment.IsDevelopment())
-                    return SafeInternalError<object>($"Errore: {ex.Message}");
-                else
-                    return SafeInternalError<object>("Errore durante l'aggiornamento della disponibilità");
+                _logger.LogError(ex, "CountDisponibili errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // PATCH: api/Tavolo/numero/5/toggle-disponibilita
-        [HttpPatch("numero/{numero}/toggle-disponibilita")]
-        // [Authorize(Roles = "Admin,Impiegato")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        // [EnableRateLimiting("Default")]
-        public async Task<ActionResult<object>> ToggleDisponibilitaByNumero(int numero)
+        // GET: api/tavolo/count/occupati
+        [HttpGet("count/occupati")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<int>>> CountOccupati()
         {
             try
             {
-                if (numero <= 0)
-                    return SafeBadRequest<object>("Numero tavolo non valido");
-
-                var nuovaDisponibilita = await _repository.ToggleDisponibilitaByNumeroAsync(numero);
-
-                if (!nuovaDisponibilita && !await _repository.NumeroExistsAsync(numero))
-                    return SafeNotFound<object>("Tavolo");
-
-                LogAuditTrail("TOGGLE_DISPONIBILITA_BY_NUMERO", "Tavolo", numero.ToString());
-                LogSecurityEvent("TavoloDisponibilitaToggledByNumero", new
-                {
-                    NumeroTavolo = numero,
-                    NuovaDisponibilita = nuovaDisponibilita,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                if (_environment.IsDevelopment())
-                {
-                    return Ok(new
-                    {
-                        NumeroTavolo = numero,
-                        Disponibile = nuovaDisponibilita,
-                        Messaggio = $"Disponibilità aggiornata a: {(nuovaDisponibilita ? "SI" : "NO")}",
-                        Timestamp = DateTime.UtcNow
-                    });
-                }
-                else
-                {
-                    return Ok(new
-                    {
-                        Messaggio = "Disponibilità aggiornata con successo",
-                        Disponibile = nuovaDisponibilita ? "SI" : "NO"
-                    });
-                }
+                var result = await _repository.CountOccupatiAsync();
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il toggle disponibilità del tavolo numero {Numero}", numero);
-
-                if (_environment.IsDevelopment())
-                    return SafeInternalError<object>($"Errore: {ex.Message}");
-                else
-                    return SafeInternalError<object>("Errore durante l'aggiornamento della disponibilità");
+                _logger.LogError(ex, "CountOccupati errore");
+                return StatusCode(500, "Errore server");
             }
-        }        
+        }
     }
 }

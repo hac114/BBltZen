@@ -1,10 +1,10 @@
 ﻿using Stripe;
 using DTO;
 using Repository.Interface;
-using Database;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Database.Models;
 
 namespace Repository.Service
 {

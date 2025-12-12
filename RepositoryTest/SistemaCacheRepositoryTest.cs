@@ -1,4 +1,4 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;

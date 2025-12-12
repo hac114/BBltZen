@@ -1,5 +1,5 @@
 ﻿// BBltZen/Controllers/SistemaCacheController.cs
-using BBltZen.Services.Background;
+using BBltZen.BackgroundServices;
 using DTO;
 using DTO.Monitoring;
 using Microsoft.AspNetCore.Authorization;

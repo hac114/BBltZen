@@ -1,4 +1,4 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

@@ -1,9 +1,10 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Repository.Helper;
 using Repository.Interface;
-using Repository.Service.Helper;
+using System;
 
 namespace Repository.Service
 {
@@ -21,216 +22,384 @@ namespace Repository.Service
             };
         }
 
-        private static CategoriaIngredienteFrontendDTO MapToFrontendDTO(CategoriaIngrediente categoria)
-        {
-            return new CategoriaIngredienteFrontendDTO
-            {
-                Categoria = categoria.Categoria
-            };
-        }
-
-        // ✅ METODO CRUD: GetAllAsync (paginato)
         public async Task<PaginatedResponseDTO<CategoriaIngredienteDTO>> GetAllAsync(int page = 1, int pageSize = 10)
         {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-
-            var query = _context.CategoriaIngrediente.AsNoTracking();
-
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .OrderBy(c => c.Categoria)
-                .Skip((safePage - 1) * safePageSize)
-                .Take(safePageSize)
-                .Select(c => MapToDTO(c))
-                .ToListAsync();
-
-            return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+            try
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.CategoriaIngrediente
+                    .AsNoTracking()
+                    .OrderBy(c => c.Categoria);
+
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(c => MapToDTO(c))
+                    .ToListAsync();
+
+                return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+                {
+                    Data = items,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = totalCount == 0
+                        ? "Nessuna categoria di ingrediente trovata"
+                        : $"Trovate {totalCount} categorie di ingrediente"
+                };
+            }
+            catch (Exception)
+            {
+                return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle categorie di ingrediente"
+                };
+            }
         }
 
-        // ✅ METODO CRUD: GetByIdAsync
-        public async Task<CategoriaIngredienteDTO?> GetByIdAsync(int id)
+        public async Task<SingleResponseDTO<CategoriaIngredienteDTO>> GetByIdAsync(int categoriaId)
         {
-            var categoria = await _context.CategoriaIngrediente
+            try
+            {
+                if (categoriaId <= 0)
+                    return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse("ID categoria non valido");
+
+                var categoria = await _context.CategoriaIngrediente
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.CategoriaId == categoriaId);
+
+                if (categoria == null)
+                    return SingleResponseDTO<CategoriaIngredienteDTO>.NotFoundResponse(
+                        $"Categoria ingrediente con ID {categoriaId} non trovata");
+
+                return SingleResponseDTO<CategoriaIngredienteDTO>.SuccessResponse(
+                    MapToDTO(categoria),
+                    $"Categoria ingrediente con ID {categoriaId} trovata");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByIdAsync per categoriaId: {CategoriaId}", categoriaId);
+                return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse(
+                    "Errore interno nel recupero della categoria");
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<CategoriaIngredienteDTO>> GetByNomeAsync(string categoria, int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var searchTerm = StringHelper.NormalizeSearchTerm(categoria);
+
+                if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'categoria' è obbligatorio"
+                    };
+                }
+
+                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 50))
+                {
+                    return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'categoria' contiene caratteri non validi"
+                    };
+                }
+
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.CategoriaIngrediente
+                    .AsNoTracking()
+                    .Where(c => c.Categoria != null &&
+                               StringHelper.StartsWithCaseInsensitive(c.Categoria, searchTerm))
+                    .OrderBy(c => c.Categoria);
+
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(c => MapToDTO(c))
+                    .ToListAsync();
+
+                string message;
+                if (totalCount == 0)
+                {
+                    message = $"Nessuna categoria di ingrediente trovata con nome che inizia con '{searchTerm}'";
+                }
+                else if (totalCount == 1)
+                {
+                    message = $"Trovata 1 categoria di ingrediente con nome che inizia con '{searchTerm}'";
+                }
+                else
+                {
+                    message = $"Trovate {totalCount} categorie di ingrediente con nome che inizia con '{searchTerm}'";
+                }
+
+                return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+                {
+                    Data = items,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception)
+            {
+                return new PaginatedResponseDTO<CategoriaIngredienteDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle categorie di ingrediente"
+                };
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsAsync(int categoriaId)
+        {
+            try
+            {
+                if (categoriaId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID categoria non valido");
+
+                var exists = await _context.CategoriaIngrediente
+                    .AsNoTracking()
+                    .AnyAsync(c => c.CategoriaId == categoriaId);
+
+                string message = exists
+                    ? $"Categoria ingrediente con ID {categoriaId} esiste"
+                    : $"Categoria ingrediente con ID {categoriaId} non trovata";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsAsync per categoriaId: {CategoriaId}", categoriaId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza della categoria");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsByNomeAsync(string categoria)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(categoria))
+                    return SingleResponseDTO<bool>.ErrorResponse("Il nome della categoria è obbligatorio");
+
+                var searchTerm = StringHelper.NormalizeSearchTerm(categoria);
+
+                if (!SecurityHelper.IsValidInput(searchTerm, maxLength: 50))
+                    return SingleResponseDTO<bool>.ErrorResponse("Il nome della categoria contiene caratteri non validi");
+
+                var exists = await _context.CategoriaIngrediente
+                    .AsNoTracking()
+                    .AnyAsync(c => StringHelper.EqualsCaseInsensitive(c.Categoria, searchTerm));
+
+                string message = exists
+                    ? $"Categoria ingrediente con nome '{searchTerm}' esiste"
+                    : $"Categoria ingrediente con nome '{searchTerm}' non trovata";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsByNomeAsync per categoria: {Categoria}", categoria);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza della categoria per nome");
+            }
+        }        
+
+        private async Task<bool> ExistsByNomeInternalAsync(string categoria)
+        {
+            if (string.IsNullOrWhiteSpace(categoria))
+                return false;
+
+            var searchTerm = StringHelper.NormalizeSearchTerm(categoria);
+            return await _context.CategoriaIngrediente
                 .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.CategoriaId == id);
-
-            return categoria == null ? null : MapToDTO(categoria);
+                .AnyAsync(c => StringHelper.EqualsCaseInsensitive(c.Categoria, searchTerm));
         }
 
-        // ✅ METODO CRUD: AddAsync
-        public async Task<CategoriaIngredienteDTO> AddAsync(CategoriaIngredienteDTO categoriaDto)
+        private async Task<bool> ExistsByNomeForOtherAsync(int excludeId, string categoria)
         {
-            if (categoriaDto == null)
-                throw new ArgumentNullException(nameof(categoriaDto));
+            if (string.IsNullOrWhiteSpace(categoria))
+                return false;
 
-            // ✅ VALIDAZIONE INPUT CON SecurityHelper
-            if (!SecurityHelper.IsValidInput(categoriaDto.Categoria, maxLength: 50))
-                throw new ArgumentException("Nome categoria non valido");
-
-            // ✅ CONTROLLO UNIVOCITÀ CON StringHelper (case-insensitive)
-            var exists = await _context.CategoriaIngrediente
-                .AnyAsync(c => StringHelper.EqualsCaseInsensitive(c.Categoria, categoriaDto.Categoria));
-
-            if (exists)
-                throw new InvalidOperationException($"Esiste già una categoria con nome '{categoriaDto.Categoria}'");
-
-            var categoria = new CategoriaIngrediente
-            {
-                Categoria = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria)
-            };
-
-            _context.CategoriaIngrediente.Add(categoria);
-            await _context.SaveChangesAsync();
-
-            categoriaDto.CategoriaId = categoria.CategoriaId;
-            return categoriaDto;
-        }
-
-        // ✅ METODO CRUD: UpdateAsync
-        public async Task UpdateAsync(CategoriaIngredienteDTO categoriaDto)
-        {
-            // ✅ VALIDAZIONE INPUT CON SecurityHelper
-            if (!SecurityHelper.IsValidInput(categoriaDto.Categoria, maxLength: 50))
-                throw new ArgumentException("Nome categoria non valido");
-
-            var categoria = await _context.CategoriaIngrediente
-                .FirstOrDefaultAsync(c => c.CategoriaId == categoriaDto.CategoriaId);
-
-            if (categoria == null)
-                throw new KeyNotFoundException($"Categoria con ID {categoriaDto.CategoriaId} non trovata");
-
-            // ✅ CONTROLLO UNIVOCITÀ CON StringHelper (case-insensitive)
-            var existsOther = await _context.CategoriaIngrediente
-                .AnyAsync(c => c.CategoriaId != categoriaDto.CategoriaId &&
-                              StringHelper.EqualsCaseInsensitive(c.Categoria, categoriaDto.Categoria));
-
-            if (existsOther)
-                throw new InvalidOperationException($"Esiste già un'altra categoria con nome '{categoriaDto.Categoria}'");
-
-            categoria.Categoria = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria);
-            await _context.SaveChangesAsync();
-        }
-
-        // ✅ METODO CRUD: DeleteAsync
-        public async Task DeleteAsync(int id)
-        {
-            // ✅ CONTROLLO DIPENDENZE
-            if (await HasDependenciesAsync(id))
-                throw new InvalidOperationException("Impossibile eliminare: esistono dipendenze (ingredienti collegati)");
-
-            var categoria = await _context.CategoriaIngrediente
-                .FirstOrDefaultAsync(c => c.CategoriaId == id);
-
-            if (categoria == null)
-                throw new KeyNotFoundException($"Categoria con ID {id} non trovata");
-
-            _context.CategoriaIngrediente.Remove(categoria);
-            await _context.SaveChangesAsync();
-        }
-
-        // ✅ METODO CRUD: ExistsAsync
-        public async Task<bool> ExistsAsync(int id)
-        {
             return await _context.CategoriaIngrediente
-                .AnyAsync(c => c.CategoriaId == id);
+                .AsNoTracking()
+                .AnyAsync(c => c.CategoriaId != excludeId &&
+                              StringHelper.EqualsCaseInsensitive(c.Categoria, categoria.Trim()));
         }
 
-        // ✅ METODO BUSINESS: GetByNomeAsync (ricerca "inizia con" - parametro opzionale)
-        public async Task<PaginatedResponseDTO<CategoriaIngredienteDTO>> GetByNomeAsync(string? categoria = null, int page = 1, int pageSize = 10)
+        private async Task<bool> ExistsByNomeForOtherInternalAsync(int excludeId, string categoria)
         {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+            if (string.IsNullOrWhiteSpace(categoria))
+                return false;
 
-            // ✅ VALIDAZIONE INPUT CON SecurityHelper
-            if (!SecurityHelper.IsValidInput(categoria, maxLength: 50))
-                return new PaginatedResponseDTO<CategoriaIngredienteDTO> { Message = "Input non valido" };
-
-            var query = _context.CategoriaIngrediente.AsNoTracking().AsQueryable();
-
-            // ✅ RICERCA "INIZIA CON" USANDO StringHelper (se categoria non è null)
-            if (!string.IsNullOrWhiteSpace(categoria))
-            {
-                var normalizedCategoria = SecurityHelper.NormalizeSafe(categoria);
-                query = query.Where(c => c.Categoria != null &&
-                       StringHelper.StartsWithCaseInsensitive(c.Categoria, categoria));
-            }
-
-            // ✅ PAGINAZIONE
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .OrderBy(c => c.Categoria)
-                .Skip((safePage - 1) * safePageSize)
-                .Take(safePageSize)
-                .Select(c => MapToDTO(c))
-                .ToListAsync();
-
-            return new PaginatedResponseDTO<CategoriaIngredienteDTO>
-            {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
-        }
-
-        // ✅ METODO BUSINESS: GetByNomePerFrontendAsync (ricerca "inizia con" - parametro opzionale)
-        public async Task<PaginatedResponseDTO<CategoriaIngredienteFrontendDTO>> GetByNomePerFrontendAsync(string? categoria = null, int page = 1, int pageSize = 10)
-        {
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-
-            // ✅ VALIDAZIONE INPUT CON SecurityHelper
-            if (!SecurityHelper.IsValidInput(categoria, maxLength: 50))
-                return new PaginatedResponseDTO<CategoriaIngredienteFrontendDTO> { Message = "Input non valido" };
-
-            var query = _context.CategoriaIngrediente.AsNoTracking().AsQueryable();
-
-            // ✅ RICERCA "INIZIA CON" USANDO StringHelper (se categoria non è null)
-            if (!string.IsNullOrWhiteSpace(categoria))
-            {
-                query = query.Where(c => c.Categoria != null &&
-                       StringHelper.StartsWithCaseInsensitive(c.Categoria, categoria));
-            }
-
-            // ✅ PAGINAZIONE
-            var totalCount = await query.CountAsync();
-            var items = await query
-                .OrderBy(c => c.Categoria)
-                .Skip((safePage - 1) * safePageSize)
-                .Take(safePageSize)
-                .Select(c => MapToFrontendDTO(c))
-                .ToListAsync();
-
-            return new PaginatedResponseDTO<CategoriaIngredienteFrontendDTO>
-            {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount
-            };
-        }
-
-        // ✅ METODO UTILITY: ExistsByNomeAsync
-        public async Task<bool> ExistsByNomeAsync(string categoria)
-        {
+            var searchTerm = StringHelper.NormalizeSearchTerm(categoria);
             return await _context.CategoriaIngrediente
-                .AnyAsync(c => StringHelper.EqualsCaseInsensitive(c.Categoria, categoria));
+                .AsNoTracking()
+                .AnyAsync(c => c.CategoriaId != excludeId &&
+                              StringHelper.EqualsCaseInsensitive(c.Categoria, searchTerm));
         }
 
-        // ✅ METODO UTILITY: HasDependenciesAsync (per controllo DELETE)
-        public async Task<bool> HasDependenciesAsync(int id)
+        public async Task<SingleResponseDTO<CategoriaIngredienteDTO>> AddAsync(CategoriaIngredienteDTO categoriaDto)
+        {
+            try
+            {
+                ArgumentNullException.ThrowIfNull(categoriaDto);
+
+                // ✅ Validazioni input
+                if (string.IsNullOrWhiteSpace(categoriaDto.Categoria))
+                    return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse("Nome categoria obbligatorio");
+
+                var searchTerm = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria);
+
+                if (!SecurityHelper.IsValidInput(searchTerm, 50))
+                    return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse("Nome categoria non valido");
+
+                // ✅ Controllo duplicati (usa metodo interno)
+                if (await ExistsByNomeInternalAsync(searchTerm))
+                    return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse(
+                        $"Esiste già una categoria con nome '{searchTerm}'");
+
+                var categoria = new CategoriaIngrediente
+                {
+                    Categoria = searchTerm
+                };
+
+                await _context.CategoriaIngrediente.AddAsync(categoria);
+                await _context.SaveChangesAsync();
+
+                categoriaDto.CategoriaId = categoria.CategoriaId;
+
+                return SingleResponseDTO<CategoriaIngredienteDTO>.SuccessResponse(
+                    categoriaDto,
+                    $"Categoria '{searchTerm}' creata con successo (ID: {categoria.CategoriaId})");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in AddAsync per categoria: {Categoria}", categoriaDto?.Categoria);
+                return SingleResponseDTO<CategoriaIngredienteDTO>.ErrorResponse("Errore interno durante la creazione della categoria");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> UpdateAsync(CategoriaIngredienteDTO categoriaDto)
+        {
+            try
+            {
+                ArgumentNullException.ThrowIfNull(categoriaDto);
+
+                // ✅ Validazioni input
+                if (string.IsNullOrWhiteSpace(categoriaDto.Categoria))
+                    return SingleResponseDTO<bool>.ErrorResponse("Nome categoria obbligatorio");
+
+                var searchTerm = StringHelper.NormalizeSearchTerm(categoriaDto.Categoria);
+
+                if (!SecurityHelper.IsValidInput(searchTerm, 50))
+                    return SingleResponseDTO<bool>.ErrorResponse("Nome categoria non valido");
+
+                var categoria = await _context.CategoriaIngrediente
+                    .FirstOrDefaultAsync(c => c.CategoriaId == categoriaDto.CategoriaId);
+
+                if (categoria == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Categoria ingrediente con ID {categoriaDto.CategoriaId} non trovata");
+
+                // ✅ Controllo duplicati ESCLUDENDO questa categoria (usa metodo interno)
+                if (await ExistsByNomeForOtherInternalAsync(categoriaDto.CategoriaId, searchTerm))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        $"Esiste già un'altra categoria con nome '{searchTerm}'");
+
+                // ✅ Aggiorna solo se ci sono cambiamenti
+                bool hasChanges = false;
+
+                if (!StringHelper.EqualsCaseInsensitive(categoria.Categoria, searchTerm))
+                {
+                    categoria.Categoria = searchTerm;
+                    hasChanges = true;
+                }
+
+                if (hasChanges)
+                {
+                    await _context.SaveChangesAsync();
+                    return SingleResponseDTO<bool>.SuccessResponse(
+                        true,
+                        $"Categoria con ID {categoriaDto.CategoriaId} aggiornata con successo");
+                }
+                else
+                {
+                    return SingleResponseDTO<bool>.SuccessResponse(
+                        false,
+                        $"Nessuna modifica necessaria per la categoria con ID {categoriaDto.CategoriaId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in UpdateAsync per categoriaId: {CategoriaId}", categoriaDto?.CategoriaId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante l'aggiornamento della categoria");
+            }
+        }
+
+        private async Task<bool> HasDependenciesAsync(int categoriaId)
         {
             return await _context.Ingrediente
-                .AnyAsync(i => i.CategoriaId == id);
+                .AnyAsync(i => i.CategoriaId == categoriaId);
         }
 
-        // ❌ METODI OBSOLETI (non più nell'interfaccia)
-        // public async Task<IEnumerable<CategoriaIngredienteDTO>> GetAllAsync() // OBSOLETO
-        // public async Task<IEnumerable<CategoriaIngredienteFrontendDTO>> GetAllPerFrontendAsync() // OBSOLETO
-        // public async Task<CategoriaIngredienteFrontendDTO?> GetByNomePerFrontendAsync(string categoria) // OBSOLETO
+        public async Task<SingleResponseDTO<bool>> DeleteAsync(int categoriaId)
+        {
+            try
+            {
+                // ✅ Validazione input
+                if (categoriaId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID categoria non valido");
+
+                // ✅ Ricerca della categoria
+                var categoria = await _context.CategoriaIngrediente
+                    .FirstOrDefaultAsync(c => c.CategoriaId == categoriaId);
+
+                if (categoria == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Categoria ingrediente con ID {categoriaId} non trovata");
+
+                // ✅ Controllo dipendenze
+                if (await HasDependenciesAsync(categoriaId))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        "Impossibile eliminare la categoria perché ci sono ingredienti collegati");
+
+                // ✅ Eliminazione
+                _context.CategoriaIngrediente.Remove(categoria);
+                await _context.SaveChangesAsync();
+
+                // ✅ Successo con messaggio
+                return SingleResponseDTO<bool>.SuccessResponse(
+                    true,
+                    $"Categoria ingrediente '{categoria.Categoria}' (ID: {categoriaId}) eliminata con successo");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in DeleteAsync per categoriaId: {CategoriaId}", categoriaId);
+                return SingleResponseDTO<bool>.ErrorResponse(
+                    "Errore interno durante l'eliminazione della categoria");
+            }
+        }
     }
 }

@@ -1,6 +1,3 @@
-using BBltZen.Services;
-using BBltZen.Services.Background;
-using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
 //using Keycloak.AuthServices.Authentication; // ✅ COMMENTATO
@@ -8,6 +5,9 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.OpenApi.Models;
 using Repository;
 using System.Threading.RateLimiting;
+using BBltZen.BackgroundServices;
+using BBltZen.Infrastructure;
+using Database.Models;
 
 namespace BBltZen
 {

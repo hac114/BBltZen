@@ -14,5 +14,8 @@ namespace DTO
 
         public DateTime DataCreazione { get; set; }
         public DateTime DataAggiornamento { get; set; }
+
+        // ✅ SOLUZIONE MIGLIORE: Property calcolata (read-only)
+        public string AliquotaFormattata => $"{Aliquota:F2}%";
     }
 }

@@ -1,7 +1,7 @@
 ﻿using DTO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Database; // ✅ AGGIUNTO
+using Database.Models; // ✅ AGGIUNTO
 
 namespace Repository.Interface
 {
@@ -17,7 +17,7 @@ namespace Repository.Interface
 
         // Metodi per cache
         Task ClearCache();
-        Task PreloadCache();
+        //Task PreloadCache();
 
         // ✅ METODI AGGIUNTIVI PER COMPLETEZZA
         Task<BatchCalculationResponseDTO> CalculateBatchPricesAsync(BatchCalculationRequestDTO request);

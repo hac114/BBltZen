@@ -4,31 +4,21 @@ namespace Repository.Interface
 {
     public interface IUnitaDiMisuraRepository
     {
-        // ✅ METODI CRUD BASE
-        Task<UnitaDiMisuraDTO> AddAsync(UnitaDiMisuraDTO unitaDto);
-        Task UpdateAsync(UnitaDiMisuraDTO unitaDto);
-        Task DeleteAsync(int id);
-        Task<bool> ExistsAsync(int id);
-
-        // ✅ LETTURE PAGINATE (MODIFICATE PER NUOVE SPECIFICHE)
+        // ✅ METODI PAGINATI CRUD
         Task<PaginatedResponseDTO<UnitaDiMisuraDTO>> GetAllAsync(int page = 1, int pageSize = 10);
-        Task<UnitaDiMisuraDTO?> GetByIdAsync(int id);
+        Task<SingleResponseDTO<UnitaDiMisuraDTO>> GetByIdAsync(int unitaId);
+        Task<PaginatedResponseDTO<UnitaDiMisuraDTO>> GetBySiglaAsync(string sigla, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<UnitaDiMisuraDTO>> GetByDescrizioneAsync(string descrizione, int page = 1, int pageSize = 10);
 
-        // ✅ RICERCHE PER SIGLA (PARAMETRO OPZIONALE, PAGINATE)
-        Task<PaginatedResponseDTO<UnitaDiMisuraDTO>> GetBySiglaAsync(string? sigla = null, int page = 1, int pageSize = 10);
-        Task<PaginatedResponseDTO<UnitaDiMisuraFrontendDTO>> GetBySiglaPerFrontendAsync(string? sigla = null, int page = 1, int pageSize = 10);
+        // ✅ METODI SCRITTURA
+        Task<SingleResponseDTO<UnitaDiMisuraDTO>> AddAsync(UnitaDiMisuraDTO unitaDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(UnitaDiMisuraDTO unitaDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int unitaDiMisuraId);
 
-        // ✅ NUOVE RICERCHE PER DESCRIZIONE (PARAMETRO OPZIONALE, PAGINATE)
-        Task<PaginatedResponseDTO<UnitaDiMisuraDTO>> GetByDescrizioneAsync(string? descrizione = null, int page = 1, int pageSize = 10);
-        Task<PaginatedResponseDTO<UnitaDiMisuraFrontendDTO>> GetByDescrizionePerFrontendAsync(string? descrizione = null, int page = 1, int pageSize = 10);
-
-        // ✅ CONTROLLI UNIVOCITÀ
-        Task<bool> SiglaExistsAsync(string sigla);
-        Task<bool> SiglaExistsForOtherAsync(int id, string sigla);
-        Task<bool> DescrizioneExistsAsync(string descrizione);
-        Task<bool> DescrizioneExistsForOtherAsync(int id, string descrizione);
-
-        // ✅ CONTROLLO DIPENDENZE PER DELETE
-        Task<bool> HasDependenciesAsync(int id);
+        // ✅ METODI VERIFICA
+        Task<SingleResponseDTO<bool>> ExistsAsync(int unitaDiMisuraId);
+        Task<SingleResponseDTO<bool>> SiglaExistsAsync(string sigla);
+        Task<SingleResponseDTO<bool>> DescrizioneExistsAsync(string descrizione);
+                
     }
 }

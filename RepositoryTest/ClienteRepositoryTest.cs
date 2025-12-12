@@ -1,4 +1,5 @@
-﻿using DTO;
+﻿using Database.Models;
+using DTO;
 using Repository.Interface;
 using Repository.Service;
 using System;
@@ -22,7 +23,7 @@ namespace RepositoryTest
         public async Task AddAsync_Should_Add_Cliente()
         {
             // Arrange
-            var tavolo = new Database.Tavolo
+            var tavolo = new Tavolo
             {
                 Numero = 1,
                 Zona = "Terrazza",
@@ -50,18 +51,18 @@ namespace RepositoryTest
         public async Task GetAllAsync_Should_Return_All_Clienti()
         {
             // Arrange
-            var tavoli = new List<Database.Tavolo>
+            var tavoli = new List<Tavolo>
             {
-                new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true },
-                new Database.Tavolo { Numero = 2, Zona = "Interno", Disponibile = true }
+                new Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true },
+                new Tavolo { Numero = 2, Zona = "Interno", Disponibile = true }
             };
             _context.Tavolo.AddRange(tavoli);
             await _context.SaveChangesAsync();
 
-            var clienti = new List<Database.Cliente>
+            var clienti = new List<Cliente>
             {
-                new Database.Cliente { TavoloId = tavoli[0].TavoloId },
-                new Database.Cliente { TavoloId = tavoli[1].TavoloId }
+                new Cliente { TavoloId = tavoli[0].TavoloId },
+                new Cliente { TavoloId = tavoli[1].TavoloId }
             };
             _context.Cliente.AddRange(clienti);
             await _context.SaveChangesAsync();
@@ -77,7 +78,7 @@ namespace RepositoryTest
         public async Task GetByIdAsync_Should_Return_Correct_Cliente()
         {
             // Arrange
-            var tavolo = new Database.Tavolo
+            var tavolo = new Tavolo
             {
                 Numero = 1,
                 Zona = "Terrazza",
@@ -86,7 +87,7 @@ namespace RepositoryTest
             _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
-            var cliente = new Database.Cliente { TavoloId = tavolo.TavoloId };
+            var cliente = new Cliente { TavoloId = tavolo.TavoloId };
             _context.Cliente.Add(cliente);
             await _context.SaveChangesAsync();
 
@@ -102,7 +103,7 @@ namespace RepositoryTest
         public async Task GetByTavoloIdAsync_Should_Return_Correct_Cliente()
         {
             // Arrange
-            var tavolo = new Database.Tavolo
+            var tavolo = new Tavolo
             {
                 Numero = 1,
                 Zona = "Interno",
@@ -111,7 +112,7 @@ namespace RepositoryTest
             _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
-            var cliente = new Database.Cliente { TavoloId = tavolo.TavoloId };
+            var cliente = new Cliente { TavoloId = tavolo.TavoloId };
             _context.Cliente.Add(cliente);
             await _context.SaveChangesAsync();
 
@@ -127,12 +128,12 @@ namespace RepositoryTest
         public async Task UpdateAsync_Should_Update_Cliente()
         {
             // Arrange
-            var tavolo1 = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
-            var tavolo2 = new Database.Tavolo { Numero = 2, Zona = "Interno", Disponibile = true };
+            var tavolo1 = new Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            var tavolo2 = new Tavolo { Numero = 2, Zona = "Interno", Disponibile = true };
             _context.Tavolo.AddRange(tavolo1, tavolo2);
             await _context.SaveChangesAsync();
 
-            var cliente = new Database.Cliente { TavoloId = tavolo1.TavoloId };
+            var cliente = new Cliente { TavoloId = tavolo1.TavoloId };
             _context.Cliente.Add(cliente);
             await _context.SaveChangesAsync();
 
@@ -157,7 +158,7 @@ namespace RepositoryTest
         public async Task DeleteAsync_Should_Remove_Cliente()
         {
             // Arrange
-            var tavolo = new Database.Tavolo
+            var tavolo = new Tavolo
             {
                 Numero = 1,
                 Zona = "Terrazza",
@@ -166,7 +167,7 @@ namespace RepositoryTest
             _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
-            var cliente = new Database.Cliente { TavoloId = tavolo.TavoloId };
+            var cliente = new Cliente { TavoloId = tavolo.TavoloId };
             _context.Cliente.Add(cliente);
             await _context.SaveChangesAsync();
 
@@ -182,7 +183,7 @@ namespace RepositoryTest
         public async Task AddAsync_Should_Set_Correct_Timestamps()
         {
             // Arrange
-            var tavolo = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            var tavolo = new Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
             _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
@@ -204,7 +205,7 @@ namespace RepositoryTest
         public async Task AddAsync_Should_Set_Correct_Timestamps_WithTolerance()
         {
             // Arrange
-            var tavolo = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            var tavolo = new Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
             _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
@@ -226,12 +227,12 @@ namespace RepositoryTest
         public async Task UpdateAsync_Should_Update_DataAggiornamento()
         {
             // Arrange
-            var tavolo1 = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
-            var tavolo2 = new Database.Tavolo { Numero = 2, Zona = "Interno", Disponibile = true };
+            var tavolo1 = new Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            var tavolo2 = new Tavolo { Numero = 2, Zona = "Interno", Disponibile = true };
             _context.Tavolo.AddRange(tavolo1, tavolo2);
             await _context.SaveChangesAsync();
 
-            var cliente = new Database.Cliente { TavoloId = tavolo1.TavoloId };
+            var cliente = new Cliente { TavoloId = tavolo1.TavoloId };
             _context.Cliente.Add(cliente);
             await _context.SaveChangesAsync();
 
@@ -257,12 +258,12 @@ namespace RepositoryTest
         public async Task AddAsync_With_Occupied_Tavolo_Should_Throw_Exception()
         {
             // Arrange
-            var tavolo = new Database.Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
+            var tavolo = new Tavolo { Numero = 1, Zona = "Terrazza", Disponibile = true };
             _context.Tavolo.Add(tavolo);
             await _context.SaveChangesAsync();
 
             // Crea primo cliente per il tavolo
-            var primoCliente = new Database.Cliente { TavoloId = tavolo.TavoloId };
+            var primoCliente = new Cliente { TavoloId = tavolo.TavoloId };
             _context.Cliente.Add(primoCliente);
             await _context.SaveChangesAsync();
 

@@ -1,4 +1,4 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using DTO.Monitoring;
 using Microsoft.EntityFrameworkCore;

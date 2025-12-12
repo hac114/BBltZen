@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Database;
+using Database.Models;
 
 namespace Database.Configurations
 {
@@ -32,20 +32,21 @@ namespace Database.Configurations
                 .IsRequired()
                 .HasPrecision(4, 2);
 
-            // ✅ CORRETTO: CHIAVE ESTERNA (nome corretto della proprietà)
-            builder.HasOne(d => d.UnitaMisura) // ✅ "UnitaMisura" invece di "UnitaDiMisura"
-                .WithMany(u => u.DimensioneBicchiere) // ✅ SPECIFICA la collection navigation
+            // ✅ RELAZIONE CORRETTA CON UnitaDiMisura
+            builder.HasOne(d => d.UnitaMisura)
+                .WithMany(u => u.DimensioneBicchiere)
                 .HasForeignKey(d => d.UnitaMisuraId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ✅ INDICE UNIVOCO SULLA SIGLA
-            builder.HasIndex(d => d.Sigla)
-                .IsUnique();
+            // ❌ RIMOSSO vecchio indice UNIQUE solo su Sigla
+            // ❌ RIMOSSO indice semplice su Descrizione
 
-            // ✅ INDICE SULLA DESCRIZIONE
-            builder.HasIndex(d => d.Descrizione);
+            // ✅ NUOVO INDICE UNIQUE COMBINATO (Sigla + Descrizione)
+            builder.HasIndex(d => new { d.Sigla, d.Descrizione })
+                .IsUnique()
+                .HasDatabaseName("UQ_DimensioneBicchiere_SiglaDescrizione");
 
-            // ✅ INDICE SULLA CHIAVE ESTERNA (per performance)
+            // ✅ INDICE PER CHIAVE ESTERNA (performance)
             builder.HasIndex(d => d.UnitaMisuraId);
         }
     }

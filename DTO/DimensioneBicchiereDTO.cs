@@ -31,5 +31,8 @@ namespace DTO
         [Required(ErrorMessage = "Il moltiplicatore è obbligatorio")]
         [Range(0.1, 3.0, ErrorMessage = "Il moltiplicatore deve essere tra 0.1 e 3.0")]
         public decimal Moltiplicatore { get; set; }
+
+        [Required(ErrorMessage = "L'unità di misura è obbligatoria")]
+        public UnitaDiMisuraDTO UnitaMisura { get; set; } = new();
     }
 }

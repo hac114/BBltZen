@@ -5,7 +5,7 @@ using Repository.Interface;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Database;
+using Database.Models;
 
 namespace BBltZen.Controllers
 {

@@ -1,4 +1,4 @@
-﻿using Database;
+﻿using Database.Models;
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Repository.Interface;

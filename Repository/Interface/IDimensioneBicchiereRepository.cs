@@ -4,14 +4,23 @@ namespace Repository.Interface
 {
     public interface IDimensioneBicchiereRepository
     {
-        Task<DimensioneBicchiereDTO> AddAsync(DimensioneBicchiereDTO dimensione); // ✅ CAMBIATO: ritorna DTO
-        Task UpdateAsync(DimensioneBicchiereDTO dimensione);
-        Task DeleteAsync(int id);
-        Task<bool> ExistsAsync(int id); // ✅ AGGIUNTO: metodo mancante
-        Task<IEnumerable<DimensioneBicchiereDTO>> GetAllAsync(); // ✅ CAMBIATO: IEnumerable invece di List
-        Task<DimensioneBicchiereDTO?> GetByIdAsync(int id); // ✅ GIÀ CORRETTO: nullable
-        Task<bool> SiglaExistsAsync(string sigla);
-        Task<bool> SiglaExistsForOtherAsync(int id, string sigla);
-        Task<DimensioneBicchiereDTO?> GetBySiglaAsync(string sigla);
+        // ✅ CRUD già esistenti
+        Task<DimensioneBicchiereDTO> AddAsync(DimensioneBicchiereDTO bicchiereDto); //OK
+        Task UpdateAsync(DimensioneBicchiereDTO bicchiereDto); //OK
+        Task<bool> DeleteAsync(int bicchiereid); //OK      
+        
+        Task<DimensioneBicchiereDTO?> GetByIdAsync(int bicchiereId); //OK
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+
+
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetBySiglaAsync(string? sigla, int page = 1, int pageSize = 10); //OK
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetByDescrizioneAsync(string? descrizione, int page = 1, int pageSize = 10); //OK
+
+        // ✅ NUOVI METODI FRONTEND
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetFrontendByIdAsync(int? bicchiereId = null, int page = 1, int pageSize = 10); //OK
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetFrontendBySiglaAsync(string? sigla, int page = 1, int pageSize = 10); //OK
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetFrontendByDescrizioneAsync(string? descrizione, int page = 1, int pageSize = 10); //OK
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetFrontendAsync(string? sigla, string? descrizione, decimal? capienza, decimal? prezzoBase, decimal? moltiplicatore, int page, int pageSize); //OK
+
     }
 }

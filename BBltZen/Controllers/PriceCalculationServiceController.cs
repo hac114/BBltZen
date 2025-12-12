@@ -94,53 +94,53 @@ namespace BBltZen.Controllers
             }
         }
 
-        [HttpPost("order-item")]
-        [AllowAnonymous] // ✅ CALCOLO PREZZI PUBBLICO
-        public async Task<ActionResult<PriceCalculationServiceDTO>> CalculateOrderItem([FromBody] OrderItemDTO orderItemDto)
-        {
-            try
-            {
-                if (!IsModelValid(orderItemDto))
-                    return SafeBadRequest<PriceCalculationServiceDTO>("Dati order item non validi");
+        //[HttpPost("order-item")]
+        //[AllowAnonymous] // ✅ CALCOLO PREZZI PUBBLICO
+        //public async Task<ActionResult<PriceCalculationServiceDTO>> CalculateOrderItem([FromBody] OrderItemDTO orderItemDto)
+        //{
+        //    try
+        //    {
+        //        if (!IsModelValid(orderItemDto))
+        //            return SafeBadRequest<PriceCalculationServiceDTO>("Dati order item non validi");
 
-                // Converti OrderItemDTO in OrderItem (entity) per il servizio
-                var orderItem = new OrderItem
-                {
-                    OrderItemId = orderItemDto.OrderItemId,
-                    OrdineId = orderItemDto.OrdineId,
-                    ArticoloId = orderItemDto.ArticoloId,
-                    Quantita = orderItemDto.Quantita,
-                    PrezzoUnitario = orderItemDto.PrezzoUnitario,
-                    ScontoApplicato = orderItemDto.ScontoApplicato,
-                    Imponibile = orderItemDto.Imponibile,
-                    DataCreazione = orderItemDto.DataCreazione,
-                    DataAggiornamento = orderItemDto.DataAggiornamento,
-                    TipoArticolo = orderItemDto.TipoArticolo,
-                    TotaleIvato = orderItemDto.TotaleIvato,
-                    TaxRateId = orderItemDto.TaxRateId
-                };
+        //        // Converti OrderItemDTO in OrderItem (entity) per il servizio
+        //        var orderItem = new OrderItem
+        //        {
+        //            OrderItemId = orderItemDto.OrderItemId,
+        //            OrdineId = orderItemDto.OrdineId,
+        //            ArticoloId = orderItemDto.ArticoloId,
+        //            Quantita = orderItemDto.Quantita,
+        //            PrezzoUnitario = orderItemDto.PrezzoUnitario,
+        //            ScontoApplicato = orderItemDto.ScontoApplicato,
+        //            Imponibile = orderItemDto.Imponibile,
+        //            DataCreazione = orderItemDto.DataCreazione,
+        //            DataAggiornamento = orderItemDto.DataAggiornamento,
+        //            TipoArticolo = orderItemDto.TipoArticolo,
+        //            TotaleIvato = orderItemDto.TotaleIvato,
+        //            TaxRateId = orderItemDto.TaxRateId
+        //        };
 
-                var result = await _repository.CalculateOrderItemPrice(orderItem);
+        //        var result = await _repository.CalculateOrderItemPrice(orderItem);
 
-                // ✅ Log per audit
-                LogAuditTrail("CALCULATE_ORDER_ITEM_PRICE", "PriceCalculation", orderItemDto.OrderItemId.ToString());
-                LogSecurityEvent("OrderItemPriceCalculated", new
-                {
-                    orderItemDto.OrderItemId,           // ✅ NOME MEMBRO SEMPLIFICATO
-                    orderItemDto.TipoArticolo,          // ✅ NOME MEMBRO SEMPLIFICATO
-                    orderItemDto.Quantita,              // ✅ NOME MEMBRO SEMPLIFICATO
-                    PrezzoFinale = result.TotaleIvato,  // ✅ MANTIENI NOME ESPLICITO
-                    User = GetCurrentUserIdOrDefault()
-                });
+        //        // ✅ Log per audit
+        //        LogAuditTrail("CALCULATE_ORDER_ITEM_PRICE", "PriceCalculation", orderItemDto.OrderItemId.ToString());
+        //        LogSecurityEvent("OrderItemPriceCalculated", new
+        //        {
+        //            orderItemDto.OrderItemId,           // ✅ NOME MEMBRO SEMPLIFICATO
+        //            orderItemDto.TipoArticolo,          // ✅ NOME MEMBRO SEMPLIFICATO
+        //            orderItemDto.Quantita,              // ✅ NOME MEMBRO SEMPLIFICATO
+        //            PrezzoFinale = result.TotaleIvato,  // ✅ MANTIENI NOME ESPLICITO
+        //            User = GetCurrentUserIdOrDefault()
+        //        });
 
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel calcolo prezzo order item {OrderItemId}", orderItemDto?.OrderItemId);
-                return SafeBadRequest<PriceCalculationServiceDTO>("Errore nel calcolo del prezzo");
-            }
-        }
+        //        return Ok(result);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Errore nel calcolo prezzo order item {OrderItemId}", orderItemDto?.OrderItemId);
+        //        return SafeBadRequest<PriceCalculationServiceDTO>("Errore nel calcolo del prezzo");
+        //    }
+        //}
 
         [HttpPost("tax-amount")]
         [AllowAnonymous] // ✅ CALCOLO FISCALE PUBBLICO
@@ -250,32 +250,32 @@ namespace BBltZen.Controllers
             }
         }
 
-        [HttpPost("preload-cache")]
-        //[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
-        public async Task<ActionResult> PreloadCache()
-        {
-            try
-            {
-                await _repository.PreloadCache();
+        //[HttpPost("preload-cache")]
+        ////[Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST CON SWAGGER
+        //public async Task<ActionResult> PreloadCache()
+        //{
+        //    try
+        //    {
+        //        await _repository.PreloadCache();
 
-                // ✅ Log per audit
-                LogAuditTrail("PRELOAD_PRICE_CACHE", "PriceCalculation", "All");
-                LogSecurityEvent("PriceCachePreloaded", new
-                {
-                    User = GetCurrentUserIdOrDefault(),
-                    Timestamp = DateTime.UtcNow
-                });
+        //        // ✅ Log per audit
+        //        LogAuditTrail("PRELOAD_PRICE_CACHE", "PriceCalculation", "All");
+        //        LogSecurityEvent("PriceCachePreloaded", new
+        //        {
+        //            User = GetCurrentUserIdOrDefault(),
+        //            Timestamp = DateTime.UtcNow
+        //        });
 
-                return Ok(_environment.IsDevelopment()
-                    ? "Precaricamento cache completato con successo"
-                    : "Operazione completata");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore nel precaricamento cache prezzi");
-                return SafeInternalError("Errore nel precaricamento cache");
-            }
-        }
+        //        return Ok(_environment.IsDevelopment()
+        //            ? "Precaricamento cache completato con successo"
+        //            : "Operazione completata");
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Errore nel precaricamento cache prezzi");
+        //        return SafeInternalError("Errore nel precaricamento cache");
+        //    }
+        //}
 
         // ✅ Endpoint aggiuntivo per calcolo batch
         [HttpPost("batch-calculation")]
