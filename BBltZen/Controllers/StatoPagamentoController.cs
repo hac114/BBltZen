@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
-using Database.Models;
+using BBltZen;
 
 namespace BBltZen.Controllers
 {

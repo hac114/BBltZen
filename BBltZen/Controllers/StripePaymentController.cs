@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Repository.Interface;
 using Microsoft.EntityFrameworkCore;
-using Database.Models;
+using BBltZen;
 
 namespace BBltZen.Controllers
 {

@@ -11,9 +11,12 @@ namespace DTO
     {
         public int StatoOrdineId { get; set; }
 
-        [StringLength(50, ErrorMessage = "Lo stato ordine non può superare 50 caratteri")]
-        public string StatoOrdine1 { get; set; } = null!;
+        [Required(ErrorMessage = "Il nome dello stato è obbligatorio")]
+        [StringLength(100, ErrorMessage = "Lo stato ordine non può superare 100 caratteri")]
+        [RegularExpression(@"^[a-zA-Zàèéìòù\s_-]+$", ErrorMessage = "Sono ammessi solo lettere, spazi, trattini e underscore")]
+        public string StatoOrdine1 { get; set; } = string.Empty; // ✅ NOME ORIGINALE del modello EF
 
+        [Required(ErrorMessage = "Il campo terminale è obbligatorio")]
         public bool Terminale { get; set; }
     }
 }

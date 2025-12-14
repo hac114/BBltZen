@@ -1,7 +1,7 @@
 ﻿using DTO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Database.Models; // ✅ AGGIUNTO
+using BBltZen; // ✅ AGGIUNTO
 
 namespace Repository.Interface
 {

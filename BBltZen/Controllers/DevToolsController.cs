@@ -1,5 +1,5 @@
 ﻿using BBltZen.Infrastructure;
-using Database.Models;
+using BBltZen;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

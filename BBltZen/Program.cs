@@ -7,7 +7,7 @@ using Repository;
 using System.Threading.RateLimiting;
 using BBltZen.BackgroundServices;
 using BBltZen.Infrastructure;
-using Database.Models;
+using BBltZen;
 
 namespace BBltZen
 {

@@ -4,7 +4,7 @@ using Repository.Interface;
 using QRCoder;
 using System.Drawing.Imaging;
 using System.Drawing;
-using Database.Models;
+using BBltZen;
 
 namespace Repository.Service
 {

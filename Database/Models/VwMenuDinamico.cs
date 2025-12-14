@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Database.Models;
+namespace BBltZen;
 
 public partial class VwMenuDinamico
 {

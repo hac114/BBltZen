@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System;
-using Database.Models;
+using BBltZen;
 
 namespace BBltZen.Controllers
 {

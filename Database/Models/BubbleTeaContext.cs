@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
-namespace Database.Models;
+namespace BBltZen;
 
 public partial class BubbleTeaContext : DbContext
 {
@@ -125,12 +125,11 @@ public partial class BubbleTeaContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        //HO AGGIUNTO QUESTA RIGA PER GESTIRE CONFIGURAZIONE UTENTI
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(BubbleTeaContext).Assembly);
+
         modelBuilder.Entity<Articolo>(entity =>
         {
-
-            //HO AGGIUNTO QUESTA RIGA PER GESTIRE CONFIGURAZIONE UTENTI
-            modelBuilder.ApplyConfigurationsFromAssembly(typeof(BubbleTeaContext).Assembly);
-
             entity.HasKey(e => e.ArticoloId).HasName("PK__ARTICOLO__2902CE994A30025C");
 
             entity.ToTable("ARTICOLO");
@@ -911,6 +910,8 @@ public partial class BubbleTeaContext : DbContext
         modelBuilder.Entity<StatoOrdine>(entity =>
         {
             entity.ToTable("STATO_ORDINE");
+
+            entity.HasIndex(e => e.StatoOrdine1, "UQ_stato_ordine_valore").IsUnique();
 
             entity.Property(e => e.StatoOrdineId).HasColumnName("stato_ordine_id");
             entity.Property(e => e.StatoOrdine1)

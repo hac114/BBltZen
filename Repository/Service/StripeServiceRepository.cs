@@ -4,7 +4,7 @@ using Repository.Interface;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Database.Models;
+using BBltZen;
 
 namespace Repository.Service
 {

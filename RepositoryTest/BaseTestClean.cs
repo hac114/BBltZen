@@ -1,5 +1,5 @@
 ﻿// RepositoryTest/BaseTestClean.cs
-using Database.Models;
+using BBltZen;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Configuration;

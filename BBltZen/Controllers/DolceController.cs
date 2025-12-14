@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
-using Database.Models;
+using BBltZen;
 
 namespace BBltZen.Controllers
 {

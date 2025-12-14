@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Database.Models;
+using BBltZen;
 
 namespace Database.Configurations
 {
@@ -8,53 +8,47 @@ namespace Database.Configurations
     {
         public void Configure(EntityTypeBuilder<StatoOrdine> builder)
         {
-            // ✅ CHIAVE PRIMARIA
+            builder.ToTable("StatoOrdine");
+
+            // Chiave primaria
             builder.HasKey(so => so.StatoOrdineId);
 
-            // ✅ PROPRIETÀ OBBLIGATORIE
+            // Proprietà StatoOrdine1 (nome colonna: "StatoOrdine")
             builder.Property(so => so.StatoOrdine1)
                 .IsRequired()
-                .HasMaxLength(50)
-                .HasColumnName("StatoOrdine"); // ✅ Nome colonna esplicito
+                .HasMaxLength(100)
+                .HasColumnName("StatoOrdine");
 
+            // ✅ VINCOLO UNIQUE (ORA ATTIVO - RIMUOVI I COMMENTI)
+            builder.HasIndex(so => so.StatoOrdine1)
+                .IsUnique()
+                .HasDatabaseName("UQ_stato_ordine_valore"); // Nome esatto del DB
+
+            // Proprietà Terminale
             builder.Property(so => so.Terminale)
                 .IsRequired()
-                .HasDefaultValue(false); // ✅ Default non terminale
+                .HasDefaultValue(false);
 
-            // ✅ INDICI PER PERFORMANCE
-            builder.HasIndex(so => so.StatoOrdine1)
-                .IsUnique(); // ✅ Nome stato univoco
+            // Vincolo CHECK presente nel database
+            builder.ToTable(tb => tb.HasCheckConstraint(
+                "CK_terminale_solo_0_1",
+                "([terminale]=(1) OR [terminale]=(0))"));
 
-            builder.HasIndex(so => so.Terminale); // ✅ Ricerche per stati terminali
-
-            // ✅ RELAZIONE CON CONFIGURAZIONI SOGLIE TEMPI
+            // Relazioni
             builder.HasMany(so => so.ConfigSoglieTempi)
                 .WithOne(cst => cst.StatoOrdine)
                 .HasForeignKey(cst => cst.StatoOrdineId)
-                .OnDelete(DeleteBehavior.Cascade); // ✅ Elimina configurazioni se stato viene eliminato
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // ✅ RELAZIONE CON ORDINI
             builder.HasMany(so => so.Ordine)
                 .WithOne(o => o.StatoOrdine)
                 .HasForeignKey(o => o.StatoOrdineId)
-                .OnDelete(DeleteBehavior.Restrict); // ✅ Previene eliminazione stato con ordini
+                .OnDelete(DeleteBehavior.Restrict);
 
-            // ✅ RELAZIONE CON STATO STORICO ORDINE
             builder.HasMany(so => so.StatoStoricoOrdine)
                 .WithOne(sso => sso.StatoOrdine)
                 .HasForeignKey(sso => sso.StatoOrdineId)
-                .OnDelete(DeleteBehavior.Restrict); // ✅ Previene eliminazione stato con storico
-
-            // ✅ CHECK CONSTRAINTS
-            builder.ToTable(tb => tb.HasCheckConstraint(
-                "CK_StatoOrdine_StatiValidi",
-                "[StatoOrdine] IN ('In_Attesa', 'In_Preparazione', 'Pronto', 'Completato', 'Annullato', 'Consegnato')"));
-
-            // ✅ CONFIGURAZIONE NOME TABELLA
-            builder.ToTable("StatoOrdine");
-
-            // ✅ COMMENTI PER DOCUMENTAZIONE (opzionale)
-            // builder.HasComment("Tabella per la gestione degli stati del flusso ordini");
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
