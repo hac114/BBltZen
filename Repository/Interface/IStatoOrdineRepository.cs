@@ -4,14 +4,17 @@ namespace Repository.Interface
 {
     public interface IStatoOrdineRepository
     {
-        Task<StatoOrdineDTO> AddAsync(StatoOrdineDTO statoOrdineDto);
-        Task DeleteAsync(int statoOrdineId);
-        Task<bool> ExistsAsync(int statoOrdineId);
-        Task<IEnumerable<StatoOrdineDTO>> GetAllAsync();
-        Task<StatoOrdineDTO?> GetByIdAsync(int statoOrdineId);
-        Task<StatoOrdineDTO?> GetByNomeAsync(string nomeStatoOrdine);
-        Task<IEnumerable<StatoOrdineDTO>> GetStatiNonTerminaliAsync();
-        Task<IEnumerable<StatoOrdineDTO>> GetStatiTerminaliAsync();
-        Task UpdateAsync(StatoOrdineDTO statoOrdineDto);
+        Task<PaginatedResponseDTO<StatoOrdineDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<StatoOrdineDTO>> GetByIdAsync(int statoOrdineId);
+        Task<SingleResponseDTO<StatoOrdineDTO>> GetByNomeAsync(string nomeStatoOrdine);
+        Task<PaginatedResponseDTO<StatoOrdineDTO>> GetStatiNonTerminaliAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<StatoOrdineDTO>> GetStatiTerminaliAsync(int page = 1, int pageSize = 10);
+
+        Task<SingleResponseDTO<StatoOrdineDTO>> AddAsync(StatoOrdineDTO statoOrdineDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(StatoOrdineDTO statoOrdineDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int statoOrdineId);
+                
+        Task<SingleResponseDTO<bool>> ExistsAsync(int statoOrdineId);
+        Task<SingleResponseDTO<bool>> ExistsByNomeAsync(string statoOrdine);        
     }
 }

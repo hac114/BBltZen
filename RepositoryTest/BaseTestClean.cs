@@ -196,37 +196,43 @@ namespace RepositoryTest
                     new StatoOrdine
                     {
                         StatoOrdineId = 2,
-                        StatoOrdine1 = "in_carrello",
+                        StatoOrdine1 = "in carrello",
                         Terminale = false
                     },
                     new StatoOrdine
                     {
                         StatoOrdineId = 3,
-                        StatoOrdine1 = "In Attesa",
+                        StatoOrdine1 = "in coda",
                         Terminale = false
                     },
                     new StatoOrdine
                     {
                         StatoOrdineId = 4,
-                        StatoOrdine1 = "In Preparazione",
+                        StatoOrdine1 = "in preparazione",
                         Terminale = false
                     },
                     new StatoOrdine
                     {
                         StatoOrdineId = 5,
-                        StatoOrdine1 = "Pronto",
+                        StatoOrdine1 = "pronta consegna",
                         Terminale = false
                     },
                     new StatoOrdine
                     {
                         StatoOrdineId = 6,
-                        StatoOrdine1 = "Completato",
+                        StatoOrdine1 = "consegnato",
                         Terminale = true
                     },
                     new StatoOrdine
                     {
                         StatoOrdineId = 7,
-                        StatoOrdine1 = "Annullato",
+                        StatoOrdine1 = "sospeso",
+                        Terminale = true
+                    },
+                    new StatoOrdine
+                    {
+                        StatoOrdineId = 8,
+                        StatoOrdine1 = "annullato",
                         Terminale = true
                     }
                 );
@@ -443,6 +449,11 @@ namespace RepositoryTest
             else if (typeof(T) == typeof(DimensioneBicchiere))
             {
                 await CleanDimensioneBicchiereDependenciesAsync([.. entities.Cast<DimensioneBicchiere>()]);
+            }
+
+            else if (typeof(T) == typeof(StatoOrdine))
+            {
+                await CleanStatoOrdineDependenciesAsync([.. entities.Cast<StatoOrdine>()]);
             }
 
             // Aggiungi altri entity con dipendenze qui se necessario
@@ -814,6 +825,95 @@ namespace RepositoryTest
             await CreateTestDimensioneBicchiereAsync("S", "Small", 250.00m, 2.50m, 0.85m);
             await CreateTestDimensioneBicchiereAsync("M", "Medium", 500.00m, 3.50m, 1.00m);
             await CreateTestDimensioneBicchiereAsync("L", "Large", 750.00m, 4.50m, 1.30m);
+        }
+
+        #endregion
+
+        #region StatoOrdine Helpers
+
+        protected async Task<StatoOrdine> CreateTestStatoOrdineAsync(
+            string statoOrdine = "Test Stato",
+            bool terminale = false,
+            int? statoOrdineId = null)
+        {
+            var stato = new StatoOrdine
+            {
+                StatoOrdine1 = statoOrdine,
+                Terminale = terminale
+            };
+
+            if (statoOrdineId.HasValue && statoOrdineId > 0)
+            {
+                stato.StatoOrdineId = statoOrdineId.Value;
+            }
+
+            _context.StatoOrdine.Add(stato);
+            await _context.SaveChangesAsync();
+            return stato;
+        }
+
+        protected async Task<List<StatoOrdine>> CreateMultipleStatiOrdineAsync(int count = 3, bool terminali = false)
+        {
+            var stati = new List<StatoOrdine>();
+
+            for (int i = 1; i <= count; i++)
+            {
+                stati.Add(new StatoOrdine
+                {
+                    StatoOrdine1 = $"Stato Test {i}",
+                    Terminale = terminali
+                });
+            }
+
+            _context.StatoOrdine.AddRange(stati);
+            await _context.SaveChangesAsync();
+            return stati;
+        }
+
+        // Metodo per pulire le dipendenze di StatoOrdine
+        protected async Task CleanStatoOrdineDependenciesAsync(List<StatoOrdine> stati)
+        {
+            var statoIds = stati.Select(s => s.StatoOrdineId).ToList();
+
+            // 1. Elimina ConfigSoglieTempi collegati
+            var configSoglie = await _context.ConfigSoglieTempi
+                .Where(c => statoIds.Contains(c.StatoOrdineId))
+                .ToListAsync();
+            _context.ConfigSoglieTempi.RemoveRange(configSoglie);
+
+            // 2. Elimina Ordine collegati
+            var ordini = await _context.Ordine
+                .Where(o => statoIds.Contains(o.StatoOrdineId))
+                .ToListAsync();
+            _context.Ordine.RemoveRange(ordini);
+
+            // 3. Elimina StatoStoricoOrdine collegati
+            var storico = await _context.StatoStoricoOrdine
+                .Where(s => statoIds.Contains(s.StatoOrdineId))
+                .ToListAsync();
+            _context.StatoStoricoOrdine.RemoveRange(storico);
+
+            if (configSoglie.Count > 0 || ordini.Count > 0 || storico.Count > 0)
+            {
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        protected async Task SetupStatoOrdineTestDataAsync()
+        {
+            // Pulisce e ricrea dati per test isolati
+            await CleanTableAsync<StatoOrdine>();
+
+            // Crea gli 8 stati standard (come nel DB di produzione)
+            await CreateTestStatoOrdineAsync("bozza", false, 1);
+            await CreateTestStatoOrdineAsync("in carrello", false, 2);
+            await CreateTestStatoOrdineAsync("in coda", false, 3);
+            await CreateTestStatoOrdineAsync("in preparazione", false, 4);
+            await CreateTestStatoOrdineAsync("pronta consegna", false, 5);
+            await CreateTestStatoOrdineAsync("consegnato", true, 6);
+            await CreateTestStatoOrdineAsync("sospeso", false, 7);
+            await CreateTestStatoOrdineAsync("annullato", true, 8);
+            
         }
 
         #endregion

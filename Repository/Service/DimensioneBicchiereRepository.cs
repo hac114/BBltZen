@@ -595,8 +595,7 @@ namespace Repository.Service
 
                 if (await HasDependenciesAsync(bicchiereId))
                     return SingleResponseDTO<bool>.ErrorResponse(
-                        "Impossibile eliminare il bicchiere perché ci sono dipendenze attive " +
-                        "(BevandaStandard, DimensioneQuantitaIngredienti, PersonalizzazioneCustom o PreferitiCliente collegati)");
+                        "Impossibile eliminare il bicchiere perché ci sono dipendenze collegate");
 
                 _context.DimensioneBicchiere.Remove(bicchiere);
                 await _context.SaveChangesAsync();
