@@ -427,17 +427,22 @@ namespace RepositoryTest
             // ✅ GESTIONE DIPENDENZE PER ENTITY SPECIFICHE
             if (typeof(T) == typeof(UnitaDiMisura))
             {
-                await CleanUnitaDiMisuraDependenciesAsync(entities.Cast<UnitaDiMisura>().ToList());
+                await CleanUnitaDiMisuraDependenciesAsync([.. entities.Cast<UnitaDiMisura>()]);
             }
 
             else if (typeof(T) == typeof(CategoriaIngrediente))
             {
-                await CleanCategoriaIngredienteDependenciesAsync(entities.Cast<CategoriaIngrediente>().ToList());
+                await CleanCategoriaIngredienteDependenciesAsync([.. entities.Cast<CategoriaIngrediente>()]);
             }
 
             else if (typeof(T) == typeof(LogAttivita))
             {
-                await CleanLogAttivitaDependenciesAsync(entities.Cast<LogAttivita>().ToList());
+                await CleanLogAttivitaDependenciesAsync([.. entities.Cast<LogAttivita>()]);
+            }
+
+            else if (typeof(T) == typeof(DimensioneBicchiere))
+            {
+                await CleanDimensioneBicchiereDependenciesAsync([.. entities.Cast<DimensioneBicchiere>()]);
             }
 
             // Aggiungi altri entity con dipendenze qui se necessario
@@ -685,6 +690,130 @@ namespace RepositoryTest
             // (non ci sono tabelle che hanno FK a LogAttivita)
             // Questo metodo è per consistenza con gli altri
             await Task.CompletedTask;
+        }
+
+        #endregion
+
+        #region DimensioneBicchiere Helpers
+
+        protected async Task<DimensioneBicchiere> CreateTestDimensioneBicchiereAsync(
+    string sigla = "TEST",
+    string descrizione = "Test Dimensione",
+    decimal capienza = 500.00m,
+    decimal prezzoBase = 3.50m,
+    decimal moltiplicatore = 1.00m)
+        {
+            // ✅ VERIFICA E CREA UNITA DI MISURA SE NECESSARIO
+            var unita = await _context.UnitaDiMisura.FirstOrDefaultAsync();
+
+            if (unita == null)
+            {
+                // Crea e salva prima l'unità di misura
+                unita = new UnitaDiMisura
+                {
+                    Sigla = "ML",
+                    Descrizione = "Millilitri"
+                };
+                _context.UnitaDiMisura.Add(unita);
+                await _context.SaveChangesAsync(); // ✅ SALVA PRIMA DI USARE L'ID
+            }
+
+            var dimensione = new DimensioneBicchiere
+            {
+                Sigla = sigla,
+                Descrizione = descrizione,
+                Capienza = capienza,
+                UnitaMisuraId = unita.UnitaMisuraId, // ✅ Ora l'ID esiste nel DB
+                PrezzoBase = prezzoBase,
+                Moltiplicatore = moltiplicatore
+            };
+
+            _context.DimensioneBicchiere.Add(dimensione);
+            await _context.SaveChangesAsync();
+
+            return dimensione;
+        }
+
+        protected async Task<List<DimensioneBicchiere>> CreateMultipleDimensioniAsync(int count = 3)
+        {
+            var dimensioni = new List<DimensioneBicchiere>();
+
+            for (int i = 1; i <= count; i++)
+            {
+                dimensioni.Add(new DimensioneBicchiere
+                {
+                    Sigla = $"T{i}",
+                    Descrizione = $"Test Dimensione {i}",
+                    Capienza = 300.00m + (i * 100.00m),
+                    UnitaMisuraId = 1, // ML
+                    PrezzoBase = 2.50m + (i * 0.50m),
+                    Moltiplicatore = 1.00m + (i * 0.15m)
+                });
+            }
+
+            _context.DimensioneBicchiere.AddRange(dimensioni);
+            await _context.SaveChangesAsync();
+            return dimensioni;
+        }
+                
+        // Metodo per pulire le dipendenze di DimensioneBicchiere
+        protected async Task CleanDimensioneBicchiereDependenciesAsync(List<DimensioneBicchiere> dimensioni)
+        {
+            var dimensioneIds = dimensioni.Select(d => d.DimensioneBicchiereId).ToList();
+
+            // 1. BevandaStandard collegati
+            var bevandeStandard = await _context.BevandaStandard
+                .Where(b => dimensioneIds.Contains(b.DimensioneBicchiereId))
+                .ToListAsync();
+            _context.BevandaStandard.RemoveRange(bevandeStandard);
+
+            // 2. DimensioneQuantitaIngredienti collegati
+            var quantitaIngredienti = await _context.DimensioneQuantitaIngredienti
+                .Where(d => dimensioneIds.Contains(d.DimensioneBicchiereId))
+                .ToListAsync();
+            _context.DimensioneQuantitaIngredienti.RemoveRange(quantitaIngredienti);
+
+            // 3. PersonalizzazioneCustom collegati
+            var personalizzazioni = await _context.PersonalizzazioneCustom
+                .Where(p => dimensioneIds.Contains(p.DimensioneBicchiereId))
+                .ToListAsync();
+            _context.PersonalizzazioneCustom.RemoveRange(personalizzazioni);
+
+            // 4. PreferitiCliente collegati (correzione per int?)
+            var preferiti = await _context.PreferitiCliente
+                .Where(p => p.DimensioneBicchiereId.HasValue &&
+                           dimensioneIds.Contains(p.DimensioneBicchiereId.Value)) // ✅ Converti int? a int
+                .ToListAsync();
+            _context.PreferitiCliente.RemoveRange(preferiti);
+
+            if (bevandeStandard.Count > 0 || quantitaIngredienti.Count > 0 ||
+                personalizzazioni.Count > 0 || preferiti.Count > 0)
+            {
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        protected async Task SetupDimensioneBicchiereTestDataAsync()
+        {
+            // Pulisce e ricrea dati per test isolati
+            await CleanTableAsync<DimensioneBicchiere>();
+
+            // ✅ GARANTISCI che esista almeno un'unità di misura PRIMA di creare dimensioni
+            if (!_context.UnitaDiMisura.Any())
+            {
+                var unita = new UnitaDiMisura
+                {
+                    Sigla = "ML",
+                    Descrizione = "Millilitri"
+                };
+                _context.UnitaDiMisura.Add(unita);
+                await _context.SaveChangesAsync(); // ✅ SALVA PRIMA
+            }
+
+            // Crea dati di test usando i metodi helper
+            await CreateTestDimensioneBicchiereAsync("S", "Small", 250.00m, 2.50m, 0.85m);
+            await CreateTestDimensioneBicchiereAsync("M", "Medium", 500.00m, 3.50m, 1.00m);
+            await CreateTestDimensioneBicchiereAsync("L", "Large", 750.00m, 4.50m, 1.30m);
         }
 
         #endregion

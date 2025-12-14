@@ -4,23 +4,19 @@ namespace Repository.Interface
 {
     public interface IDimensioneBicchiereRepository
     {
-        // ✅ CRUD già esistenti
-        Task<DimensioneBicchiereDTO> AddAsync(DimensioneBicchiereDTO bicchiereDto); //OK
-        Task UpdateAsync(DimensioneBicchiereDTO bicchiereDto); //OK
-        Task<bool> DeleteAsync(int bicchiereid); //OK      
-        
-        Task<DimensioneBicchiereDTO?> GetByIdAsync(int bicchiereId); //OK
         Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<DimensioneBicchiereDTO>> GetByIdAsync(int bicchiereId); 
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetBySiglaAsync(string sigla, int page = 1, int pageSize = 10); 
+        Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetByDescrizioneAsync(string descrizione, int page = 1, int pageSize = 10); 
 
+        Task<SingleResponseDTO<DimensioneBicchiereDTO>> AddAsync(DimensioneBicchiereDTO bicchiereDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(DimensioneBicchiereDTO bicchiereDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int bicchiereId);
 
-        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetBySiglaAsync(string? sigla, int page = 1, int pageSize = 10); //OK
-        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetByDescrizioneAsync(string? descrizione, int page = 1, int pageSize = 10); //OK
+        Task<SingleResponseDTO<bool>> ExistsAsync(int bicchiereId);
+        Task<SingleResponseDTO<bool>> ExistsSiglaAsync(string sigla);
+        Task<SingleResponseDTO<bool>> ExistsDescrizioneAsync(string descrizione);
 
-        // ✅ NUOVI METODI FRONTEND
-        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetFrontendByIdAsync(int? bicchiereId = null, int page = 1, int pageSize = 10); //OK
-        Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetFrontendBySiglaAsync(string? sigla, int page = 1, int pageSize = 10); //OK
-        Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetFrontendByDescrizioneAsync(string? descrizione, int page = 1, int pageSize = 10); //OK
-        Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetFrontendAsync(string? sigla, string? descrizione, decimal? capienza, decimal? prezzoBase, decimal? moltiplicatore, int page, int pageSize); //OK
 
     }
 }

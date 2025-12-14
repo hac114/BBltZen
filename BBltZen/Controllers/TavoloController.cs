@@ -1,11 +1,8 @@
-﻿using Database.Models;
-using DTO;
+﻿using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
-using System.Collections.Generic;
+using System;
 using System.Threading.Tasks;
 
 namespace BBltZen.Controllers
@@ -13,7 +10,9 @@ namespace BBltZen.Controllers
     [ApiController]
     [Route("api/[controller]")]
     // [Authorize] // ✅ Commentato per test Swagger
-    public class TavoloController(ITavoloRepository repository, ILogger<TavoloController> logger) : ControllerBase
+    public class TavoloController(
+        ITavoloRepository repository,
+        ILogger<TavoloController> logger) : ControllerBase
     {
         private readonly ITavoloRepository _repository = repository;
         private readonly ILogger<TavoloController> _logger = logger;
@@ -21,7 +20,9 @@ namespace BBltZen.Controllers
         // GET: api/tavolo
         [HttpGet("")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetAll(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -43,7 +44,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.GetByIdAsync(id);
-                return result.Success ? Ok(result) : NotFound(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -52,6 +53,7 @@ namespace BBltZen.Controllers
             }
         }
 
+        // GET: api/tavolo/numero/{numero}
         [HttpGet("numero/{numero:int}")]
         [AllowAnonymous]
         public async Task<ActionResult<SingleResponseDTO<TavoloDTO>>> GetByNumero(int numero)
@@ -59,7 +61,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.GetByNumeroAsync(numero);
-                return result.Success ? Ok(result) : NotFound(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -71,7 +73,9 @@ namespace BBltZen.Controllers
         // GET: api/tavolo/disponibili
         [HttpGet("disponibili")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetDisponibili([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetDisponibili(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -88,7 +92,9 @@ namespace BBltZen.Controllers
         // GET: api/tavolo/occupati
         [HttpGet("occupati")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetOccupati([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetOccupati(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -105,7 +111,10 @@ namespace BBltZen.Controllers
         // GET: api/tavolo/zona/{zona}
         [HttpGet("zona/{zona}")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetByZona(string zona, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TavoloDTO>>> GetByZona(
+            string zona,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -119,21 +128,19 @@ namespace BBltZen.Controllers
             }
         }
 
+        // POST: api/tavolo
         [HttpPost]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<TavoloDTO>>> Create([FromBody] TavoloDTO tavoloDto)
+        public async Task<ActionResult<SingleResponseDTO<TavoloDTO>>> Create(
+            [FromBody] TavoloDTO tavoloDto)
         {
             try
             {
                 if (tavoloDto == null)
-                    return BadRequest("Dati tavolo mancanti");
+                    return BadRequest();
 
                 var result = await _repository.AddAsync(tavoloDto);
-
-                if (!result.Success)
-                    return BadRequest(result);
-
-                return CreatedAtAction(nameof(GetById), new { id = result.Data?.TavoloId }, result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -142,24 +149,23 @@ namespace BBltZen.Controllers
             }
         }
 
+        // PUT: api/tavolo/{id}
         [HttpPut("{id:int}")]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] TavoloDTO tavoloDto)
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(
+            int id,
+            [FromBody] TavoloDTO tavoloDto)
         {
             try
             {
                 if (tavoloDto == null)
-                    return BadRequest("Dati mancanti");
+                    return BadRequest();
 
                 if (id != tavoloDto.TavoloId)
-                    return BadRequest("ID non corrispondente");
+                    return BadRequest();
 
                 var result = await _repository.UpdateAsync(tavoloDto);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
-
-                return result.Data ? NoContent() : Ok(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -168,6 +174,7 @@ namespace BBltZen.Controllers
             }
         }
 
+        // DELETE: api/tavolo/{id}
         [HttpDelete("{id:int}")]
         // [Authorize(Roles = "Admin")]
         public async Task<ActionResult<SingleResponseDTO<bool>>> Delete(int id)
@@ -175,11 +182,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.DeleteAsync(id);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
-
-                return NoContent();
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -222,6 +225,7 @@ namespace BBltZen.Controllers
             }
         }
 
+        // PATCH: api/tavolo/{id}/toggle-disponibilita
         [HttpPatch("{id:int}/toggle-disponibilita")]
         // [Authorize(Roles = "Admin,Impiegato")]
         public async Task<ActionResult<SingleResponseDTO<bool>>> ToggleDisponibilita(int id)
@@ -229,10 +233,6 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.ToggleDisponibilitaAsync(id);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
-
                 return Ok(result);
             }
             catch (Exception ex)
@@ -242,6 +242,7 @@ namespace BBltZen.Controllers
             }
         }
 
+        // PATCH: api/tavolo/numero/{numero}/toggle-disponibilita
         [HttpPatch("numero/{numero:int}/toggle-disponibilita")]
         // [Authorize(Roles = "Admin,Impiegato")]
         public async Task<ActionResult<SingleResponseDTO<bool>>> ToggleDisponibilitaByNumero(int numero)
@@ -249,10 +250,6 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.ToggleDisponibilitaByNumeroAsync(numero);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovato") ? NotFound(result) : BadRequest(result);
-
                 return Ok(result);
             }
             catch (Exception ex)

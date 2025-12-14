@@ -98,12 +98,16 @@ namespace Repository.Service
                     throw new ArgumentException($"Personalizzazione custom non trovata: {personalizzazioneCustomId}");
 
                 // 2. Recupera la dimensione del bicchiere
-                var dimensione = await _dimensioneBicchiereRepo.GetByIdAsync(personalizzazione.DimensioneBicchiereId);
-                if (dimensione == null)
+                var dimensioneResponse = await _dimensioneBicchiereRepo.GetByIdAsync(personalizzazione.DimensioneBicchiereId);
+
+                // ✅ CORREZIONE: Controlla se la risposta è successo e i dati esistono
+                if (!dimensioneResponse.Success || dimensioneResponse.Data == null)
                     throw new ArgumentException($"Dimensione bicchiere non trovata: {personalizzazione.DimensioneBicchiereId}");
 
-                // 3. Calcola prezzo base dalla dimensione (ORA ESISTE!)
-                decimal prezzoBase = dimensione.PrezzoBase;
+                var dimensione = dimensioneResponse.Data; // ✅ Prendi i dati dalla risposta
+
+                // 3. Calcola prezzo base dalla dimensione
+                decimal prezzoBase = dimensione.PrezzoBase; // ✅ Ora funziona perché dimensione è DimensioneBicchiereDTO
 
                 // 4. Calcola somma ingredienti con moltiplicatore dimensione
                 decimal prezzoIngredienti = 0;
@@ -114,7 +118,7 @@ namespace Repository.Service
                     var ingrediente = await _ingredienteRepo.GetByIdAsync(ingredientePers.IngredienteId);
                     if (ingrediente != null && ingrediente.Disponibile)
                     {
-                        // Applica moltiplicatore dimensione (1.0 per Medium, 1.3 per Large)
+                        // ✅ CORREZIONE: Accesso corretto al moltiplicatore
                         prezzoIngredienti += ingrediente.PrezzoAggiunto * dimensione.Moltiplicatore;
                     }
                 }
@@ -124,9 +128,10 @@ namespace Repository.Service
 
                 _cache.Set(cacheKey, prezzoFinale, _cacheDuration);
 
+                // ✅ CORREZIONE: Accesso corretto alla descrizione
                 _logger.LogInformation(
                     "Calcolato prezzo bevanda custom {PersCustomId}: Base={Base}, Ingredienti={Ingredienti}, Finale={Finale}, Dimensione={Dimensione}",
-                    personalizzazioneCustomId, prezzoBase, prezzoIngredienti, prezzoFinale, dimensione.Descrizione); // ✅ Se Descrizione esiste
+                    personalizzazioneCustomId, prezzoBase, prezzoIngredienti, prezzoFinale, dimensione.Descrizione);
 
                 return prezzoFinale;
             }

@@ -1,7 +1,6 @@
 ﻿using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Repository.Interface;
 using System;
 using System.Threading.Tasks;
@@ -11,14 +10,18 @@ namespace BBltZen.Controllers
     [Route("api/[controller]")]
     [ApiController]
     //[Authorize] // ✅ TODO: Riattivare quando l'autenticazione sarà configurata
-    public class LogAttivitaController(ILogAttivitaRepository repository, ILogger<LogAttivitaController> logger) : ControllerBase
+    public class LogAttivitaController(
+        ILogAttivitaRepository repository,
+        ILogger<LogAttivitaController> logger) : ControllerBase
     {
         private readonly ILogAttivitaRepository _repository = repository;
         private readonly ILogger<LogAttivitaController> _logger = logger;
 
         // ✅ GET: api/LogAttivita
         [HttpGet]
-        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetAll(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -39,23 +42,21 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.GetByIdAsync(id);
-
-                // ✅ CONTROLLER SEMPLICISSIMO!
-                return result.Success
-                    ? Ok(result)
-                    : NotFound(result); // Restituisce comunque il DTO con messaggio
+                return Ok(result);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore in GetById per ID: {Id}", id);
-                return StatusCode(500, SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
-                    "Errore interno del server"));
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
         // ✅ GET: api/LogAttivita/tipo/Login
         [HttpGet("tipo/{tipoAttivita}")]
-        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByTipoAttivita(string tipoAttivita, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByTipoAttivita(
+            string tipoAttivita,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -71,13 +72,13 @@ namespace BBltZen.Controllers
 
         // ✅ GET: api/LogAttivita/utente/5
         [HttpGet("utente/{utenteId:int}")]
-        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByUtenteId(int utenteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByUtenteId(
+            int utenteId,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (utenteId <= 0)
-                    return BadRequest("ID utente non valido");
-
                 var result = await _repository.GetByUtenteIdAsync(utenteId, page, pageSize);
                 return Ok(result);
             }
@@ -90,7 +91,10 @@ namespace BBltZen.Controllers
 
         // ✅ GET: api/LogAttivita/tipo-utente/Admin
         [HttpGet("tipo-utente/{tipoUtente}")]
-        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByTipoUtente(string tipoUtente, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByTipoUtente(
+            string tipoUtente,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -106,7 +110,9 @@ namespace BBltZen.Controllers
 
         // ✅ GET: api/LogAttivita/statistiche/conteggio
         [HttpGet("statistiche/conteggio")]
-        public async Task<ActionResult<SingleResponseDTO<int>>> GetNumeroAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
+        public async Task<ActionResult<SingleResponseDTO<int>>> GetNumeroAttivita(
+            [FromQuery] DateTime? dataInizio = null,
+            [FromQuery] DateTime? dataFine = null)
         {
             try
             {
@@ -116,31 +122,22 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore in GetNumeroAttivita");
-                return StatusCode(500, SingleResponseDTO<int>.ErrorResponse("Errore interno del server"));
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
         // ✅ GET: api/LogAttivita/filtro/data
         [HttpGet("filtro/data")]
-        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByDateRange([FromQuery] DateTime dataInizio, [FromQuery] DateTime dataFine, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<LogAttivitaDTO>>> GetByDateRange(
+            [FromQuery] DateTime dataInizio,
+            [FromQuery] DateTime dataFine,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (dataInizio == default)
-                    return BadRequest("Il parametro 'dataInizio' è obbligatorio");
-
-                if (dataFine == default)
-                    return BadRequest("Il parametro 'dataFine' è obbligatorio");
-
-                if (dataInizio > dataFine)
-                    return BadRequest("La data di inizio non può essere successiva alla data di fine");
-
                 var result = await _repository.GetByDateRangeAsync(dataInizio, dataFine, page, pageSize);
                 return Ok(result);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
@@ -151,7 +148,9 @@ namespace BBltZen.Controllers
 
         // ✅ GET: api/LogAttivita/statistiche/riepilogo
         [HttpGet("statistiche/riepilogo")]
-        public async Task<ActionResult<SingleResponseDTO<Dictionary<string, int>>>> GetStatisticheAttivita([FromQuery] DateTime? dataInizio = null, [FromQuery] DateTime? dataFine = null)
+        public async Task<ActionResult<SingleResponseDTO<Dictionary<string, int>>>> GetStatisticheAttivita(
+            [FromQuery] DateTime? dataInizio = null,
+            [FromQuery] DateTime? dataFine = null)
         {
             try
             {
@@ -161,58 +160,45 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore in GetStatisticheAttivita");
-                return StatusCode(500, SingleResponseDTO<Dictionary<string, int>>.ErrorResponse("Errore interno del server"));
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // ✅ POST: api/LogAttivita - METODO ADATTATO
+        // ✅ POST: api/LogAttivita
         [HttpPost]
-        public async Task<ActionResult<SingleResponseDTO<LogAttivitaDTO>>> Create([FromBody] LogAttivitaDTO logAttivitaDto)
+        public async Task<ActionResult<SingleResponseDTO<LogAttivitaDTO>>> Create(
+            [FromBody] LogAttivitaDTO logAttivitaDto)
         {
             try
             {
-                // 1. Validazione HTTP MINIMA (solo null check)
                 if (logAttivitaDto == null)
-                    return BadRequest("Dati obbligatori");
+                    return BadRequest();
 
-                // 2. UNA SOLA chiamata al Repository
                 var result = await _repository.AddAsync(logAttivitaDto);
-
-                // 3. Response HTTP basata sul successo del repository
-                return result.Success
-                    ? Ok(result)  // Il repository gestisce già i messaggi di successo/errore
-                    : BadRequest(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                // 4. Logging errori + response generica
                 _logger.LogError(ex, "Errore in Create");
-                return StatusCode(500, SingleResponseDTO<LogAttivitaDTO>.ErrorResponse(
-                    "Errore interno del server"));
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // ✅ DELETE: api/LogAttivita/cleanup - METODO ADATTATO
+        // ✅ DELETE: api/LogAttivita/cleanup
         [HttpDelete("cleanup")]
         //[Authorize(Roles = "Admin")] // ✅ TODO: Riattivare quando l'autenticazione sarà configurata
-        public async Task<ActionResult<SingleResponseDTO<int>>> CleanupOldLogs([FromQuery] int giorniRitenzione = 90)
+        public async Task<ActionResult<SingleResponseDTO<int>>> CleanupOldLogs(
+            [FromQuery] int giorniRitenzione = 90)
         {
             try
             {
-                // 1. UNA SOLA chiamata al Repository (lui gestisce la validazione)
                 var result = await _repository.CleanupOldLogsAsync(giorniRitenzione);
-
-                // 2. Response HTTP basata sul successo del repository
-                return result.Success
-                    ? Ok(result)  // Il repository gestisce già i messaggi di successo/errore
-                    : BadRequest(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                // 3. Logging errori + response generica
                 _logger.LogError(ex, "Errore in CleanupOldLogs per giorni: {Giorni}", giorniRitenzione);
-                return StatusCode(500, SingleResponseDTO<int>.ErrorResponse(
-                    "Errore interno del server"));
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
@@ -228,7 +214,7 @@ namespace BBltZen.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore in Exists per LogId: {LogId}", logId);
-                return StatusCode(500, SingleResponseDTO<bool>.ErrorResponse("Errore interno del server"));
+                return StatusCode(500, "Errore interno del server");
             }
         }
     }

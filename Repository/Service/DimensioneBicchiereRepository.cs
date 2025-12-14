@@ -1,68 +1,121 @@
 ﻿using Database.Models;
 using DTO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Repository.Helper;
 using Repository.Interface;
+using System;
 using System.ComponentModel;
 
 namespace Repository.Service
 {
-    public class DimensioneBicchiereRepository(BubbleTeaContext context) : IDimensioneBicchiereRepository
+    public class DimensioneBicchiereRepository(BubbleTeaContext context, ILogger<DimensioneBicchiereRepository> logger) : IDimensioneBicchiereRepository
     {
         private readonly BubbleTeaContext _context = context;
-                        
-        private static DimensioneBicchiereDTO MapToDTO(DimensioneBicchiere bicchiereFrontend)
+        private readonly ILogger _logger = logger;
+
+        private static DimensioneBicchiereDTO MapToDTO(DimensioneBicchiere bicchiere)
         {
-            return new DimensioneBicchiereDTO
+            var dto = new DimensioneBicchiereDTO
             {
-                DimensioneBicchiereId = bicchiereFrontend.DimensioneBicchiereId,
-                Sigla = bicchiereFrontend.Sigla,
-                Descrizione = bicchiereFrontend.Descrizione,
-                Capienza = bicchiereFrontend.Capienza,
-                PrezzoBase = bicchiereFrontend.PrezzoBase,
-                Moltiplicatore = bicchiereFrontend.Moltiplicatore,
-                UnitaMisura = new UnitaDiMisuraDTO 
-                {
-                    UnitaMisuraId = bicchiereFrontend.UnitaMisura.UnitaMisuraId,
-                    Sigla = bicchiereFrontend.UnitaMisura.Sigla,
-                    Descrizione = bicchiereFrontend.UnitaMisura.Descrizione
-                }
+                DimensioneBicchiereId = bicchiere.DimensioneBicchiereId,
+                Sigla = bicchiere.Sigla,
+                Descrizione = bicchiere.Descrizione,
+                Capienza = bicchiere.Capienza,
+                PrezzoBase = bicchiere.PrezzoBase,
+                Moltiplicatore = bicchiere.Moltiplicatore,
+                UnitaMisuraId = bicchiere.UnitaMisuraId
             };
-        }
 
-        private async Task<bool> SiglaExistsAsync(string sigla)
-        {
-            return await _context.DimensioneBicchiere
-                .AnyAsync(d => d.Sigla == sigla);
-        }
-
-        private async Task<bool> DescrizioneExistsAsync(string descrizione)
-        {
-            return await _context.DimensioneBicchiere
-                .AnyAsync(d => d.Descrizione == descrizione);
-        }
-
-        public async Task<DimensioneBicchiereDTO?> GetByIdAsync(int bicchiereId)
-        {
-            try
+            // ✅ Gestione sicura della navigation property
+            if (bicchiere.UnitaMisura != null)
             {
-                // ✅ Validazione input
-                if (bicchiereId <= 0)
-                    return null;
-
-                // ✅ Query diretta al singolo record
-                var dimensione = await _context.DimensioneBicchiere
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == bicchiereId);
-
-                // ✅ Restituisci DTO o null
-                return dimensione == null ? null : MapToDTO(dimensione);
+                dto.UnitaMisura = new UnitaDiMisuraDTO
+                {
+                    UnitaMisuraId = bicchiere.UnitaMisura.UnitaMisuraId,
+                    Sigla = bicchiere.UnitaMisura.Sigla,
+                    Descrizione = bicchiere.UnitaMisura.Descrizione
+                };
             }
-            catch (Exception)
+            else
             {
-                // ✅ Gestione errori minimale
-                return null;
+                // ✅ Assegna null esplicitamente se necessario
+                dto.UnitaMisura = null;
             }
+
+            return dto;
+        }
+
+        private async Task<bool> ExistsSiglaInternalAsync(string sigla)
+        {
+            if (string.IsNullOrWhiteSpace(sigla))
+                return false;
+
+            var searchTerm = StringHelper.NormalizeSearchTerm(sigla);
+            return await _context.DimensioneBicchiere
+                .AsNoTracking()
+                .AnyAsync(b => StringHelper.EqualsCaseInsensitive(b.Sigla, searchTerm));
+        }
+
+        private async Task<bool> ExistsDescrizioneInternalAsync(string descrizione)
+        {
+            if (string.IsNullOrWhiteSpace(descrizione))
+                return false;
+
+            var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
+            return await _context.DimensioneBicchiere
+                .AsNoTracking()
+                .AnyAsync(b => StringHelper.EqualsCaseInsensitive(b.Descrizione, searchTerm));
+        }
+
+        private async Task<bool> ExistsSiglaForOtherInternalAsync(int bicchiereId, string sigla)
+        {
+            if (string.IsNullOrWhiteSpace(sigla))
+                return false;
+
+            var searchTerm = StringHelper.NormalizeSearchTerm(sigla);
+            return await _context.DimensioneBicchiere
+                .AsNoTracking()
+                .AnyAsync(b => b.DimensioneBicchiereId != bicchiereId && StringHelper.EqualsCaseInsensitive(b.Sigla, searchTerm));
+        }
+
+        private async Task<bool> ExistsDescrizioneForOtherInternalAsync(int bicchiereId, string descrizione)
+        {
+            if (string.IsNullOrWhiteSpace(descrizione))
+                return false;
+
+            var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
+            return await _context.DimensioneBicchiere
+                .AsNoTracking()
+                .AnyAsync(b => b.DimensioneBicchiereId != bicchiereId && StringHelper.EqualsCaseInsensitive(b.Descrizione, searchTerm));
+        }
+
+        // ✅ Metodo per verificare esistenza Unità di Misura
+        private async Task<bool> UnitaMisuraExistsInternalAsync(int unitaMisuraId)
+        {
+            if (unitaMisuraId <= 0)
+                return false;
+
+            return await _context.UnitaDiMisura
+                .AsNoTracking()
+                .AnyAsync(u => u.UnitaMisuraId == unitaMisuraId);
+        }
+
+        private async Task<bool> HasDependenciesAsync(int dimensioneBicchiereId)
+        {
+            bool hasBevandaStandard = await _context.BevandaStandard
+                .AnyAsync(b => b.DimensioneBicchiereId == dimensioneBicchiereId);
+
+            bool hasDimensioneQuantitaIngredienti = await _context.DimensioneQuantitaIngredienti
+                .AnyAsync(d => d.DimensioneBicchiereId == dimensioneBicchiereId);
+
+            bool hasPersonalizzazioneCustom = await _context.PersonalizzazioneCustom
+                .AnyAsync(p => p.DimensioneBicchiereId == dimensioneBicchiereId);
+
+            bool hasPreferitiCliente = await _context.PreferitiCliente
+                .AnyAsync(c => c.DimensioneBicchiereId == dimensioneBicchiereId);
+
+            return hasBevandaStandard || hasDimensioneQuantitaIngredienti || hasPersonalizzazioneCustom || hasPreferitiCliente;
         }
 
         public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetAllAsync(int page = 1, int pageSize = 10)
@@ -74,14 +127,14 @@ namespace Repository.Service
 
                 var query = _context.DimensioneBicchiere
                     .AsNoTracking()
-                    .OrderBy(d => d.Descrizione)
-                    .ThenBy(d => d.Sigla);
+                    .OrderBy(b => b.Sigla)
+                    .ThenBy(b => b.Descrizione);
 
                 var totalCount = await query.CountAsync();
                 var items = await query
                     .Skip(skip)
                     .Take(safePageSize)
-                    .Select(d => MapToDTO(d))
+                    .Select(b => MapToDTO(b))
                     .ToListAsync();
 
                 return new PaginatedResponseDTO<DimensioneBicchiereDTO>
@@ -91,8 +144,8 @@ namespace Repository.Service
                     PageSize = safePageSize,
                     TotalCount = totalCount,
                     Message = totalCount == 0
-                        ? "Nessuna dimensione bicchiere trovata"
-                        : $"Trovate {totalCount} dimensioni bicchiere"
+                        ? "Nessun bicchiere trovato"
+                        : $"Trovato {totalCount} bicchieri"
                 };
             }
             catch (Exception)
@@ -103,495 +156,546 @@ namespace Repository.Service
                     Page = 1,
                     PageSize = pageSize,
                     TotalCount = 0,
-                    Message = "Errore nel recupero delle dimensioni bicchiere"
+                    Message = "Errore nel recupero dei bicchieri"
                 };
             }
         }
 
-        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetBySiglaAsync(string? sigla, int page = 1, int pageSize = 10) //OK
+        public async Task<SingleResponseDTO<DimensioneBicchiereDTO>> GetByIdAsync(int bicchiereId)
         {
-            // ✅ Validazione sicurezza input
-            if (!SecurityHelper.IsValidInput(sigla))
+            try
             {
-                throw new ArgumentException("Parametro sigla non valido per motivi di sicurezza");
+                if (bicchiereId <= 0)
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("ID bicchiere non valido");
+
+                var bicchiere = await _context.DimensioneBicchiere
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.DimensioneBicchiereId == bicchiereId);
+
+                if (bicchiere == null)
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.NotFoundResponse(
+                        $"Bicchiere con ID {bicchiereId} non trovato");
+
+                return SingleResponseDTO<DimensioneBicchiereDTO>.SuccessResponse(
+                    MapToDTO(bicchiere),
+                    $"Bicchiere con ID {bicchiereId} trovato");
             }
-
-            // ✅ Paginazione sicura
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            // ✅ Gestione sicura del parametro nullable
-            var normalizedSigla = string.IsNullOrWhiteSpace(sigla)
-                ? string.Empty
-                : StringHelper.NormalizeSearchTerm(sigla!);
-
-            // ✅ Query base SENZA include (backend usa solo ID)
-            var query = _context.DimensioneBicchiere
-                .AsNoTracking()
-                .AsQueryable();
-
-            // ✅ Applica filtro solo se sigla non è null/empty
-            // Usa "StartsWith" per ricerca "inizia con" (come frontend)
-            if (!string.IsNullOrWhiteSpace(normalizedSigla))
+            catch (Exception ex)
             {
-                query = query.Where(d =>
-                    StringHelper.StartsWithCaseInsensitive(d.Sigla, normalizedSigla));
+                _logger.LogError(ex, "Errore in GetByIdAsync per bicchiereId: {BicchiereId}", bicchiereId);
+                return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse(
+                    "Errore interno nel recupero del bicchiere");
             }
-
-            // ✅ Ordinamento coerente con frontend
-            query = query.OrderBy(d => d.Sigla)
-                         .ThenBy(d => d.Descrizione)
-                         .ThenBy(d => d.Capienza);
-
-            // ✅ Conteggio totale
-            var totalCount = await query.CountAsync();
-
-            // ✅ Paginazione e mapping con DTO backend
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(d => MapToDTO(d)) // ✅ Usa MapToDTO per DTO backend
-                .ToListAsync();
-
-            // ✅ Costruzione messaggio dinamico (uguale a frontend)
-            var message = string.IsNullOrWhiteSpace(sigla)
-                ? $"Trovate {totalCount} dimensioni bicchiere (tutte)"
-                : $"Trovate {totalCount} dimensioni bicchiere con sigla che inizia con '{sigla}'";
-
-            return new PaginatedResponseDTO<DimensioneBicchiereDTO?>
-            {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount,
-                Message = message
-            };
         }
 
-        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetByDescrizioneAsync(string? descrizione, int page = 1, int pageSize = 10)
+        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetBySiglaAsync(string sigla, int page = 1, int pageSize = 10)
         {
-            // ✅ Validazione sicurezza input
-            if (!SecurityHelper.IsValidInput(descrizione))
+            try
             {
-                throw new ArgumentException("Parametro descrizione non valido per motivi di sicurezza");
-            }
-
-            // ✅ Paginazione sicura
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            // ✅ Gestione sicura del parametro nullable
-            var normalizedDescrizione = string.IsNullOrWhiteSpace(descrizione)
-                ? string.Empty
-                : StringHelper.NormalizeSearchTerm(descrizione!);
-
-            // ✅ Query base SENZA include (backend usa solo ID)
-            var query = _context.DimensioneBicchiere
-                .AsNoTracking()
-                .AsQueryable();
-
-            // ✅ Applica filtro solo se descrizione non è null/empty
-            // Usa "Contains" per ricerca parziale nella descrizione
-            if (!string.IsNullOrWhiteSpace(normalizedDescrizione))
-            {
-                query = query.Where(d =>
-                    StringHelper.ContainsCaseInsensitive(d.Descrizione, normalizedDescrizione));
-            }
-
-            // ✅ Ordinamento coerente con frontend
-            query = query.OrderBy(d => d.Descrizione)
-                         .ThenBy(d => d.Sigla)
-                         .ThenBy(d => d.Capienza);
-
-            // ✅ Conteggio totale
-            var totalCount = await query.CountAsync();
-
-            // ✅ Paginazione e mapping con DTO backend
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(d => MapToDTO(d)) // ✅ Usa MapToDTO per DTO backend
-                .ToListAsync();
-
-            // ✅ Costruzione messaggio dinamico (uguale a frontend)
-            var message = string.IsNullOrWhiteSpace(descrizione)
-                ? $"Trovate {totalCount} dimensioni bicchiere (tutte)"
-                : $"Trovate {totalCount} dimensioni bicchiere con descrizione contenente '{descrizione}'";
-
-            return new PaginatedResponseDTO<DimensioneBicchiereDTO?>
-            {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount,
-                Message = message
-            };
-        }
-
-        public async Task<DimensioneBicchiereDTO> AddAsync(DimensioneBicchiereDTO bicchiereDto) //OK
-        {
-            ArgumentNullException.ThrowIfNull(bicchiereDto);
-
-            if ((await SiglaExistsAsync(bicchiereDto.Sigla)) || (await DescrizioneExistsAsync(bicchiereDto.Descrizione)))
-            {
-                throw new ArgumentException($"Esiste già un bicchiere con la sigla '{bicchiereDto.Sigla}' e con la descrizione '{bicchiereDto.Descrizione}'");
-            }
-
-            var bicchiere = new DimensioneBicchiere
-            {
-                Sigla = bicchiereDto.Sigla,
-                Descrizione = bicchiereDto.Descrizione,
-                Capienza = bicchiereDto.Capienza,
-                UnitaMisuraId = bicchiereDto.UnitaMisuraId,
-                PrezzoBase = bicchiereDto.PrezzoBase,
-                Moltiplicatore = bicchiereDto.Moltiplicatore
-            };
-
-            _context.DimensioneBicchiere.Add(bicchiere);
-            await _context.SaveChangesAsync();
-
-            bicchiereDto.DimensioneBicchiereId = bicchiere.DimensioneBicchiereId;
-            return bicchiereDto;
-        }
-
-        private async Task<bool> SiglaExistsForOtherAsync(int excludeId, string sigla)
-        {
-            return await _context.DimensioneBicchiere
-                .AnyAsync(d => d.DimensioneBicchiereId != excludeId &&
-                              d.Sigla == sigla);
-        }
-
-        private async Task<bool> DescrizioneExistsForOtherAsync(int excludeId, string descrizione)
-        {
-            return await _context.DimensioneBicchiere
-                .AnyAsync(d => d.DimensioneBicchiereId != excludeId &&
-                              d.Descrizione == descrizione);
-        }
-
-        public async Task UpdateAsync(DimensioneBicchiereDTO bicchiereDto)
-        {
-            // ✅ Usa FindAsync per chiave primaria (più efficiente)
-            var bicchiere = await _context.DimensioneBicchiere
-                .FindAsync(bicchiereDto.DimensioneBicchiereId);
-
-            ArgumentNullException.ThrowIfNull(bicchiere,
-                $"Dimensione bicchiere con ID {bicchiereDto.DimensioneBicchiereId} non trovata");
-
-            // ✅ Correzione: Controlla se la sigla ESISTE IN UN ALTRO RECORD (non in sé stesso)
-            if (await SiglaExistsForOtherAsync(bicchiereDto.DimensioneBicchiereId, bicchiereDto.Sigla))
-            {
-                throw new ArgumentException($"Esiste già un'altra dimensione con la sigla '{bicchiereDto.Sigla}'");
-            }
-
-            // ✅ Correzione: Controlla se la descrizione ESISTE IN UN ALTRO RECORD
-            if (await DescrizioneExistsForOtherAsync(bicchiereDto.DimensioneBicchiereId, bicchiereDto.Descrizione))
-            {
-                throw new ArgumentException($"Esiste già un'altra dimensione con la descrizione '{bicchiereDto.Descrizione}'");
-            }
-
-            // ✅ Aggiorna solo i campi che possono cambiare
-            bicchiere.Sigla = bicchiereDto.Sigla;
-            bicchiere.Descrizione = bicchiereDto.Descrizione;
-            bicchiere.Capienza = bicchiereDto.Capienza;
-            bicchiere.UnitaMisuraId = bicchiereDto.UnitaMisuraId;
-            bicchiere.PrezzoBase = bicchiereDto.PrezzoBase;
-            bicchiere.Moltiplicatore = bicchiereDto.Moltiplicatore;
-
-            await _context.SaveChangesAsync();
-        }
-
-        private async Task<bool> HasDependenciesAsync(int dimensioneBicchiereId)
-        {
-            // ✅ Controlla in sequenza (più semplice da leggere)
-            return await _context.BevandaStandard.AnyAsync(b => b.DimensioneBicchiereId == dimensioneBicchiereId) ||
-                   await _context.DimensioneQuantitaIngredienti.AnyAsync(d => d.DimensioneBicchiereId == dimensioneBicchiereId) ||
-                   await _context.PersonalizzazioneCustom.AnyAsync(p => p.DimensioneBicchiereId == dimensioneBicchiereId) ||
-                   await _context.PreferitiCliente.AnyAsync(p => p.DimensioneBicchiereId == dimensioneBicchiereId);
-        }
-
-        public async Task<bool> DeleteAsync(int bicchiereid) //OK 
-        {
-            var bicchiere = await _context.DimensioneBicchiere.FindAsync(bicchiereid);
-            if (bicchiere == null) return false;
-
-            // ✅ Controlla dipendenze prima di eliminare
-            if (await HasDependenciesAsync(bicchiereid))
-                throw new InvalidOperationException($"Impossibile eliminare il bicchiere Id '{bicchiereid}' perché ci sono dipendenze attive");
-
-            _context.DimensioneBicchiere.Remove(bicchiere);
-            await _context.SaveChangesAsync();
-            return true;
-        }
-
-        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetFrontendByIdAsync(int? bicchiereId = null, int page = 1, int pageSize = 10) //OK
-        {
-            // ✅ Validazione paginazione
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            // ✅ Query base con include per UnitaMisura
-            var query = _context.DimensioneBicchiere
-                .Include(d => d.UnitaMisura)
-                .AsNoTracking()
-                .AsQueryable();
-
-            // ✅ Se bicchiereId ha valore, filtra per quello specifico
-            if (bicchiereId.HasValue && bicchiereId > 0)
-            {
-                query = query.Where(d => d.DimensioneBicchiereId == bicchiereId.Value);
-            }
-
-            // ✅ Ordinamento per coerenza
-            query = query.OrderBy(d => d.Descrizione)
-                         .ThenBy(d => d.Sigla);
-
-            // ✅ Conteggio totale
-            var totalCount = await query.CountAsync();
-
-            // ✅ Se c'è un ID specifico e non troviamo nulla
-            if (bicchiereId.HasValue && totalCount == 0)
-            {
-                return new PaginatedResponseDTO<DimensioneBicchiereDTO?>
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(sigla, maxLength: 3))
                 {
-                    Data = [null], // Record non trovato
+                    return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'sigla' contiene caratteri non validi"
+                    };
+                }
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(sigla);
+
+                if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'sigla' è obbligatorio"
+                    };
+                }
+
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.DimensioneBicchiere
+                    .AsNoTracking()
+                    .Where(b => b.Sigla != null &&
+                               StringHelper.StartsWithCaseInsensitive(b.Sigla, searchTerm))
+                    .OrderBy(b => b.Sigla)
+                    .ThenBy(b => b.Descrizione);
+
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(b => MapToDTO(b))
+                    .ToListAsync();
+
+                string message;
+                if (totalCount == 0)
+                {
+                    message = $"Nessun bicchiere trovato con sigla che inizia con '{searchTerm}'";
+                }
+                else if (totalCount == 1)
+                {
+                    message = $"Trovato 1 bicchiere con sigla che inizia con '{searchTerm}'";
+                }
+                else
+                {
+                    message = $"Trovati {totalCount} bicchieri con sigla che inizia con '{searchTerm}'";
+                }
+
+                return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                {
+                    Data = items,
                     Page = safePage,
                     PageSize = safePageSize,
-                    TotalCount = 0,
-                    Message = $"Dimensione bicchiere con ID {bicchiereId} non trovata"
+                    TotalCount = totalCount,
+                    Message = message
                 };
             }
-
-            // ✅ Paginazione e mapping
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(d => MapToDTO(d))
-                .ToListAsync();
-
-            // ✅ Costruzione messaggio appropriato
-            var message = bicchiereId.HasValue
-                ? $"Trovata dimensione bicchiere ID {bicchiereId}"
-                : $"Trovate {totalCount} dimensioni bicchiere (pagina {safePage} di {Math.Ceiling(totalCount / (double)safePageSize)})";
-
-            return new PaginatedResponseDTO<DimensioneBicchiereDTO?>
+            catch (Exception)
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount,
-                Message = message
-            };
+                return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero dei bicchieri per sigla"
+                };
+            }
         }
 
-        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO?>> GetFrontendBySiglaAsync(string? sigla, int page = 1, int pageSize = 10) //OK
+        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetByDescrizioneAsync(string descrizione, int page = 1, int pageSize = 10)
         {
-            // ✅ Validazione sicurezza input
-            if (!SecurityHelper.IsValidInput(sigla))
+            try
             {
-                throw new ArgumentException("Parametro sigla non valido per motivi di sicurezza");
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
+                {
+                    return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'descrizione' contiene caratteri non validi"
+                    };
+                }
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
+
+                if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "Il parametro 'descrizione' è obbligatorio"
+                    };
+                }
+
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.DimensioneBicchiere
+                    .AsNoTracking()
+                    .Where(b => b.Descrizione != null &&
+                               StringHelper.StartsWithCaseInsensitive(b.Descrizione, searchTerm))
+                    .OrderBy(b => b.Sigla)
+                    .ThenBy(b => b.Descrizione);
+
+                var totalCount = await query.CountAsync();
+                var items = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .Select(b => MapToDTO(b))
+                    .ToListAsync();
+
+                string message;
+                if (totalCount == 0)
+                {
+                    message = $"Nessun bicchiere trovato con descrizione che inizia con '{searchTerm}'";
+                }
+                else if (totalCount == 1)
+                {
+                    message = $"Trovato 1 bicchiere con descrizione che inizia con '{searchTerm}'";
+                }
+                else
+                {
+                    message = $"Trovati {totalCount} bicchieri con descrizione che inizia con '{searchTerm}'";
+                }
+
+                return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                {
+                    Data = items,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
             }
-
-            // ✅ Paginazione sicura
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            // ✅ Gestione sicura del parametro nullable
-            var normalizedSigla = string.IsNullOrWhiteSpace(sigla)
-                ? string.Empty
-                : StringHelper.NormalizeSearchTerm(sigla!);
-
-            // ✅ Query base con include
-            var query = _context.DimensioneBicchiere
-                .Include(d => d.UnitaMisura)
-                .AsNoTracking()
-                .AsQueryable();
-
-            // ✅ Applica filtro solo se sigla non è null/empty
-            // Usa "StartsWith" per ricerca "inizia con"
-            if (!string.IsNullOrWhiteSpace(normalizedSigla))
+            catch (Exception)
             {
-                query = query.Where(d =>
-                    StringHelper.StartsWithCaseInsensitive(d.Sigla, normalizedSigla));
+                return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero dei bicchieri per descrizione"
+                };
             }
-
-            // ✅ Ordinamento coerente
-            query = query.OrderBy(d => d.Sigla)
-                         .ThenBy(d => d.Descrizione)
-                         .ThenBy(d => d.Capienza);
-
-            // ✅ Conteggio totale
-            var totalCount = await query.CountAsync();
-
-            // ✅ Paginazione e mapping
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(d => MapToDTO(d))
-                .ToListAsync();
-
-            // ✅ Costruzione messaggio dinamico
-            var message = string.IsNullOrWhiteSpace(sigla)
-                ? $"Trovate {totalCount} dimensioni bicchiere (tutte)"
-                : $"Trovate {totalCount} dimensioni bicchiere con sigla che inizia con '{sigla}'";
-
-            return new PaginatedResponseDTO<DimensioneBicchiereDTO?>
-            {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount,
-                Message = message
-            };
         }
 
-        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetFrontendByDescrizioneAsync(string? descrizione, int page = 1, int pageSize = 10) //OK
+        public async Task<SingleResponseDTO<DimensioneBicchiereDTO>> AddAsync(DimensioneBicchiereDTO bicchiereDto)
         {
-            // ✅ Validazione sicurezza input
-            if (!SecurityHelper.IsValidInput(descrizione))
+            try
             {
-                throw new ArgumentException("Parametro descrizione non valido per motivi di sicurezza");
+                ArgumentNullException.ThrowIfNull(bicchiereDto);
+
+                // ✅ 1. Validazioni input obbligatori
+                if (string.IsNullOrWhiteSpace(bicchiereDto.Sigla))
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("Sigla obbligatoria");
+
+                if (string.IsNullOrWhiteSpace(bicchiereDto.Descrizione))
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("Descrizione obbligatoria");
+
+                if (bicchiereDto.UnitaMisuraId <= 0)
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("Unità di misura obbligatoria");
+
+                // ✅ 2. Validazioni range/numeriche
+                if (bicchiereDto.Capienza < 250m || bicchiereDto.Capienza > 1000m)
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("La capienza deve essere tra 250 e 1000");
+
+                if (bicchiereDto.PrezzoBase < 0.01m || bicchiereDto.PrezzoBase > 100m)
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("Il prezzo base deve essere tra 0.01 e 100");
+
+                if (bicchiereDto.Moltiplicatore < 0.1m || bicchiereDto.Moltiplicatore > 3.0m)
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("Il moltiplicatore deve essere tra 0.1 e 3.0");
+
+                // ✅ 3. Validazione sicurezza SULL'INPUT ORIGINALE con SecurityHelper
+                if (!SecurityHelper.IsValidInput(bicchiereDto.Sigla, 3))
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("Sigla non valida o contiene caratteri pericolosi");
+
+                if (!SecurityHelper.IsValidInput(bicchiereDto.Descrizione, 50))
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse("Descrizione non valida o contiene caratteri pericolosi");
+
+                // ✅ 4. Validazione Unità di Misura esista
+                if (!await UnitaMisuraExistsInternalAsync(bicchiereDto.UnitaMisuraId))
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse(
+                        $"Unità di misura con ID {bicchiereDto.UnitaMisuraId} non trovata");
+
+                // ✅ 5. SOLO DOPO la validazione, normalizza con StringHelper
+                var sigla = StringHelper.NormalizeSearchTerm(bicchiereDto.Sigla);
+                var descrizione = StringHelper.NormalizeSearchTerm(bicchiereDto.Descrizione);
+
+                // ✅ 6. Controllo duplicati (usa metodi interni che usano StringHelper)
+                if (await ExistsSiglaInternalAsync(sigla))
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse(
+                        $"Esiste già un bicchiere con sigla '{sigla}'");
+
+                if (await ExistsDescrizioneInternalAsync(descrizione))
+                    return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse(
+                        $"Esiste già un bicchiere con descrizione '{descrizione}'");
+
+                // ✅ 7. CREAZIONE ENTITÀ
+                var bicchiere = new DimensioneBicchiere
+                {
+                    Sigla = SecurityHelper.NormalizeSafe(sigla),
+                    Descrizione = descrizione,
+                    Capienza = bicchiereDto.Capienza,
+                    UnitaMisuraId = bicchiereDto.UnitaMisuraId,
+                    PrezzoBase = bicchiereDto.PrezzoBase,
+                    Moltiplicatore = bicchiereDto.Moltiplicatore
+                };
+
+                // ✅ 8. SALVATAGGIO
+                await _context.DimensioneBicchiere.AddAsync(bicchiere);
+                await _context.SaveChangesAsync();
+
+                // ✅ 9. AGGIORNA DTO
+                bicchiereDto.DimensioneBicchiereId = bicchiere.DimensioneBicchiereId;
+
+                // Carica l'unità di misura per il DTO
+                await _context.Entry(bicchiere)
+                    .Reference(b => b.UnitaMisura)
+                    .LoadAsync();
+
+                // ✅ 10. LOG
+                _logger.LogInformation("Bicchiere aggiunto: ID={DimensioneBicchiereId}, Sigla={Sigla}",
+                    bicchiere.DimensioneBicchiereId, sigla);
+
+                // ✅ 11. RISPOSTA
+                return SingleResponseDTO<DimensioneBicchiereDTO>.SuccessResponse(
+                    bicchiereDto,
+                    $"Bicchiere '{sigla}' creato con successo (ID: {bicchiere.DimensioneBicchiereId})");
             }
-
-            // ✅ Paginazione sicura
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            // ✅ Gestione sicura del parametro nullable
-            var normalizedDescrizione = string.IsNullOrWhiteSpace(descrizione)
-                ? string.Empty
-                : StringHelper.NormalizeSearchTerm(descrizione!);
-
-            // ✅ Query base con include
-            var query = _context.DimensioneBicchiere
-                .Include(d => d.UnitaMisura)
-                .AsNoTracking()
-                .AsQueryable();
-
-            // ✅ Applica filtro solo se descrizione non è null/empty
-            // Usa "Contains" per ricerca parziale nella descrizione
-            if (!string.IsNullOrWhiteSpace(normalizedDescrizione))
+            catch (Exception ex)
             {
-                query = query.Where(d =>
-                    StringHelper.ContainsCaseInsensitive(d.Descrizione, normalizedDescrizione));
+                _logger.LogError(ex, "Errore in AddAsync per bicchiereDto: {@BicchiereDto}", bicchiereDto);
+                return SingleResponseDTO<DimensioneBicchiereDTO>.ErrorResponse(
+                    "Errore interno durante la creazione del bicchiere");
             }
-
-            // ✅ Ordinamento coerente (prima per descrizione, poi per sigla)
-            query = query.OrderBy(d => d.Descrizione)
-                         .ThenBy(d => d.Sigla)
-                         .ThenBy(d => d.Capienza);
-
-            // ✅ Conteggio totale
-            var totalCount = await query.CountAsync();
-
-            // ✅ Paginazione e mapping
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(d => MapToDTO(d))
-                .ToListAsync();
-
-            // ✅ Costruzione messaggio dinamico
-            var message = string.IsNullOrWhiteSpace(descrizione)
-                ? $"Trovate {totalCount} dimensioni bicchiere (tutte)"
-                : $"Trovate {totalCount} dimensioni bicchiere con descrizione contenente '{descrizione}'";
-
-            return new PaginatedResponseDTO<DimensioneBicchiereDTO>
-            {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount,
-                Message = message
-            };
         }
 
-        public async Task<PaginatedResponseDTO<DimensioneBicchiereDTO>> GetFrontendAsync(string? sigla, string? descrizione, decimal? capienza, decimal? prezzoBase, decimal? moltiplicatore, int page = 1, int pageSize = 10)
+        public async Task<SingleResponseDTO<bool>> UpdateAsync(DimensioneBicchiereDTO bicchiereDto)
         {
-            // ✅ Validazione sicurezza per input stringhe
-            if (!SecurityHelper.IsValidInput(sigla) || !SecurityHelper.IsValidInput(descrizione))
+            try
             {
-                throw new ArgumentException("Parametri di ricerca non validi per motivi di sicurezza");
+                ArgumentNullException.ThrowIfNull(bicchiereDto);
+
+                // ✅ 1. Validazioni input obbligatori
+                if (string.IsNullOrWhiteSpace(bicchiereDto.Sigla))
+                    return SingleResponseDTO<bool>.ErrorResponse("Sigla obbligatoria");
+
+                if (string.IsNullOrWhiteSpace(bicchiereDto.Descrizione))
+                    return SingleResponseDTO<bool>.ErrorResponse("Descrizione obbligatoria");
+
+                if (bicchiereDto.UnitaMisuraId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("Unità di misura obbligatoria");
+
+                // ✅ 2. Validazioni range/numeriche
+                if (bicchiereDto.Capienza < 250m || bicchiereDto.Capienza > 1000m)
+                    return SingleResponseDTO<bool>.ErrorResponse("La capienza deve essere tra 250 e 1000");
+
+                if (bicchiereDto.PrezzoBase < 0.01m || bicchiereDto.PrezzoBase > 100m)
+                    return SingleResponseDTO<bool>.ErrorResponse("Il prezzo base deve essere tra 0.01 e 100");
+
+                if (bicchiereDto.Moltiplicatore < 0.1m || bicchiereDto.Moltiplicatore > 3.0m)
+                    return SingleResponseDTO<bool>.ErrorResponse("Il moltiplicatore deve essere tra 0.1 e 3.0");
+
+                // ✅ 3. Validazione sicurezza SULL'INPUT ORIGINALE
+                if (!SecurityHelper.IsValidInput(bicchiereDto.Sigla, 3))
+                    return SingleResponseDTO<bool>.ErrorResponse("Sigla non valida o contiene caratteri pericolosi");
+
+                if (!SecurityHelper.IsValidInput(bicchiereDto.Descrizione, 50))
+                    return SingleResponseDTO<bool>.ErrorResponse("Descrizione non valida o contiene caratteri pericolosi");
+
+                // ✅ 4. SOLO DOPO la validazione, normalizza
+                var sigla = StringHelper.NormalizeSearchTerm(bicchiereDto.Sigla);
+                var descrizione = StringHelper.NormalizeSearchTerm(bicchiereDto.Descrizione);
+
+                // ✅ 5. Verifica esistenza del bicchiere
+                var bicchiere = await _context.DimensioneBicchiere
+                    .FirstOrDefaultAsync(b => b.DimensioneBicchiereId == bicchiereDto.DimensioneBicchiereId);
+
+                if (bicchiere == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Bicchiere con ID {bicchiereDto.DimensioneBicchiereId} non trovato");
+
+                // ✅ 6. Validazione Unità di Misura esista
+                if (!await UnitaMisuraExistsInternalAsync(bicchiereDto.UnitaMisuraId))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        $"Unità di misura con ID {bicchiereDto.UnitaMisuraId} non trovata");
+
+                // ✅ 7. Controllo duplicati ESCLUDENDO questo bicchiere
+                if (await ExistsSiglaForOtherInternalAsync(bicchiereDto.DimensioneBicchiereId, sigla))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        $"Esiste già un altro bicchiere con sigla '{sigla}'");
+
+                if (await ExistsDescrizioneForOtherInternalAsync(bicchiereDto.DimensioneBicchiereId, descrizione))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        $"Esiste già un altro bicchiere con descrizione '{descrizione}'");
+
+                // ✅ 8. Aggiorna solo se ci sono cambiamenti
+                bool hasChanges = false;
+
+                // Usa EqualsTrimmedCaseInsensitive per maggiore robustezza
+                if (!StringHelper.EqualsTrimmedCaseInsensitive(bicchiere.Sigla, sigla))
+                {
+                    bicchiere.Sigla = SecurityHelper.NormalizeSafe(sigla);
+                    hasChanges = true;
+                }
+
+                if (!StringHelper.EqualsTrimmedCaseInsensitive(bicchiere.Descrizione, descrizione))
+                {
+                    bicchiere.Descrizione = descrizione;
+                    hasChanges = true;
+                }
+
+                if (bicchiere.Capienza != bicchiereDto.Capienza)
+                {
+                    bicchiere.Capienza = bicchiereDto.Capienza;
+                    hasChanges = true;
+                }
+
+                if (bicchiere.UnitaMisuraId != bicchiereDto.UnitaMisuraId)
+                {
+                    bicchiere.UnitaMisuraId = bicchiereDto.UnitaMisuraId;
+                    hasChanges = true;
+                }
+
+                if (bicchiere.PrezzoBase != bicchiereDto.PrezzoBase)
+                {
+                    bicchiere.PrezzoBase = bicchiereDto.PrezzoBase;
+                    hasChanges = true;
+                }
+
+                if (bicchiere.Moltiplicatore != bicchiereDto.Moltiplicatore)
+                {
+                    bicchiere.Moltiplicatore = bicchiereDto.Moltiplicatore;
+                    hasChanges = true;
+                }
+
+                if (hasChanges)
+                {
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogInformation(
+                        "Bicchiere aggiornato: ID={Id}, Sigla={Sigla}",
+                        bicchiere.DimensioneBicchiereId,
+                        sigla);
+
+                    return SingleResponseDTO<bool>.SuccessResponse(
+                        true,
+                        $"Bicchiere con ID {bicchiereDto.DimensioneBicchiereId} aggiornato con successo");
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Nessuna modifica necessaria per bicchiere: ID={Id}",
+                        bicchiere.DimensioneBicchiereId);
+
+                    return SingleResponseDTO<bool>.SuccessResponse(
+                        false,
+                        $"Nessuna modifica necessaria per il bicchiere con ID {bicchiereDto.DimensioneBicchiereId}");
+                }
             }
-
-            // ✅ Paginazione sicura (usa parametri di default se non specificati)
-            var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-            var skip = (safePage - 1) * safePageSize;
-
-            // ✅ Normalizza filtri con gestione null-safe
-            var normalizedSigla = string.IsNullOrWhiteSpace(sigla)
-                ? string.Empty
-                : StringHelper.NormalizeSearchTerm(sigla!);
-
-            var normalizedDescrizione = string.IsNullOrWhiteSpace(descrizione)
-                ? string.Empty
-                : StringHelper.NormalizeSearchTerm(descrizione!);
-
-            // ✅ Query base CON INCLUDE per UnitaDiMisura
-            var query = _context.DimensioneBicchiere
-                .Include(d => d.UnitaMisura)
-                .AsNoTracking()  // ✅ Aggiunto per performance
-                .AsQueryable();
-
-            // ✅ Filtro per sigla (case-insensitive, STARTS WITH - come specificato)
-            if (!string.IsNullOrWhiteSpace(normalizedSigla))
-                query = query.Where(d => StringHelper.StartsWithCaseInsensitive(d.Sigla, normalizedSigla));
-
-            // ✅ Filtro per descrizione (case-insensitive, CONTAINS - ricerca parziale)
-            if (!string.IsNullOrWhiteSpace(normalizedDescrizione))
-                query = query.Where(d => StringHelper.ContainsCaseInsensitive(d.Descrizione, normalizedDescrizione));
-
-            // ✅ Filtro per capienza (range ±10% se specificato)
-            if (capienza.HasValue)
-                query = query.Where(d => d.Capienza >= capienza.Value * 0.9m &&
-                                         d.Capienza <= capienza.Value * 1.1m);
-
-            // ✅ Filtro per prezzoBase (range ±10% se specificato)
-            if (prezzoBase.HasValue)
-                query = query.Where(d => d.PrezzoBase >= prezzoBase.Value * 0.9m &&
-                                         d.PrezzoBase <= prezzoBase.Value * 1.1m);
-
-            // ✅ Filtro per moltiplicatore (range ±10% se specificato)
-            if (moltiplicatore.HasValue)
-                query = query.Where(d => d.Moltiplicatore >= moltiplicatore.Value * 0.9m &&
-                                         d.Moltiplicatore <= moltiplicatore.Value * 1.1m);
-
-            // ✅ Ordinamento coerente: prima per descrizione, poi per sigla
-            query = query.OrderBy(d => d.Descrizione)
-                         .ThenBy(d => d.Sigla)
-                         .ThenBy(d => d.Capienza);
-
-            // ✅ Conteggio totale
-            var totalCount = await query.CountAsync();
-
-            // ✅ Paginazione e mapping usando MapToFrontendDTO
-            var items = await query
-                .Skip(skip)
-                .Take(safePageSize)
-                .Select(d => MapToDTO(d))  // ✅ Usa il metodo di mapping esistente
-                .ToListAsync();
-
-            // ✅ Costruzione messaggio dettagliato con filtri applicati
-            var filterInfo = new System.Text.StringBuilder();
-            if (!string.IsNullOrWhiteSpace(sigla)) filterInfo.Append($"Sigla inizia con: '{sigla}', ");
-            if (!string.IsNullOrWhiteSpace(descrizione)) filterInfo.Append($"Descrizione contiene: '{descrizione}', ");
-            if (capienza.HasValue) filterInfo.Append($"Capienza: {capienza}±10%, ");
-            if (prezzoBase.HasValue) filterInfo.Append($"Prezzo base: {prezzoBase}±10%, ");
-            if (moltiplicatore.HasValue) filterInfo.Append($"Moltiplicatore: {moltiplicatore}±10%, ");
-
-            var filterStr = filterInfo.Length > 0
-                ? $" con filtri: {filterInfo.ToString().TrimEnd(',', ' ')}"
-                : "";
-
-            var message = $"Trovate {totalCount} dimensioni bicchiere{filterStr}";
-
-            return new PaginatedResponseDTO<DimensioneBicchiereDTO>
+            catch (Exception ex)
             {
-                Data = items,
-                Page = safePage,
-                PageSize = safePageSize,
-                TotalCount = totalCount,
-                Message = message
-            };
+                _logger.LogError(ex, "Errore in UpdateAsync per bicchiereDto: {@BicchiereDto}", bicchiereDto);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante l'aggiornamento del bicchiere");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> DeleteAsync(int bicchiereId)
+        {
+            try
+            {
+                if (bicchiereId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID bicchiere non valido");
+
+                var bicchiere = await _context.DimensioneBicchiere
+                    .FirstOrDefaultAsync(b => b.DimensioneBicchiereId == bicchiereId);
+
+                if (bicchiere == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Bicchiere con ID {bicchiereId} non trovato");
+
+                if (await HasDependenciesAsync(bicchiereId))
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        "Impossibile eliminare il bicchiere perché ci sono dipendenze attive " +
+                        "(BevandaStandard, DimensioneQuantitaIngredienti, PersonalizzazioneCustom o PreferitiCliente collegati)");
+
+                _context.DimensioneBicchiere.Remove(bicchiere);
+                await _context.SaveChangesAsync();
+
+                return SingleResponseDTO<bool>.SuccessResponse(
+                    true,
+                     $"Bicchiere '{bicchiere.Sigla}' eliminato con successo (ID: {bicchiere.DimensioneBicchiereId})");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in DeleteAsync per bicchiereId: {BicchiereId}", bicchiereId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante l'eliminazione del bicchiere");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsAsync(int bicchiereId)
+        {
+            try
+            {
+                if (bicchiereId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID bicchiere non valido");
+
+                var exists = await _context.DimensioneBicchiere
+                    .AsNoTracking()
+                    .AnyAsync(b => b.DimensioneBicchiereId == bicchiereId);
+
+                string message = exists
+                    ? $"Bicchiere con ID {bicchiereId} esiste"
+                    : $"Bicchiere con ID {bicchiereId} non trovato";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsAsync per bicchiereId: {BicchiereId}", bicchiereId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza del bicchiere");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsSiglaAsync(string sigla)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(sigla))
+                    return SingleResponseDTO<bool>.ErrorResponse("La sigla è obbligatoria");
+
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(sigla, maxLength: 3))
+                    return SingleResponseDTO<bool>.ErrorResponse("La sigla contiene caratteri non validi");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(sigla);
+
+                var exists = await _context.DimensioneBicchiere
+                    .AsNoTracking()
+                    .AnyAsync(b => StringHelper.EqualsCaseInsensitive(b.Sigla, searchTerm));
+
+                string message = exists
+                    ? $"Bicchiere con sigla '{searchTerm}' esiste"
+                    : $"Bicchiere con sigla '{searchTerm}' non trovato";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsSiglaAsync per sigla: {Sigla}", sigla);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza del bicchiere per sigla");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsDescrizioneAsync(string descrizione)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(descrizione))
+                    return SingleResponseDTO<bool>.ErrorResponse("La descrizione è obbligatoria");
+
+                // ✅ Validazione sicurezza SULL'INPUT ORIGINALE (PRIMA)
+                if (!SecurityHelper.IsValidInput(descrizione, maxLength: 50))
+                    return SingleResponseDTO<bool>.ErrorResponse("La descrizione contiene caratteri non validi");
+
+                // ✅ SOLO DOPO la validazione, normalizza
+                var searchTerm = StringHelper.NormalizeSearchTerm(descrizione);
+
+                var exists = await _context.DimensioneBicchiere
+                    .AsNoTracking()
+                    .AnyAsync(b => StringHelper.EqualsCaseInsensitive(b.Descrizione, searchTerm));
+
+                string message = exists
+                    ? $"Bicchiere con descrizione '{searchTerm}' esiste"
+                    : $"Bicchiere con descrizione '{searchTerm}' non trovato";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsDescrizioneAsync per descrizione: {Descrizione}", descrizione);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza del bicchiere per descrizione");
+            }
         }
     }
 }

@@ -10,7 +10,9 @@ namespace BBltZen.Controllers
     [ApiController]
     [Route("api/[controller]")]
     // [Authorize] // ✅ Commentato per test Swagger
-    public class TaxRatesController(ITaxRatesRepository repository, ILogger<TaxRatesController> logger) : ControllerBase
+    public class TaxRatesController(
+        ITaxRatesRepository repository,
+        ILogger<TaxRatesController> logger) : ControllerBase
     {
         private readonly ITaxRatesRepository _repository = repository;
         private readonly ILogger<TaxRatesController> _logger = logger;
@@ -18,7 +20,9 @@ namespace BBltZen.Controllers
         // GET: api/taxrates
         [HttpGet("")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<TaxRatesDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TaxRatesDTO>>> GetAll(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -40,7 +44,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.GetByIdAsync(id);
-                return result.Success ? Ok(result) : NotFound(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -52,7 +56,10 @@ namespace BBltZen.Controllers
         // GET: api/taxrates/aliquota/{aliquota}
         [HttpGet("aliquota/{aliquota:decimal}")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<TaxRatesDTO>>> GetByAliquota(decimal aliquota, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TaxRatesDTO>>> GetByAliquota(
+            decimal aliquota,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -69,7 +76,10 @@ namespace BBltZen.Controllers
         // GET: api/taxrates/descrizione/{descrizione}
         [HttpGet("descrizione/{descrizione}")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<TaxRatesDTO>>> GetByDescrizione(string descrizione, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<TaxRatesDTO>>> GetByDescrizione(
+            string descrizione,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -86,19 +96,16 @@ namespace BBltZen.Controllers
         // POST: api/taxrates
         [HttpPost]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<TaxRatesDTO>>> Create([FromBody] TaxRatesDTO taxRateDto)
+        public async Task<ActionResult<SingleResponseDTO<TaxRatesDTO>>> Create(
+            [FromBody] TaxRatesDTO taxRateDto)
         {
             try
             {
                 if (taxRateDto == null)
-                    return BadRequest("Dati aliquota mancanti");
+                    return BadRequest();
 
                 var result = await _repository.AddAsync(taxRateDto);
-
-                if (!result.Success)
-                    return BadRequest(result);
-
-                return CreatedAtAction(nameof(GetById), new { id = result.Data?.TaxRateId }, result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -110,22 +117,20 @@ namespace BBltZen.Controllers
         // PUT: api/taxrates/{id}
         [HttpPut("{id:int}")]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] TaxRatesDTO taxRateDto)
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(
+            int id,
+            [FromBody] TaxRatesDTO taxRateDto)
         {
             try
             {
                 if (taxRateDto == null)
-                    return BadRequest("Dati mancanti");
+                    return BadRequest();
 
                 if (id != taxRateDto.TaxRateId)
-                    return BadRequest("ID non corrispondente");
+                    return BadRequest();
 
                 var result = await _repository.UpdateAsync(taxRateDto);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovata") ? NotFound(result) : BadRequest(result);
-
-                return result.Data ? NoContent() : Ok(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -142,11 +147,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.DeleteAsync(id);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovata") ? NotFound(result) : BadRequest(result);
-
-                return NoContent();
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -192,7 +193,9 @@ namespace BBltZen.Controllers
         // GET: api/taxrates/exists/aliquota-descrizione/{aliquota}/{descrizione}
         [HttpGet("exists/aliquota-descrizione/{aliquota:decimal}/{descrizione}")]
         [AllowAnonymous]
-        public async Task<ActionResult<SingleResponseDTO<bool>>> ExistsByAliquotaDescrizione(decimal aliquota, string descrizione)
+        public async Task<ActionResult<SingleResponseDTO<bool>>> ExistsByAliquotaDescrizione(
+            decimal aliquota,
+            string descrizione)
         {
             try
             {

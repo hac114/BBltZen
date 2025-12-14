@@ -22,7 +22,7 @@ namespace DTO
 
         [Required(ErrorMessage = "L'unità di misura è obbligatoria")]
         [Range(1, int.MaxValue, ErrorMessage = "L'ID unità di misura deve essere maggiore di 0")]
-        public int UnitaMisuraId { get; set; }
+        public int UnitaMisuraId { get; set; }        
 
         [Required(ErrorMessage = "Il prezzo base è obbligatorio")]
         [Range(0.01, 100, ErrorMessage = "Il prezzo base deve essere tra 0.01 e 100")]
@@ -33,6 +33,6 @@ namespace DTO
         public decimal Moltiplicatore { get; set; }
 
         [Required(ErrorMessage = "L'unità di misura è obbligatoria")]
-        public UnitaDiMisuraDTO UnitaMisura { get; set; } = new();
+        public UnitaDiMisuraDTO? UnitaMisura { get; set; } = new();
     }
 }

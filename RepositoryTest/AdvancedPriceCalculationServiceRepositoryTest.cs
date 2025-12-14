@@ -41,7 +41,8 @@ namespace RepositoryTest
                 new PersonalizzazioneCustomRepository(_context),
                 new IngredienteRepository(_context),
                 new IngredientiPersonalizzazioneRepository(_context),
-                new DimensioneBicchiereRepository(_context),
+                new DimensioneBicchiereRepository(_context, NullLogger<DimensioneBicchiereRepository>.Instance
+),
                 new TaxRatesRepository(_context, NullLogger<TaxRatesRepository>.Instance)
             );
 

@@ -89,7 +89,10 @@ namespace RepositoryTest
                 new PersonalizzazioneCustomRepository(context),
                 new IngredienteRepository(context),
                 new IngredientiPersonalizzazioneRepository(context),
-                new DimensioneBicchiereRepository(context),
+                new DimensioneBicchiereRepository(
+                    context,
+                    NullLogger<DimensioneBicchiereRepository>.Instance // ✅ Aggiungi questo
+                ),
                 new TaxRatesRepository(context, NullLogger<TaxRatesRepository>.Instance)
             );
         }

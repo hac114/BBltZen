@@ -10,7 +10,9 @@ namespace BBltZen.Controllers
     [ApiController]
     [Route("api/[controller]")]
     // [Authorize] // ✅ Commentato per test Swagger
-    public class CategoriaIngredienteController(ICategoriaIngredienteRepository repository, ILogger<CategoriaIngredienteController> logger) : ControllerBase
+    public class CategoriaIngredienteController(
+        ICategoriaIngredienteRepository repository,
+        ILogger<CategoriaIngredienteController> logger) : ControllerBase
     {
         private readonly ICategoriaIngredienteRepository _repository = repository;
         private readonly ILogger<CategoriaIngredienteController> _logger = logger;
@@ -42,7 +44,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.GetByIdAsync(id);
-                return result.Success ? Ok(result) : NotFound(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -54,7 +56,10 @@ namespace BBltZen.Controllers
         // GET: api/categoria-ingrediente/nome/{nome}
         [HttpGet("nome/{nome}")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<CategoriaIngredienteDTO>>> GetByNome(string nome, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<CategoriaIngredienteDTO>>> GetByNome(
+            string nome,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -71,19 +76,16 @@ namespace BBltZen.Controllers
         // POST: api/categoria-ingrediente
         [HttpPost]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<CategoriaIngredienteDTO>>> Create([FromBody] CategoriaIngredienteDTO categoriaDto)
+        public async Task<ActionResult<SingleResponseDTO<CategoriaIngredienteDTO>>> Create(
+            [FromBody] CategoriaIngredienteDTO categoriaDto)
         {
             try
             {
                 if (categoriaDto == null)
-                    return BadRequest("Dati categoria ingredienti mancanti");
+                    return BadRequest();
 
                 var result = await _repository.AddAsync(categoriaDto);
-
-                if (!result.Success)
-                    return BadRequest(result);
-
-                return CreatedAtAction(nameof(GetById), new { id = result.Data?.CategoriaId }, result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -95,22 +97,20 @@ namespace BBltZen.Controllers
         // PUT: api/categoria-ingrediente/{id}
         [HttpPut("{id:int}")]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] CategoriaIngredienteDTO categoriaDto)
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(
+            int id,
+            [FromBody] CategoriaIngredienteDTO categoriaDto)
         {
             try
             {
                 if (categoriaDto == null)
-                    return BadRequest("Dati mancanti");
+                    return BadRequest();
 
                 if (id != categoriaDto.CategoriaId)
-                    return BadRequest("ID non corrispondente");
+                    return BadRequest();
 
                 var result = await _repository.UpdateAsync(categoriaDto);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovata") ? NotFound(result) : BadRequest(result);
-
-                return result.Data ? NoContent() : Ok(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -118,7 +118,7 @@ namespace BBltZen.Controllers
                 return StatusCode(500, "Errore server");
             }
         }
-                
+
         // DELETE: api/categoria-ingrediente/{id}
         [HttpDelete("{id:int}")]
         // [Authorize(Roles = "Admin")]
@@ -127,11 +127,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.DeleteAsync(id);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovata") ? NotFound(result) : BadRequest(result);
-
-                return NoContent();
+                return Ok(result);
             }
             catch (Exception ex)
             {

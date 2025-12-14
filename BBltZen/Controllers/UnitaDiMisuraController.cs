@@ -10,7 +10,9 @@ namespace BBltZen.Controllers
     [ApiController]
     [Route("api/[controller]")]
     // [Authorize] // ✅ Commentato per test Swagger
-    public class UnitaDiMisuraController(IUnitaDiMisuraRepository repository, ILogger<UnitaDiMisuraController> logger) : ControllerBase
+    public class UnitaDiMisuraController(
+        IUnitaDiMisuraRepository repository,
+        ILogger<UnitaDiMisuraController> logger) : ControllerBase
     {
         private readonly IUnitaDiMisuraRepository _repository = repository;
         private readonly ILogger<UnitaDiMisuraController> _logger = logger;
@@ -18,7 +20,9 @@ namespace BBltZen.Controllers
         // GET: api/unita-dimisura
         [HttpGet("")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<UnitaDiMisuraDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<UnitaDiMisuraDTO>>> GetAll(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -40,7 +44,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.GetByIdAsync(id);
-                return result.Success ? Ok(result) : NotFound(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -52,7 +56,10 @@ namespace BBltZen.Controllers
         // GET: api/unita-dimisura/sigla/{sigla}
         [HttpGet("sigla/{sigla}")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<UnitaDiMisuraDTO>>> GetBySigla(string sigla, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<UnitaDiMisuraDTO>>> GetBySigla(
+            string sigla,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -69,7 +76,10 @@ namespace BBltZen.Controllers
         // GET: api/unita-dimisura/descrizione/{descrizione}
         [HttpGet("descrizione/{descrizione}")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<UnitaDiMisuraDTO>>> GetByDescrizione(string descrizione, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<UnitaDiMisuraDTO>>> GetByDescrizione(
+            string descrizione,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -86,19 +96,16 @@ namespace BBltZen.Controllers
         // POST: api/unita-dimisura
         [HttpPost]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<UnitaDiMisuraDTO>>> Create([FromBody] UnitaDiMisuraDTO unitaDto)
+        public async Task<ActionResult<SingleResponseDTO<UnitaDiMisuraDTO>>> Create(
+            [FromBody] UnitaDiMisuraDTO unitaDto)
         {
             try
             {
                 if (unitaDto == null)
-                    return BadRequest("Dati unità di misura mancanti");
+                    return BadRequest();
 
                 var result = await _repository.AddAsync(unitaDto);
-
-                if (!result.Success)
-                    return BadRequest(result);
-
-                return CreatedAtAction(nameof(GetById), new { id = result.Data?.UnitaMisuraId }, result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -110,22 +117,20 @@ namespace BBltZen.Controllers
         // PUT: api/unita-dimisura/{id}
         [HttpPut("{id:int}")]
         // [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] UnitaDiMisuraDTO unitaDto)
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(
+            int id,
+            [FromBody] UnitaDiMisuraDTO unitaDto)
         {
             try
             {
                 if (unitaDto == null)
-                    return BadRequest("Dati mancanti");
+                    return BadRequest();
 
                 if (id != unitaDto.UnitaMisuraId)
-                    return BadRequest("ID non corrispondente");
+                    return BadRequest();
 
                 var result = await _repository.UpdateAsync(unitaDto);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovata") ? NotFound(result) : BadRequest(result);
-
-                return result.Data ? NoContent() : Ok(result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -142,11 +147,7 @@ namespace BBltZen.Controllers
             try
             {
                 var result = await _repository.DeleteAsync(id);
-
-                if (!result.Success)
-                    return result.Message.Contains("non trovata") ? NotFound(result) : BadRequest(result);
-
-                return NoContent();
+                return Ok(result);
             }
             catch (Exception ex)
             {
