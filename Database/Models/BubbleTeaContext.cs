@@ -125,11 +125,12 @@ public partial class BubbleTeaContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        //HO AGGIUNTO QUESTA RIGA PER GESTIRE CONFIGURAZIONE UTENTI
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(BubbleTeaContext).Assembly);
 
         modelBuilder.Entity<Articolo>(entity =>
         {
+            //HO AGGIUNTO QUESTA RIGA PER GESTIRE CONFIGURAZIONE UTENTI
+            modelBuilder.ApplyConfigurationsFromAssembly(typeof(BubbleTeaContext).Assembly);
+
             entity.HasKey(e => e.ArticoloId).HasName("PK__ARTICOLO__2902CE994A30025C");
 
             entity.ToTable("ARTICOLO");
@@ -923,6 +924,8 @@ public partial class BubbleTeaContext : DbContext
         modelBuilder.Entity<StatoPagamento>(entity =>
         {
             entity.ToTable("STATO_PAGAMENTO");
+
+            entity.HasIndex(e => e.StatoPagamento1, "UQ_STATO_PAGAMENTO_stato_pagamento").IsUnique();
 
             entity.Property(e => e.StatoPagamentoId).HasColumnName("stato_pagamento_id");
             entity.Property(e => e.StatoPagamento1)

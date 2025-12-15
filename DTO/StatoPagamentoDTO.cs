@@ -11,7 +11,7 @@ namespace DTO
     {
         public int StatoPagamentoId { get; set; }
 
-        [StringLength(50, ErrorMessage = "Lo stato pagamento non può superare 50 caratteri")]
+        [StringLength(100, ErrorMessage = "Lo stato pagamento non può superare 100 caratteri")]
         public string StatoPagamento1 { get; set; } = null!;
     }
 }

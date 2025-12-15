@@ -275,33 +275,38 @@ namespace BBltZen.Infrastructure
                 },
                 new StatoOrdine
                 {
-                    StatoOrdine1 = "in_carrello",
+                    StatoOrdine1 = "in carrello",
                     Terminale = false
                 },
                 // ✅ STATI ESISTENTI
                 new StatoOrdine
                 {
-                    StatoOrdine1 = "In Attesa",
+                    StatoOrdine1 = "in coda",
                     Terminale = false
                 },
                 new StatoOrdine
                 {
-                    StatoOrdine1 = "In Preparazione",
+                    StatoOrdine1 = "in preparazione",
                     Terminale = false
                 },
                 new StatoOrdine
                 {
-                    StatoOrdine1 = "Pronto",
+                    StatoOrdine1 = "pronta consegna",
                     Terminale = false
                 },
                 new StatoOrdine
                 {
-                    StatoOrdine1 = "Completato",
+                    StatoOrdine1 = "consegnato",
                     Terminale = true
                 },
                 new StatoOrdine
                 {
-                    StatoOrdine1 = "Annullato",
+                    StatoOrdine1 = "sospeso",
+                    Terminale = false
+                },
+                new StatoOrdine
+                {
+                    StatoOrdine1 = "annullato",
                     Terminale = true
                 }
             };
@@ -380,24 +385,24 @@ namespace BBltZen.Infrastructure
                 // ✅ NUOVO STATO AGGIUNTO
                 new StatoPagamento
                 {
-                    StatoPagamento1 = "non_richiesto"
+                    StatoPagamento1 = "non richiesto"
                 },
                 // ✅ STATI ESISTENTI
                 new StatoPagamento
                 {
-                    StatoPagamento1 = "Pending"
+                    StatoPagamento1 = "pendente"
                 },
                 new StatoPagamento
                 {
-                    StatoPagamento1 = "Pagato"
+                    StatoPagamento1 = "completato"
                 },
                 new StatoPagamento
                 {
-                    StatoPagamento1 = "Fallito"
+                    StatoPagamento1 = "fallito"
                 },
                 new StatoPagamento
                 {
-                    StatoPagamento1 = "Rimborsato"
+                    StatoPagamento1 = "rimborsato"
                 }
             };
 
@@ -1269,8 +1274,7 @@ namespace BBltZen.Infrastructure
 
                 var logAccessi = new List<LogAccessi>
                 {
-                    new LogAccessi
-                    {
+                    new() {
                         UtenteId = utente.UtenteId,
                         ClienteId = null,
                         TipoAccesso = "Login",
@@ -1280,8 +1284,7 @@ namespace BBltZen.Infrastructure
                         DataCreazione = DateTime.UtcNow.AddHours(-3),
                         Dettagli = "Accesso amministratore al sistema"
                     },
-                    new LogAccessi
-                    {
+                    new() {
                         UtenteId = utente.UtenteId,
                         ClienteId = null,
                         TipoAccesso = "Accesso API",
@@ -1340,11 +1343,12 @@ namespace BBltZen.Infrastructure
 
                 // ✅ CORREZIONE: Prendi i primi stati invece di cercare per nome
                 var stato1 = statiOrdine[0]; // Primo stato (es. "bozza")
-                var stato2 = statiOrdine[1]; // Secondo stato (es. "in_carrello")
-                var stato3 = statiOrdine[2]; // Terzo stato (es. "In Attesa")
+                var stato2 = statiOrdine[1]; // Secondo stato (es. "in carrello")
+                var stato3 = statiOrdine[2]; // Terzo stato (es. "in coda")
 
-                var statoPagamento1 = statiPagamento[0]; // Primo stato pagamento
-                var statoPagamento2 = statiPagamento[1]; // Secondo stato pagamento
+                var statoPagamento1 = statiPagamento[0]; // "non richiesto"
+                var statoPagamento2 = statiPagamento[1]; // "pendente"
+                var statoPagamento3 = statiPagamento[2]; // "completato"
 
                 var sessioneQr = sessioniQr.Count > 0 ? sessioniQr[0] : null; // ✅ Sessione opzionale
 
@@ -1355,8 +1359,8 @@ namespace BBltZen.Infrastructure
                         ClienteId = cliente.ClienteId,
                         DataCreazione = DateTime.UtcNow.AddHours(-3),
                         DataAggiornamento = DateTime.UtcNow.AddHours(-3),
-                        StatoOrdineId = stato3.StatoOrdineId, // "In Attesa"
-                        StatoPagamentoId = statoPagamento1.StatoPagamentoId,
+                        StatoOrdineId = stato2.StatoOrdineId, // "in carrello"
+                        StatoPagamentoId = statoPagamento1.StatoPagamentoId, // "non richiesto"
                         Totale = 12.50m,
                         Priorita = 1,
                         SessioneId = sessioneQr?.SessioneId
@@ -1366,8 +1370,8 @@ namespace BBltZen.Infrastructure
                         ClienteId = cliente.ClienteId,
                         DataCreazione = DateTime.UtcNow.AddHours(-1),
                         DataAggiornamento = DateTime.UtcNow.AddHours(-1),
-                        StatoOrdineId = stato1.StatoOrdineId, // "bozza"
-                        StatoPagamentoId = statoPagamento2.StatoPagamentoId, // "non_richiesto"
+                        StatoOrdineId = stato3.StatoOrdineId, // "in coda"
+                        StatoPagamentoId = statoPagamento2.StatoPagamentoId, // "pendente"
                         Totale = 8.75m,
                         Priorita = 2,
                         SessioneId = null
@@ -1377,8 +1381,8 @@ namespace BBltZen.Infrastructure
                         ClienteId = cliente.ClienteId,
                         DataCreazione = DateTime.UtcNow.AddMinutes(-30),
                         DataAggiornamento = DateTime.UtcNow.AddMinutes(-15),
-                        StatoOrdineId = stato2.StatoOrdineId, // "in_carrello"
-                        StatoPagamentoId = statoPagamento1.StatoPagamentoId,
+                        StatoOrdineId = stato3.StatoOrdineId, // "in coda"
+                        StatoPagamentoId = statoPagamento3.StatoPagamentoId,// "completato"
                         Totale = 15.25m,
                         Priorita = 1,
                         SessioneId = sessioneQr?.SessioneId

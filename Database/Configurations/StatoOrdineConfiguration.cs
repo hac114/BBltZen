@@ -8,7 +8,11 @@ namespace Database.Configurations
     {
         public void Configure(EntityTypeBuilder<StatoOrdine> builder)
         {
-            builder.ToTable("StatoOrdine");
+            // ✅ SINGOLA chiamata ToTable che definisce nome e check constraint
+            builder.ToTable("StatoOrdine", tb => tb.HasCheckConstraint(
+                "CK_terminale_solo_0_1",
+                "([terminale]=(1) OR [terminale]=(0))"
+            ));
 
             // Chiave primaria
             builder.HasKey(so => so.StatoOrdineId);
@@ -19,20 +23,15 @@ namespace Database.Configurations
                 .HasMaxLength(100)
                 .HasColumnName("StatoOrdine");
 
-            // ✅ VINCOLO UNIQUE (ORA ATTIVO - RIMUOVI I COMMENTI)
+            // ✅ VINCOLO UNIQUE
             builder.HasIndex(so => so.StatoOrdine1)
                 .IsUnique()
-                .HasDatabaseName("UQ_stato_ordine_valore"); // Nome esatto del DB
+                .HasDatabaseName("UQ_stato_ordine_valore");
 
-            // Proprietà Terminale
+            // ✅ Proprietà Terminale - CON VALORE DI DEFAULT FALSE (corrisponde a 0 nel DB)
             builder.Property(so => so.Terminale)
                 .IsRequired()
                 .HasDefaultValue(false);
-
-            // Vincolo CHECK presente nel database
-            builder.ToTable(tb => tb.HasCheckConstraint(
-                "CK_terminale_solo_0_1",
-                "([terminale]=(1) OR [terminale]=(0))"));
 
             // Relazioni
             builder.HasMany(so => so.ConfigSoglieTempi)

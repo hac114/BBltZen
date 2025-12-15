@@ -33,22 +33,26 @@ namespace Repository.Service
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
-                var query = _context.StatoOrdine
-                    .AsNoTracking()
-                    .OrderBy(s => s.StatoOrdine1, new StatoOrdineComparer())
-                    .ThenBy(s => s.StatoOrdineId);
+                // 1. Query base SENZA ordinamento con comparatore
+                var query = _context.StatoOrdine.AsNoTracking();
 
                 var totalCount = await query.CountAsync();
-                var items = await query
+
+                // 2. Porta i dati in memoria PRIMA di ordinare
+                var allItems = await query.ToListAsync();
+
+                // 3. Applica ordinamento personalizzato IN MEMORIA
+                var orderedItems = allItems
+                    .OrderBy(s => s.StatoOrdine1, new StatoOrdineComparer())
+                    .ThenBy(s => s.StatoOrdineId)
                     .Skip(skip)
                     .Take(safePageSize)
                     .Select(s => MapToDTO(s))
-                    .ToListAsync();
+                    .ToList();
 
-                // ✅ CORRETTO: messaggio appropriato per stati ordine
                 return new PaginatedResponseDTO<StatoOrdineDTO>
                 {
-                    Data = items,
+                    Data = orderedItems,
                     Page = safePage,
                     PageSize = safePageSize,
                     TotalCount = totalCount,
@@ -57,8 +61,9 @@ namespace Repository.Service
                         : $"Trovati {totalCount} stati ordine"
                 };
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Errore in GetAllAsync");
                 return new PaginatedResponseDTO<StatoOrdineDTO>
                 {
                     Data = [],
@@ -141,18 +146,24 @@ namespace Repository.Service
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
+                // 1. Query con filtro ma SENZA ordinamento con comparatore
                 var query = _context.StatoOrdine
                     .AsNoTracking()
-                    .Where(s => s.Terminale == false)
-                    .OrderBy(s => s.StatoOrdine1, new StatoOrdineComparer())
-                    .ThenBy(s => s.StatoOrdineId);
+                    .Where(s => s.Terminale == false);
 
                 var totalCount = await query.CountAsync();
-                var items = await query
+
+                // 2. Porta i dati filtrati in memoria
+                var filteredItems = await query.ToListAsync();
+
+                // 3. Applica ordinamento personalizzato IN MEMORIA
+                var orderedItems = filteredItems
+                    .OrderBy(s => s.StatoOrdine1, new StatoOrdineComparer())
+                    .ThenBy(s => s.StatoOrdineId)
                     .Skip(skip)
                     .Take(safePageSize)
                     .Select(s => MapToDTO(s))
-                    .ToListAsync();
+                    .ToList();
 
                 string message;
                 if (totalCount == 0) message = "Nessuno stato non terminale trovato";
@@ -161,7 +172,7 @@ namespace Repository.Service
 
                 return new PaginatedResponseDTO<StatoOrdineDTO>
                 {
-                    Data = items,
+                    Data = orderedItems,
                     Page = safePage,
                     PageSize = safePageSize,
                     TotalCount = totalCount,
@@ -189,18 +200,24 @@ namespace Repository.Service
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
+                // 1. Query con filtro ma SENZA ordinamento con comparatore
                 var query = _context.StatoOrdine
                     .AsNoTracking()
-                    .Where(s => s.Terminale == true)
-                    .OrderBy(s => s.StatoOrdine1, new StatoOrdineComparer())
-                    .ThenBy(s => s.StatoOrdineId);
+                    .Where(s => s.Terminale == true);
 
                 var totalCount = await query.CountAsync();
-                var items = await query
+
+                // 2. Porta i dati filtrati in memoria
+                var filteredItems = await query.ToListAsync();
+
+                // 3. Applica ordinamento personalizzato IN MEMORIA
+                var orderedItems = filteredItems
+                    .OrderBy(s => s.StatoOrdine1, new StatoOrdineComparer())
+                    .ThenBy(s => s.StatoOrdineId)
                     .Skip(skip)
                     .Take(safePageSize)
                     .Select(s => MapToDTO(s))
-                    .ToListAsync();
+                    .ToList();
 
                 string message;
                 if (totalCount == 0) message = "Nessuno stato terminale trovato";
@@ -209,7 +226,7 @@ namespace Repository.Service
 
                 return new PaginatedResponseDTO<StatoOrdineDTO>
                 {
-                    Data = items,
+                    Data = orderedItems,
                     Page = safePage,
                     PageSize = safePageSize,
                     TotalCount = totalCount,
@@ -357,43 +374,96 @@ namespace Repository.Service
 
         private async Task<bool> HasDependenciesAsync(int statoOrdineId)
         {
-            bool hasConfigSoglieTempi = await _context.ConfigSoglieTempi
-                .AnyAsync(c => c.StatoOrdineId == statoOrdineId);
-            bool hasOrdine = await _context.Ordine
-                .AnyAsync(o => o.StatoOrdineId == statoOrdineId);
-            bool hasStatoStoricoOrdine = await _context.StatoStoricoOrdine
-                .AnyAsync(s => s.StatoOrdineId == statoOrdineId);
-            return hasConfigSoglieTempi || hasOrdine || hasStatoStoricoOrdine;
+            try
+            {
+                _logger.LogInformation("Verifica dipendenze per stato ordine ID: {StatoOrdineId}", statoOrdineId);
+
+                bool hasConfigSoglieTempi = await _context.ConfigSoglieTempi
+                    .AnyAsync(c => c.StatoOrdineId == statoOrdineId);
+
+                bool hasOrdine = await _context.Ordine
+                    .AnyAsync(o => o.StatoOrdineId == statoOrdineId);
+
+                bool hasStatoStoricoOrdine = await _context.StatoStoricoOrdine
+                    .AnyAsync(s => s.StatoOrdineId == statoOrdineId);
+
+                // Log dei risultati
+                _logger.LogInformation(
+                    "Dipendenze trovate per stato ordine ID {StatoOrdineId}: " +
+                    "ConfigSoglieTempi={Config}, Ordine={Ordine}, StatoStorico={Storico}",
+                    statoOrdineId, hasConfigSoglieTempi, hasOrdine, hasStatoStoricoOrdine);
+
+                return hasConfigSoglieTempi || hasOrdine || hasStatoStoricoOrdine;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in HasDependenciesAsync per statoOrdineId: {StatoOrdineId}", statoOrdineId);
+                // In caso di errore, per sicurezza restituiamo true (ci sono dipendenze)
+                return true;
+            }
         }
 
         public async Task<SingleResponseDTO<bool>> DeleteAsync(int statoOrdineId)
         {
             try
             {
+                _logger.LogInformation("Tentativo eliminazione stato ordine ID: {StatoOrdineId}", statoOrdineId);
+
                 if (statoOrdineId <= 0)
+                {
+                    _logger.LogWarning("ID stato ordine non valido: {StatoOrdineId}", statoOrdineId);
                     return SingleResponseDTO<bool>.ErrorResponse("ID stato ordine non valido");
+                }
 
                 var statoOrdine = await _context.StatoOrdine
                     .FirstOrDefaultAsync(s => s.StatoOrdineId == statoOrdineId);
 
                 if (statoOrdine == null)
+                {
+                    _logger.LogWarning("Stato ordine con ID {StatoOrdineId} non trovato", statoOrdineId);
                     return SingleResponseDTO<bool>.NotFoundResponse(
                         $"Stato ordine con ID {statoOrdineId} non trovato");
+                }
 
-                if (await HasDependenciesAsync(statoOrdineId))
+                _logger.LogInformation("Trovato stato ordine: ID={StatoOrdineId}, Nome={Nome}",
+                    statoOrdineId, statoOrdine.StatoOrdine1);
+
+                // Verifica dipendenze
+                var hasDependencies = await HasDependenciesAsync(statoOrdineId);
+
+                if (hasDependencies)
+                {
+                    _logger.LogWarning("Impossibile eliminare stato ordine ID {StatoOrdineId}: ci sono dipendenze", statoOrdineId);
                     return SingleResponseDTO<bool>.ErrorResponse(
                         "Impossibile eliminare lo stato ordine perché ci sono dipendenze collegate");
+                }
 
+                _logger.LogInformation("Procedo con eliminazione stato ordine ID: {StatoOrdineId} - {Nome}",
+                    statoOrdineId, statoOrdine.StatoOrdine1);
+
+                // Tentativo di eliminazione
                 _context.StatoOrdine.Remove(statoOrdine);
-                await _context.SaveChangesAsync();
+                var saveResult = await _context.SaveChangesAsync();
+
+                _logger.LogInformation("SaveChangesAsync completato. Record modificati: {RecordCount}", saveResult);
+                _logger.LogInformation("Stato ordine ID: {StatoOrdineId} eliminato con successo", statoOrdineId);
 
                 return SingleResponseDTO<bool>.SuccessResponse(
                     true,
                     $"Stato ordine '{statoOrdine.StatoOrdine1}' (ID: {statoOrdineId}) eliminato con successo");
             }
+            catch (DbUpdateException dbEx)
+            {
+                // Errore specifico di database (FK constraint, etc.)
+                _logger.LogError(dbEx, "Errore DB durante eliminazione statoOrdineId: {StatoOrdineId}. Inner: {InnerMessage}",
+                    statoOrdineId, dbEx.InnerException?.Message);
+
+                return SingleResponseDTO<bool>.ErrorResponse(
+                    "Errore di database durante l'eliminazione. Verificare che non ci siano dipendenze attive.");
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore in DeleteAsync per statoOrdineId: {StatoOrdineId}", statoOrdineId);
+                _logger.LogError(ex, "Errore generico in DeleteAsync per statoOrdineId: {StatoOrdineId}", statoOrdineId);
                 return SingleResponseDTO<bool>.ErrorResponse(
                     "Errore interno durante l'eliminazione dello stato ordine");
             }

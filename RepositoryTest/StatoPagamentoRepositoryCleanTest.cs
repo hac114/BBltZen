@@ -11,14 +11,14 @@ using Xunit;
 
 namespace RepositoryTest
 {
-    public class StatoOrdineRepositoryCleanTest : BaseTestClean
+    public class StatoPagamentoRepositoryCleanTest : BaseTestClean
     {
-        private readonly StatoOrdineRepository _repository;
+        private readonly StatoPagamentoRepository _repository;
 
-        public StatoOrdineRepositoryCleanTest()
+        public StatoPagamentoRepositoryCleanTest()
         {
-            _repository = new StatoOrdineRepository(_context, GetTestLogger<StatoOrdineRepository>());
-        }        
+            _repository = new StatoPagamentoRepository(_context, GetTestLogger<StatoPagamentoRepository>());
+        }
 
         #region GetAllAsync Tests
 
@@ -26,74 +26,102 @@ namespace RepositoryTest
         public async Task GetAllAsync_ShouldReturnPaginatedResponse()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync(); // Usa il metodo di BaseTestClean
+            await SetupStatoPagamentoTestDataAsync();
 
             // Act
-            var result = await _repository.GetAllAsync(page: 1, pageSize: 5);
+            var result = await _repository.GetAllAsync(page: 1, pageSize: 3);
 
             // Assert
             Assert.NotNull(result);
-            // Se non ci sono eccezioni, TotalCount dovrebbe essere 8
-            // Non facciamo assert su valori specifici perché il comparatore potrebbe causare problemi
-            Assert.NotNull(result.Data);
+            Assert.Equal(5, result.TotalCount);
+            Assert.Equal(3, result.Data.Count());
+            Assert.Equal(1, result.Page);
+            Assert.Equal(3, result.PageSize);
         }
-
 
         [Fact]
         public async Task GetAllAsync_WithPageSizeLargerThanTotal_ShouldReturnAllItems()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
 
             // Act
             var result = await _repository.GetAllAsync(page: 1, pageSize: 20);
 
             // Assert
             Assert.NotNull(result);
-            Assert.NotNull(result.Data);
+            Assert.Equal(5, result.TotalCount);
+            Assert.Equal(5, result.Data.Count());
         }
 
         [Fact]
         public async Task GetAllAsync_WithSecondPage_ShouldReturnCorrectItems()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
 
             // Act
-            var result = await _repository.GetAllAsync(page: 2, pageSize: 4);
+            var result = await _repository.GetAllAsync(page: 2, pageSize: 3);
 
             // Assert
             Assert.NotNull(result);
-            Assert.NotNull(result.Data);
+            Assert.Equal(5, result.TotalCount);
+            Assert.Equal(2, result.Data.Count());
+            Assert.Equal(2, result.Page);
         }
 
         [Fact]
         public async Task GetAllAsync_WithInvalidPage_ShouldUseSafeValues()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
 
             // Act
             var result = await _repository.GetAllAsync(page: 0, pageSize: 0);
 
             // Assert
             Assert.NotNull(result);
-            Assert.NotNull(result.Data);
+            Assert.Equal(1, result.Page);
+            Assert.True(result.PageSize > 0);
         }
 
         [Fact]
         public async Task GetAllAsync_WithEmptyTable_ShouldReturnEmptyList()
         {
             // Arrange
-            await CleanTableAsync<StatoOrdine>();
+            await CleanTableAsync<StatoPagamento>();
 
             // Act
             var result = await _repository.GetAllAsync();
 
             // Assert
             Assert.NotNull(result);
+            Assert.Equal(0, result.TotalCount);
             Assert.Empty(result.Data);
-            Assert.Contains(result.Message, new[] { "Nessuno stato ordine trovato", "Errore nel recupero degli stati ordine" });
+            Assert.Contains("Nessuno stato pagamento trovato", result.Message);
+        }
+
+        [Fact]
+        public async Task GetAllAsync_ShouldReturnOrderedResults()
+        {
+            // Arrange
+            await CleanTableAsync<StatoPagamento>();
+            // Creiamo stati in ordine sparso
+            await CreateTestStatoPagamentoAsync("fallito");
+            await CreateTestStatoPagamentoAsync("non richiesto");
+            await CreateTestStatoPagamentoAsync("pendente");
+
+            // Act
+            var result = await _repository.GetAllAsync();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(3, result.TotalCount);
+            var items = result.Data.ToList();
+            // Secondo comparatore: non richiesto (1), pendente (2), fallito (4)
+            Assert.Equal("non richiesto", items[0].StatoPagamento1);
+            Assert.Equal("pendente", items[1].StatoPagamento1);
+            Assert.Equal("fallito", items[2].StatoPagamento1);
         }
 
         #endregion
@@ -101,10 +129,10 @@ namespace RepositoryTest
         #region GetByIdAsync Tests
 
         [Fact]
-        public async Task GetByIdAsync_WithValidId_ShouldReturnStatoOrdine()
+        public async Task GetByIdAsync_WithValidId_ShouldReturnStatoPagamento()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             int existingId = 1;
 
             // Act
@@ -113,20 +141,16 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.True(result.Success);
-
-            // Aggiungiamo l'assert per Data
             Assert.NotNull(result.Data);
-
-            Assert.Equal(existingId, result.Data.StatoOrdineId);
-            Assert.Equal("bozza", result.Data.StatoOrdine1);
-            Assert.False(result.Data.Terminale);
+            Assert.Equal(existingId, result.Data.StatoPagamentoId);
+            Assert.Equal("non richiesto", result.Data.StatoPagamento1);
         }
 
         [Fact]
         public async Task GetByIdAsync_WithNonExistingId_ShouldReturnNotFound()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             int nonExistingId = 999;
 
             // Act
@@ -135,7 +159,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal($"Stato ordine con ID {nonExistingId} non trovato", result.Message);
+            Assert.Equal($"Stato pagamento con ID {nonExistingId} non trovato", result.Message);
         }
 
         [Fact]
@@ -150,7 +174,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("ID stato ordine non valido", result.Message);
+            Assert.Equal("ID stato pagamento non valido", result.Message);
         }
 
         [Fact]
@@ -165,18 +189,19 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("ID stato ordine non valido", result.Message);
+            Assert.Equal("ID stato pagamento non valido", result.Message);
         }
 
         #endregion
 
         #region GetByNomeAsync Tests
+
         [Fact]
-        public async Task GetByNomeAsync_WithValidNome_ShouldReturnStatoOrdine()
+        public async Task GetByNomeAsync_WithValidNome_ShouldReturnStatoPagamento()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            string existingNome = "bozza";
+            await SetupStatoPagamentoTestDataAsync();
+            string existingNome = "non richiesto";
 
             // Act
             var result = await _repository.GetByNomeAsync(existingNome);
@@ -185,31 +210,31 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
-            Assert.Equal(existingNome, result.Data.StatoOrdine1);
-            Assert.Equal(1, result.Data.StatoOrdineId);
+            Assert.Equal(existingNome, result.Data.StatoPagamento1);
+            Assert.Equal(1, result.Data.StatoPagamentoId);
         }
 
         [Fact]
-        public async Task GetByNomeAsync_WithCaseInsensitiveNome_ShouldReturnStatoOrdine()
+        public async Task GetByNomeAsync_WithCaseInsensitiveNome_ShouldReturnStatoPagamento()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
 
             // Act
-            var result = await _repository.GetByNomeAsync("BOZZA");
+            var result = await _repository.GetByNomeAsync("NON RICHIESTO");
 
             // Assert
             Assert.NotNull(result);
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
-            Assert.Equal("bozza", result.Data.StatoOrdine1);
+            Assert.Equal("non richiesto", result.Data.StatoPagamento1);
         }
 
         [Fact]
         public async Task GetByNomeAsync_WithNonExistingNome_ShouldReturnNotFound()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             string nonExistingNome = "inesistente";
 
             // Act
@@ -218,7 +243,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal($"Nessuno stato ordine trovato con nome '{nonExistingNome}'", result.Message);
+            Assert.Equal($"Nessuno stato pagamento trovato con nome '{nonExistingNome}'", result.Message);
         }
 
         [Fact]
@@ -233,7 +258,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Il parametro 'nomeStatoOrdine' è obbligatorio", result.Message);
+            Assert.Equal("Il parametro 'nomeStatoPagamento' è obbligatorio", result.Message);
         }
 
         [Fact]
@@ -248,14 +273,14 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Il parametro 'nomeStatoOrdine' è obbligatorio", result.Message);
+            Assert.Equal("Il parametro 'nomeStatoPagamento' è obbligatorio", result.Message);
         }
 
         [Fact]
         public async Task GetByNomeAsync_WithInvalidInput_ShouldReturnError()
         {
             // Arrange
-            string invalidInput = new('a', 101); // Troppo lungo
+            string invalidInput = new string('a', 101); // Troppo lungo
 
             // Act
             var result = await _repository.GetByNomeAsync(invalidInput);
@@ -268,125 +293,16 @@ namespace RepositoryTest
 
         #endregion
 
-        #region GetStatiNonTerminaliAsync Tests
-
-        [Fact]
-        public async Task GetStatiNonTerminaliAsync_ShouldReturnOnlyNonTerminalStates()
-        {
-            // Arrange
-            await SetupStatoOrdineTestDataAsync();
-
-            // Act
-            var result = await _repository.GetStatiNonTerminaliAsync(page: 1, pageSize: 10);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.NotNull(result.Data);
-        }
-
-        [Fact]
-        public async Task GetStatiNonTerminaliAsync_WithPagination_ShouldReturnCorrectPage()
-        {
-            // Arrange
-            await SetupStatoOrdineTestDataAsync();
-
-            // Act
-            var result = await _repository.GetStatiNonTerminaliAsync(page: 1, pageSize: 3);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.NotNull(result.Data);
-        }
-
-        [Fact]
-        public async Task GetStatiNonTerminaliAsync_WithNoNonTerminalStates_ShouldReturnEmpty()
-        {
-            // Arrange
-            await CleanTableAsync<StatoOrdine>(); // Usa BaseTestClean
-
-            // Usa CreateTestStatoOrdineAsync (metodo di BaseTestClean) per creare stati terminali
-            await CreateTestStatoOrdineAsync("consegnato", true);
-            await CreateTestStatoOrdineAsync("annullato", true);
-
-            // Act
-            var result = await _repository.GetStatiNonTerminaliAsync();
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Equal(0, result.TotalCount);
-            Assert.Empty(result.Data);
-
-            // Accetta entrambi i messaggi possibili (comparatore potrebbe causare eccezione)
-            Assert.Contains(result.Message, new[] { "Nessuno stato non terminale trovato", "Errore nel recupero degli stati non terminali"});
-        }
-
-        #endregion
-
-        #region GetStatiTerminaliAsync Tests
-
-        [Fact]
-        public async Task GetStatiTerminaliAsync_ShouldReturnOnlyTerminalStates()
-        {
-            // Arrange
-            await SetupStatoOrdineTestDataAsync();
-
-            // Act
-            var result = await _repository.GetStatiTerminaliAsync(page: 1, pageSize: 10);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.NotNull(result.Data);
-        }
-
-        [Fact]
-        public async Task GetStatiTerminaliAsync_WithPagination_ShouldReturnCorrectPage()
-        {
-            // Arrange
-            await SetupStatoOrdineTestDataAsync();
-
-            // Act
-            var result = await _repository.GetStatiTerminaliAsync(page: 1, pageSize: 1);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.NotNull(result.Data);
-        }
-
-        [Fact]
-        public async Task GetStatiTerminaliAsync_WithNoTerminalStates_ShouldReturnEmpty()
-        {
-            // Arrange
-            await CleanTableAsync<StatoOrdine>(); // Usa BaseTestClean
-
-            // Usa CreateTestStatoOrdineAsync (metodo di BaseTestClean) per creare stati non terminali
-            await CreateTestStatoOrdineAsync("bozza", false);
-            await CreateTestStatoOrdineAsync("in carrello", false);
-
-            // Act
-            var result = await _repository.GetStatiTerminaliAsync();
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Equal(0, result.TotalCount);
-            Assert.Empty(result.Data);
-
-            // Accetta entrambi i messaggi possibili (comparatore potrebbe causare eccezione)
-            Assert.Contains(result.Message, new[] {"Nessuno stato terminale trovato", "Errore nel recupero degli stati terminali"});
-        }
-
-        #endregion
-
         #region AddAsync Tests
 
         [Fact]
-        public async Task AddAsync_WithValidDto_ShouldCreateNewStatoOrdine()
+        public async Task AddAsync_WithValidDto_ShouldCreateNewStatoPagamento()
         {
             // Arrange
-            await CleanTableAsync<StatoOrdine>();
-            var dto = new StatoOrdineDTO
+            await CleanTableAsync<StatoPagamento>();
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdine1 = "nuovo_stato",
-                Terminale = false
+                StatoPagamento1 = "nuovo_stato"
             };
 
             // Act
@@ -396,40 +312,21 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
-            Assert.Equal("nuovo_stato", result.Data.StatoOrdine1);
-            Assert.False(result.Data.Terminale);
+            Assert.Equal("nuovo_stato", result.Data.StatoPagamento1);
+            Assert.True(result.Data.StatoPagamentoId > 0);
+            Assert.Contains("creato con successo", result.Message);
 
-            // Verify in database usando il contesto direttamente
-            var fromDb = await _context.StatoOrdine.FirstOrDefaultAsync(s => s.StatoOrdine1 == "nuovo_stato");
+            // Verify in database
+            var fromDb = await _context.StatoPagamento.FindAsync(result.Data.StatoPagamentoId);
             Assert.NotNull(fromDb);
-        }
-
-        [Fact]
-        public async Task AddAsync_WithTerminalState_ShouldCreateTerminalStatoOrdine()
-        {
-            // Arrange
-            await CleanTableAsync<StatoOrdine>();
-            var dto = new StatoOrdineDTO
-            {
-                StatoOrdine1 = "stato_terminale",
-                Terminale = true
-            };
-
-            // Act
-            var result = await _repository.AddAsync(dto);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.True(result.Success);
-            Assert.NotNull(result.Data);
-            Assert.True(result.Data.Terminale);
+            Assert.Equal("nuovo_stato", fromDb.StatoPagamento1);
         }
 
         [Fact]
         public async Task AddAsync_WithNullDto_ShouldThrowException()
         {
             // Arrange
-            StatoOrdineDTO nullDto = null!;
+            StatoPagamentoDTO nullDto = null!;
 
             // Act
             var result = await _repository.AddAsync(nullDto);
@@ -437,17 +334,16 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Errore interno durante la creazione dello stato ordine", result.Message);
+            Assert.Equal("Errore interno durante la creazione dello stato pagamento", result.Message);
         }
 
         [Fact]
         public async Task AddAsync_WithEmptyNome_ShouldReturnError()
         {
             // Arrange
-            var dto = new StatoOrdineDTO
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdine1 = "",
-                Terminale = false
+                StatoPagamento1 = ""
             };
 
             // Act
@@ -456,18 +352,17 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Nome stato ordine obbligatorio", result.Message);
+            Assert.Equal("Nome stato pagamento obbligatorio", result.Message);
         }
 
         [Fact]
         public async Task AddAsync_WithExistingNome_ShouldReturnError()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            var dto = new StatoOrdineDTO
+            await SetupStatoPagamentoTestDataAsync();
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdine1 = "bozza", // Esiste già nel seed
-                Terminale = false
+                StatoPagamento1 = "non richiesto" // Esiste già nel seed
             };
 
             // Act
@@ -483,10 +378,9 @@ namespace RepositoryTest
         public async Task AddAsync_WithInvalidInput_ShouldReturnError()
         {
             // Arrange
-            var dto = new StatoOrdineDTO
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdine1 = new string('a', 101), // Troppo lungo
-                Terminale = false
+                StatoPagamento1 = new string('a', 101) // Troppo lungo
             };
 
             // Act
@@ -502,11 +396,10 @@ namespace RepositoryTest
         public async Task AddAsync_WithTrimmedNome_ShouldTrimSpaces()
         {
             // Arrange
-            await CleanTableAsync<StatoOrdine>();
-            var dto = new StatoOrdineDTO
+            await CleanTableAsync<StatoPagamento>();
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdine1 = "  stato_con_spazi  ",
-                Terminale = false
+                StatoPagamento1 = "  stato_con_spazi  "
             };
 
             // Act
@@ -516,7 +409,7 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
-            Assert.Equal("stato_con_spazi", result.Data.StatoOrdine1);
+            Assert.Equal("stato_con_spazi", result.Data.StatoPagamento1);
         }
 
         #endregion
@@ -524,16 +417,17 @@ namespace RepositoryTest
         #region UpdateAsync Tests
 
         [Fact]
-        public async Task UpdateAsync_WithValidDto_ShouldUpdateStatoOrdine()
+        public async Task UpdateAsync_WithValidDto_ShouldUpdateStatoPagamento()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
+            var stato = await _context.StatoPagamento.FirstAsync(s => s.StatoPagamentoId == 1);
+            var originalName = stato.StatoPagamento1;
 
-            var dto = new StatoOrdineDTO
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdineId = 1,
-                StatoOrdine1 = "bozza_modificata",
-                Terminale = true
+                StatoPagamentoId = 1,
+                StatoPagamento1 = "non richiesto modificato"
             };
 
             // Act
@@ -542,20 +436,26 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.True(result.Success);
+            Assert.True(result.Data); // bool result
+
+            // Verify changes
+            var updated = await _context.StatoPagamento.FindAsync(1);
+            Assert.NotNull(updated);
+            Assert.Equal("non richiesto modificato", updated.StatoPagamento1);
+            Assert.NotEqual(originalName, updated.StatoPagamento1);
         }
 
         [Fact]
         public async Task UpdateAsync_WithNoChanges_ShouldReturnFalseWithMessage()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            var stato = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdineId == 1);
+            await SetupStatoPagamentoTestDataAsync();
+            var stato = await _context.StatoPagamento.FirstAsync(s => s.StatoPagamentoId == 1);
 
-            var dto = new StatoOrdineDTO
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdineId = 1,
-                StatoOrdine1 = "bozza", // Stesso nome
-                Terminale = false // Stesso valore
+                StatoPagamentoId = 1,
+                StatoPagamento1 = "non richiesto" // Stesso nome
             };
 
             // Act
@@ -572,12 +472,11 @@ namespace RepositoryTest
         public async Task UpdateAsync_WithNonExistingId_ShouldReturnNotFound()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            var dto = new StatoOrdineDTO
+            await SetupStatoPagamentoTestDataAsync();
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdineId = 999,
-                StatoOrdine1 = "inesistente",
-                Terminale = false
+                StatoPagamentoId = 999,
+                StatoPagamento1 = "inesistente"
             };
 
             // Act
@@ -593,8 +492,7 @@ namespace RepositoryTest
         public async Task UpdateAsync_WithNullDto_ShouldReturnError()
         {
             // Arrange
-            // Non serve setup perché testiamo il comportamento con null
-            StatoOrdineDTO nullDto = null!;
+            StatoPagamentoDTO nullDto = null!;
 
             // Act
             var result = await _repository.UpdateAsync(nullDto);
@@ -602,19 +500,18 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Errore interno durante l'aggiornamento dello stato ordine", result.Message);
+            Assert.Equal("Errore interno durante l'aggiornamento dello stato pagamento", result.Message);
         }
 
         [Fact]
         public async Task UpdateAsync_WithEmptyNome_ShouldReturnError()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            var dto = new StatoOrdineDTO
+            await SetupStatoPagamentoTestDataAsync();
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdineId = 1,
-                StatoOrdine1 = "",
-                Terminale = false
+                StatoPagamentoId = 1,
+                StatoPagamento1 = ""
             };
 
             // Act
@@ -623,20 +520,19 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Nome stato ordine obbligatorio", result.Message);
+            Assert.Equal("Nome stato pagamento obbligatorio", result.Message);
         }
 
         [Fact]
         public async Task UpdateAsync_WithDuplicateNome_ShouldReturnError()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            // Stato 1 = "bozza", Stato 2 = "in carrello"
-            var dto = new StatoOrdineDTO
+            await SetupStatoPagamentoTestDataAsync();
+            // Stato 1 = "non richiesto", Stato 2 = "pendente"
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdineId = 1, // bozza
-                StatoOrdine1 = "in carrello", // Già usato da stato 2
-                Terminale = false
+                StatoPagamentoId = 1, // non richiesto
+                StatoPagamento1 = "pendente" // Già usato da stato 2
             };
 
             // Act
@@ -652,12 +548,11 @@ namespace RepositoryTest
         public async Task UpdateAsync_WithInvalidInput_ShouldReturnError()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            var dto = new StatoOrdineDTO
+            await SetupStatoPagamentoTestDataAsync();
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdineId = 1,
-                StatoOrdine1 = new string('a', 101), // Troppo lungo
-                Terminale = false
+                StatoPagamentoId = 1,
+                StatoPagamento1 = new string('a', 101) // Troppo lungo
             };
 
             // Act
@@ -674,10 +569,10 @@ namespace RepositoryTest
         #region DeleteAsync Tests
 
         [Fact]
-        public async Task DeleteAsync_WithValidId_ShouldDeleteStatoOrdine()
+        public async Task DeleteAsync_WithValidId_ShouldDeleteStatoPagamento()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             int idToDelete = 1;
 
             // Act
@@ -689,7 +584,7 @@ namespace RepositoryTest
             Assert.True(result.Data);
 
             // Verify deletion
-            var deleted = await _context.StatoOrdine.FindAsync(idToDelete);
+            var deleted = await _context.StatoPagamento.FindAsync(idToDelete);
             Assert.Null(deleted);
         }
 
@@ -697,7 +592,7 @@ namespace RepositoryTest
         public async Task DeleteAsync_WithNonExistingId_ShouldReturnNotFound()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             int nonExistingId = 999;
 
             // Act
@@ -721,7 +616,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("ID stato ordine non valido", result.Message);
+            Assert.Equal("ID stato pagamento non valido", result.Message);
         }
 
         [Fact]
@@ -736,25 +631,35 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("ID stato ordine non valido", result.Message);
+            Assert.Equal("ID stato pagamento non valido", result.Message);
         }
 
         [Fact]
         public async Task DeleteAsync_WithDependencies_ShouldReturnError()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
 
-            // Crea una dipendenza per lo stato ordine 1 (bozza)
-            var configSoglia = new ConfigSoglieTempi
+            // Usa uno StatoOrdine esistente dal seed (il seed crea 8 stati ordine)
+            // Ad esempio, lo stato ordine con ID 1 (bozza) esiste già
+            var statoOrdineEsistente = await _context.StatoOrdine.FindAsync(1);
+            // Assicurati che esista (dovrebbe dal seed)
+            Assert.NotNull(statoOrdineEsistente);
+
+            // Crea una dipendenza per lo stato pagamento 1 (non richiesto)
+            var ordine = new Ordine
             {
-                StatoOrdineId = 1,
-                SogliaAttenzione = 30,
-                SogliaCritico = 50,
+                StatoPagamentoId = 1,
+                StatoOrdineId = statoOrdineEsistente.StatoOrdineId, // Usa l'ID esistente
+                Totale = 10.00m,
+                DataCreazione = DateTime.UtcNow,
                 DataAggiornamento = DateTime.UtcNow,
-                UtenteAggiornamento = null
+                ClienteId = 1,
+                Priorita = 1,
+                SessioneId = null
             };
-            _context.ConfigSoglieTempi.Add(configSoglia);
+
+            _context.Ordine.Add(ordine);
             await _context.SaveChangesAsync();
 
             // Act
@@ -774,7 +679,7 @@ namespace RepositoryTest
         public async Task ExistsAsync_WithExistingId_ShouldReturnTrue()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             int existingId = 1;
 
             // Act
@@ -791,7 +696,7 @@ namespace RepositoryTest
         public async Task ExistsAsync_WithNonExistingId_ShouldReturnFalse()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             int nonExistingId = 999;
 
             // Act
@@ -816,7 +721,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("ID stato ordine non valido", result.Message);
+            Assert.Equal("ID stato pagamento non valido", result.Message);
         }
 
         #endregion
@@ -827,8 +732,8 @@ namespace RepositoryTest
         public async Task ExistsByNomeAsync_WithExistingNome_ShouldReturnTrue()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            string existingNome = "bozza";
+            await SetupStatoPagamentoTestDataAsync();
+            string existingNome = "non richiesto";
 
             // Act
             var result = await _repository.ExistsByNomeAsync(existingNome);
@@ -844,10 +749,10 @@ namespace RepositoryTest
         public async Task ExistsByNomeAsync_WithCaseInsensitiveNome_ShouldReturnTrue()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
 
             // Act
-            var result = await _repository.ExistsByNomeAsync("BOZZA");
+            var result = await _repository.ExistsByNomeAsync("NON RICHIESTO");
 
             // Assert
             Assert.NotNull(result);
@@ -859,7 +764,7 @@ namespace RepositoryTest
         public async Task ExistsByNomeAsync_WithNonExistingNome_ShouldReturnFalse()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
+            await SetupStatoPagamentoTestDataAsync();
             string nonExistingNome = "inesistente";
 
             // Act
@@ -884,7 +789,7 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Il nome dello stato ordine è obbligatorio", result.Message);
+            Assert.Equal("Il nome dello stato pagamento è obbligatorio", result.Message);
         }
 
         [Fact]
@@ -899,14 +804,14 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.False(result.Success);
-            Assert.Equal("Il nome dello stato ordine è obbligatorio", result.Message);
+            Assert.Equal("Il nome dello stato pagamento è obbligatorio", result.Message);
         }
 
         [Fact]
         public async Task ExistsByNomeAsync_WithInvalidInput_ShouldReturnError()
         {
             // Arrange
-            string invalidInput = new('a', 101);
+            string invalidInput = new string('a', 101);
 
             // Act
             var result = await _repository.ExistsByNomeAsync(invalidInput);
@@ -925,31 +830,29 @@ namespace RepositoryTest
         public async Task FullCRUD_Workflow_ShouldWorkCorrectly()
         {
             // Arrange - Clean slate
-            await CleanTableAsync<StatoOrdine>();
+            await CleanTableAsync<StatoPagamento>();
 
             // 1. Add
-            var addDto = new StatoOrdineDTO
+            var addDto = new StatoPagamentoDTO
             {
-                StatoOrdine1 = "test_workflow",
-                Terminale = false
+                StatoPagamento1 = "test_workflow"
             };
             var addResult = await _repository.AddAsync(addDto);
             Assert.True(addResult.Success);
             Assert.NotNull(addResult.Data);
-            int newId = addResult.Data.StatoOrdineId;
+            int newId = addResult.Data.StatoPagamentoId;
 
             // 2. GetById to verify
             var getResult = await _repository.GetByIdAsync(newId);
             Assert.True(getResult.Success);
             Assert.NotNull(getResult.Data);
-            Assert.Equal("test_workflow", getResult.Data.StatoOrdine1);
+            Assert.Equal("test_workflow", getResult.Data.StatoPagamento1);
 
             // 3. Update
-            var updateDto = new StatoOrdineDTO
+            var updateDto = new StatoPagamentoDTO
             {
-                StatoOrdineId = newId,
-                StatoOrdine1 = "test_workflow_updated",
-                Terminale = true
+                StatoPagamentoId = newId,
+                StatoPagamento1 = "test_workflow_updated"
             };
             var updateResult = await _repository.UpdateAsync(updateDto);
             Assert.True(updateResult.Success);
@@ -958,8 +861,7 @@ namespace RepositoryTest
             var verifyResult = await _repository.GetByIdAsync(newId);
             Assert.True(verifyResult.Success);
             Assert.NotNull(verifyResult.Data);
-            Assert.Equal("test_workflow_updated", verifyResult.Data.StatoOrdine1);
-            Assert.True(verifyResult.Data.Terminale);
+            Assert.Equal("test_workflow_updated", verifyResult.Data.StatoPagamento1);
 
             // 5. Delete
             var deleteResult = await _repository.DeleteAsync(newId);
@@ -971,54 +873,26 @@ namespace RepositoryTest
         }
 
         [Fact]
-        public async Task GetAllAsync_ShouldReturnOrderedResults()
+        public async Task GetAllAsync_WithDifferentData_ShouldRespectComparerOrder()
         {
             // Arrange
-            await CleanTableAsync<StatoOrdine>();
-
-            // Usa nomi unici per evitare problemi con il comparatore
-            var stati = new List<StatoOrdine>
-            {
-                new() { StatoOrdine1 = "z_ultimo", Terminale = false },
-                new() { StatoOrdine1 = "a_primo", Terminale = false },
-                new() { StatoOrdine1 = "m_medio", Terminale = false }
-            };
-
-            _context.StatoOrdine.AddRange(stati);
-            await _context.SaveChangesAsync();
+            await CleanTableAsync<StatoPagamento>();
+            // Inserisci in ordine diverso da quello del comparatore
+            await CreateTestStatoPagamentoAsync("rimborsato");
+            await CreateTestStatoPagamentoAsync("pendente");
+            await CreateTestStatoPagamentoAsync("fallito");
 
             // Act
             var result = await _repository.GetAllAsync();
 
             // Assert
             Assert.NotNull(result);
-            Assert.NotNull(result.Data);
-            // Non facciamo assert sull'ordinamento perché il comparatore potrebbe non funzionare
-            // Verifichiamo solo che il metodo non lanci eccezioni
-            Assert.True(true);
-        }
-
-        [Fact]
-        public async Task GetStatiNonTerminaliAsync_And_GetStatiTerminaliAsync_ShouldBeComplementary()
-        {
-            // Arrange
-            await CleanTableAsync<StatoOrdine>();
-
-            // Usa metodi helper per creare stati misti
-            await CreateTestStatoOrdineAsync("stato1", false);
-            await CreateTestStatoOrdineAsync("stato2", true);
-            await CreateTestStatoOrdineAsync("stato3", false);
-            await CreateTestStatoOrdineAsync("stato4", true);
-
-            // Act
-            var nonTerminali = await _repository.GetStatiNonTerminaliAsync(pageSize: 100);
-            var terminali = await _repository.GetStatiTerminaliAsync(pageSize: 100);
-            var tutti = await _repository.GetAllAsync(pageSize: 100);
-
-            // Assert
-            Assert.NotNull(tutti);
-            Assert.NotNull(nonTerminali);
-            Assert.NotNull(terminali);
+            Assert.Equal(3, result.TotalCount);
+            // Ordine secondo comparatore: pendente (2), fallito (4), rimborsato (5)
+            var items = result.Data.ToList();
+            Assert.Equal("pendente", items[0].StatoPagamento1);
+            Assert.Equal("fallito", items[1].StatoPagamento1);
+            Assert.Equal("rimborsato", items[2].StatoPagamento1);
         }
 
         #endregion
@@ -1029,12 +903,11 @@ namespace RepositoryTest
         public async Task AddAsync_WithVeryLongButValidNome_ShouldWork()
         {
             // Arrange
-            await CleanTableAsync<StatoOrdine>();
+            await CleanTableAsync<StatoPagamento>();
             var longName = new string('a', 100); // Lunghezza massima consentita
-            var dto = new StatoOrdineDTO
+            var dto = new StatoPagamentoDTO
             {
-                StatoOrdine1 = longName,
-                Terminale = false
+                StatoPagamento1 = longName
             };
 
             // Act
@@ -1044,48 +917,19 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
-            Assert.Equal(longName, result.Data.StatoOrdine1);
+            Assert.Equal(longName, result.Data.StatoPagamento1);
         }
 
         [Fact]
-        public async Task UpdateAsync_OnlyTerminaleField_ShouldUpdate()
+        public async Task DeleteAsync_LastStatoPagamento_ShouldWork()
         {
             // Arrange
-            await SetupStatoOrdineTestDataAsync();
-            var stato = await _context.StatoOrdine.FirstAsync(s => s.StatoOrdineId == 1);
-            var originalTerminale = stato.Terminale;
-
-            var dto = new StatoOrdineDTO
-            {
-                StatoOrdineId = 1,
-                StatoOrdine1 = "bozza", // Stesso nome
-                Terminale = !originalTerminale // Cambia solo questo
-            };
-
-            // Act
-            var result = await _repository.UpdateAsync(dto);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.True(result.Success);
-            Assert.True(result.Data); // Ci sono state modifiche
-
-            var updated = await _context.StatoOrdine.FindAsync(1);
-            Assert.NotNull(updated);
-            Assert.Equal("bozza", updated.StatoOrdine1);
-            Assert.Equal(!originalTerminale, updated.Terminale);
-        }
-
-        [Fact]
-        public async Task DeleteAsync_LastStatoOrdine_ShouldWork()
-        {
-            // Arrange
-            await CleanTableAsync<StatoOrdine>();
+            await CleanTableAsync<StatoPagamento>();
             // Crea solo uno stato
-            var stato = new StatoOrdine { StatoOrdine1 = "unico", Terminale = false };
-            _context.StatoOrdine.Add(stato);
+            var stato = new StatoPagamento { StatoPagamento1 = "unico" };
+            _context.StatoPagamento.Add(stato);
             await _context.SaveChangesAsync();
-            int id = stato.StatoOrdineId;
+            int id = stato.StatoPagamentoId;
 
             // Act
             var result = await _repository.DeleteAsync(id);
@@ -1093,32 +937,31 @@ namespace RepositoryTest
             // Assert
             Assert.NotNull(result);
             Assert.True(result.Success);
-            Assert.Empty(_context.StatoOrdine);
+            Assert.Empty(_context.StatoPagamento);
         }
 
         [Fact]
         public async Task GetByNomeAsync_WithSpecialCharacters_ShouldNormalize()
         {
             // Arrange
-            await CleanTableAsync<StatoOrdine>();
-            var stato = new StatoOrdine
+            await CleanTableAsync<StatoPagamento>();
+            var stato = new StatoPagamento
             {
-                StatoOrdine1 = "stato-con_trattini_e_underscore",
-                Terminale = false
+                StatoPagamento1 = "stato-con_trattini",
             };
-            _context.StatoOrdine.Add(stato);
+            _context.StatoPagamento.Add(stato);
             await _context.SaveChangesAsync();
 
             // Act - Cerca con spazi e maiuscole
-            var result = await _repository.GetByNomeAsync("  STATO-CON_TRATTINI_E_UNDERSCORE  ");
+            var result = await _repository.GetByNomeAsync("  STATO-CON_TRATTINI  ");
 
             // Assert
             Assert.NotNull(result);
             Assert.True(result.Success);
             Assert.NotNull(result.Data);
-            Assert.Equal("stato-con_trattini_e_underscore", result.Data.StatoOrdine1);
+            Assert.Equal("stato-con_trattini", result.Data.StatoPagamento1);
         }
 
-        #endregion        
+        #endregion
     }
 }

@@ -3,13 +3,16 @@
 namespace Repository.Interface
 {
     public interface IStatoPagamentoRepository
-    {
-        Task<StatoPagamentoDTO> AddAsync(StatoPagamentoDTO statoPagamentoDto);
-        Task DeleteAsync(int statoPagamentoId);
-        Task<bool> ExistsAsync(int statoPagamentoId);
-        Task<IEnumerable<StatoPagamentoDTO>> GetAllAsync();
-        Task<StatoPagamentoDTO?> GetByIdAsync(int statoPagamentoId);
-        Task<StatoPagamentoDTO?> GetByNomeAsync(string nomeStatoPagamento);
-        Task UpdateAsync(StatoPagamentoDTO statoPagamentoDto);
+    {        
+        Task<PaginatedResponseDTO<StatoPagamentoDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<StatoPagamentoDTO>> GetByIdAsync(int statoPagamentoId);
+        Task<SingleResponseDTO<StatoPagamentoDTO>> GetByNomeAsync(string nomeStatoPagamento);
+
+        Task<SingleResponseDTO<StatoPagamentoDTO>> AddAsync(StatoPagamentoDTO statoPagamentoDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync (StatoPagamentoDTO statoPagamentoDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int statoPagamentoId);
+
+        Task<SingleResponseDTO<bool>> ExistsAsync(int statoPagamentoId);
+        Task<SingleResponseDTO<bool>> ExistsByNomeAsync(string statoPagamento);
     }
 }

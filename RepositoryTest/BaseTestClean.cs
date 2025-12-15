@@ -245,27 +245,27 @@ namespace RepositoryTest
                     new StatoPagamento
                     {
                         StatoPagamentoId = 1,
-                        StatoPagamento1 = "non_richiesto"
+                        StatoPagamento1 = "non richiesto"
                     },
                     new StatoPagamento
                     {
                         StatoPagamentoId = 2,
-                        StatoPagamento1 = "Pending"
+                        StatoPagamento1 = "pendente"
                     },
                     new StatoPagamento
                     {
                         StatoPagamentoId = 3,
-                        StatoPagamento1 = "Pagato"
+                        StatoPagamento1 = "completato"
                     },
                     new StatoPagamento
                     {
                         StatoPagamentoId = 4,
-                        StatoPagamento1 = "Fallito"
+                        StatoPagamento1 = "fallito"
                     },
                     new StatoPagamento
                     {
                         StatoPagamentoId = 5,
-                        StatoPagamento1 = "Rimborsato"
+                        StatoPagamento1 = "rimborsato"
                     }
                 );
             }
@@ -454,6 +454,11 @@ namespace RepositoryTest
             else if (typeof(T) == typeof(StatoOrdine))
             {
                 await CleanStatoOrdineDependenciesAsync([.. entities.Cast<StatoOrdine>()]);
+            }
+
+            else if (typeof(T) == typeof(StatoPagamento))
+            {
+                await CleanStatoPagamentoDependenciesAsync([.. entities.Cast<StatoPagamento>()]);
             }
 
             // Aggiungi altri entity con dipendenze qui se necessario
@@ -913,6 +918,81 @@ namespace RepositoryTest
             await CreateTestStatoOrdineAsync("consegnato", true, 6);
             await CreateTestStatoOrdineAsync("sospeso", false, 7);
             await CreateTestStatoOrdineAsync("annullato", true, 8);
+            
+        }
+
+        #endregion
+
+        #region StatoPagamento Helpers
+
+        protected async Task<StatoPagamento> CreateTestStatoPagamentoAsync(
+            string statoPagamento = "Test Stato Pagamento",
+            int? statoPagamentoId = null)
+        {
+            var stato = new StatoPagamento
+            {
+                StatoPagamento1 = statoPagamento
+            };
+
+            if (statoPagamentoId.HasValue && statoPagamentoId > 0)
+            {
+                stato.StatoPagamentoId = statoPagamentoId.Value;
+            }
+
+            _context.StatoPagamento.Add(stato);
+            await _context.SaveChangesAsync();
+            return stato;
+        }
+
+        protected async Task<List<StatoPagamento>> CreateMultipleStatiPagamentoAsync(int count = 3)
+        {
+            var stati = new List<StatoPagamento>();
+
+            for (int i = 1; i <= count; i++)
+            {
+                stati.Add(new StatoPagamento
+                {
+                    StatoPagamento1 = $"Stato Pagamento Test {i}"
+                });
+            }
+
+            _context.StatoPagamento.AddRange(stati);
+            await _context.SaveChangesAsync();
+            return stati;
+        }
+
+        // Metodo per pulire le dipendenze di StatoPagamento
+        protected async Task CleanStatoPagamentoDependenciesAsync(List<StatoPagamento> stati)
+        {
+            var statoIds = stati.Select(s => s.StatoPagamentoId).ToList();
+
+            // 1. Elimina Ordine collegati (unica dipendenza basata sul modello)
+            var ordini = await _context.Ordine
+                .Where(o => statoIds.Contains(o.StatoPagamentoId))
+                .ToListAsync();
+            _context.Ordine.RemoveRange(ordini);
+
+            // Aggiungi altre dipendenze qui se emergono in futuro
+            // Esempio: se ci fosse StatoStoricoPagamento, etc.
+
+            if (ordini.Count > 0)
+            {
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        protected async Task SetupStatoPagamentoTestDataAsync()
+        {
+            // Pulisce e ricrea dati per test isolati
+            await CleanTableAsync<StatoPagamento>();
+
+            // Crea i 5 stati standard (come nel DB di produzione)
+            // USO I VALORI DEL DATABASE SQL - Conferma se sono corretti:
+            await CreateTestStatoPagamentoAsync("non richiesto", 1);
+            await CreateTestStatoPagamentoAsync("pendente", 2);
+            await CreateTestStatoPagamentoAsync("completato", 3);
+            await CreateTestStatoPagamentoAsync("fallito", 4);
+            await CreateTestStatoPagamentoAsync("rimborsato", 5);
             
         }
 

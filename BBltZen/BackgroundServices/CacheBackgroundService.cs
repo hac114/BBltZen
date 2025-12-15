@@ -126,8 +126,16 @@ namespace BBltZen.BackgroundServices
                 .ToListAsync();
 
             // ⏰ QUERY PER FASCIA ORARIA PIÙ ATTIVA
+            //var fasciaOrariaPiuAttiva = await context.Ordine
+            //    .GroupBy(o => EF.Functions.DateDiffHour(oggi, o.DataCreazione))
+            //    .Select(g => new { Ora = g.Key, Count = g.Count() })
+            //    .OrderByDescending(x => x.Count)
+            //    .FirstOrDefaultAsync();
+            // Se vuoi sapere l'ora del giorno in cui ci sono più ordini
+
             var fasciaOrariaPiuAttiva = await context.Ordine
-                .GroupBy(o => EF.Functions.DateDiffHour(oggi, o.DataCreazione))
+                .Where(o => o.DataCreazione.Date == DateTime.Today) // Solo ordini di oggi
+                .GroupBy(o => o.DataCreazione.Hour)
                 .Select(g => new { Ora = g.Key, Count = g.Count() })
                 .OrderByDescending(x => x.Count)
                 .FirstOrDefaultAsync();
