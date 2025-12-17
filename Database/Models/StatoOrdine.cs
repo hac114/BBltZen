@@ -11,7 +11,7 @@ public partial class StatoOrdine
 
     public bool Terminale { get; set; }
 
-    public virtual ICollection<ConfigSoglieTempi> ConfigSoglieTempi { get; set; } = new List<ConfigSoglieTempi>();
+    public virtual ConfigSoglieTempi? ConfigSoglieTempi { get; set; }
 
     public virtual ICollection<Ordine> Ordine { get; set; } = new List<Ordine>();
 

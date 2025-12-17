@@ -323,16 +323,16 @@ namespace BBltZen.Infrastructure
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                // ✅ CORREZIONE: Carica tutti gli stati
                 var statiOrdine = await _context.StatoOrdine.ToListAsync();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var statoInAttesa = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Attesa");
-                var statoInPreparazione = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "In Preparazione");
-                var statoPronto = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "Pronto");
+                // ✅ CORREZIONE: Usa i nomi esatti degli stati dal seed
+                var statoInCoda = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "in coda");
+                var statoInPreparazione = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "in preparazione");
+                var statoProntaConsegna = statiOrdine.FirstOrDefault(s => s.StatoOrdine1 == "pronta consegna");
 
                 // ✅ Verifica che gli stati esistano
-                if (statoInAttesa == null || statoInPreparazione == null || statoPronto == null)
+                if (statoInCoda == null || statoInPreparazione == null || statoProntaConsegna == null)
                 {
                     Console.WriteLine("⚠️  Stati ordine non trovati per ConfigSoglieTempi");
                     return;
@@ -340,33 +340,37 @@ namespace BBltZen.Infrastructure
 
                 var soglieTempi = new[]
                 {
-                    new ConfigSoglieTempi
-                    {
-                        StatoOrdineId = statoInAttesa.StatoOrdineId,
-                        SogliaAttenzione = 5,    // minuti
-                        SogliaCritico = 10,      // minuti
-                        DataAggiornamento = DateTime.UtcNow,
-                        UtenteAggiornamento = "system"
-                    },
-                    new ConfigSoglieTempi
-                    {
-                        StatoOrdineId = statoInPreparazione.StatoOrdineId,
-                        SogliaAttenzione = 10,   // minuti
-                        SogliaCritico = 20,      // minuti
-                        DataAggiornamento = DateTime.UtcNow,
-                        UtenteAggiornamento = "system"
-                    },
-                    new ConfigSoglieTempi
-                    {
-                        StatoOrdineId = statoPronto.StatoOrdineId,
-                        SogliaAttenzione = 5,    // minuti
-                        SogliaCritico = 15,      // minuti
-                        DataAggiornamento = DateTime.UtcNow,
-                        UtenteAggiornamento = "system"
-                    }
-                };
+            new ConfigSoglieTempi
+            {
+                StatoOrdineId = statoInCoda.StatoOrdineId,
+                SogliaAttenzione = 5,    // minuti
+                SogliaCritico = 10,      // minuti
+                DataAggiornamento = DateTime.UtcNow,
+                UtenteAggiornamento = "system"
+            },
+            new ConfigSoglieTempi
+            {
+                StatoOrdineId = statoInPreparazione.StatoOrdineId,
+                SogliaAttenzione = 10,   // minuti
+                SogliaCritico = 20,      // minuti
+                DataAggiornamento = DateTime.UtcNow,
+                UtenteAggiornamento = "system"
+            },
+            new ConfigSoglieTempi
+            {
+                StatoOrdineId = statoProntaConsegna.StatoOrdineId,
+                SogliaAttenzione = 5,    // minuti
+                SogliaCritico = 15,      // minuti
+                DataAggiornamento = DateTime.UtcNow,
+                UtenteAggiornamento = "system"
+            }
+        };
 
                 await _context.ConfigSoglieTempi.AddRangeAsync(soglieTempi);
+
+                // ✅ IMPORTANTE: Salva i cambiamenti per le ConfigSoglieTempi
+                await _context.SaveChangesAsync();
+
                 Console.WriteLine("✅ ConfigSoglieTempi seeded successfully");
             }
             catch (Exception ex)

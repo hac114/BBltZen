@@ -125,7 +125,6 @@ public partial class BubbleTeaContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-
         modelBuilder.Entity<Articolo>(entity =>
         {
             //HO AGGIUNTO QUESTA RIGA PER GESTIRE CONFIGURAZIONE UTENTI
@@ -279,6 +278,10 @@ public partial class BubbleTeaContext : DbContext
 
             entity.ToTable("CONFIG_SOGLIE_TEMPI");
 
+            entity.HasIndex(e => e.DataAggiornamento, "IX_CONFIG_SOGLIE_TEMPI_data_aggiornamento");
+
+            entity.HasIndex(e => e.StatoOrdineId, "UQ_CONFIG_SOGLIE_TEMPI_stato_ordine_id").IsUnique();
+
             entity.Property(e => e.SogliaId).HasColumnName("soglia_id");
             entity.Property(e => e.DataAggiornamento)
                 .HasDefaultValueSql("(getdate())")
@@ -292,8 +295,8 @@ public partial class BubbleTeaContext : DbContext
                 .IsUnicode(false)
                 .HasColumnName("utente_aggiornamento");
 
-            entity.HasOne(d => d.StatoOrdine).WithMany(p => p.ConfigSoglieTempi)
-                .HasForeignKey(d => d.StatoOrdineId)
+            entity.HasOne(d => d.StatoOrdine).WithOne(p => p.ConfigSoglieTempi)
+                .HasForeignKey<ConfigSoglieTempi>(d => d.StatoOrdineId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__CONFIG_SO__stato__5CC1BC92");
         });

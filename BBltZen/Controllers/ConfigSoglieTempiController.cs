@@ -1,292 +1,232 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using DTO;
-using Repository.Interface;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using DTO;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using BBltZen;
+using Microsoft.AspNetCore.Mvc;
+using Repository.Interface;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [AllowAnonymous] // ✅ OVERRIDE DELL'[Authorize] DEL BASE CONTROLLER
-    public class ConfigSoglieTempiController : SecureBaseController
+    // [Authorize] // ✅ Commentato per test Swagger
+    public class ConfigSoglieTempiController(
+        IConfigSoglieTempiRepository repository,
+        ILogger<ConfigSoglieTempiController> logger) : ControllerBase
     {
-        private readonly IConfigSoglieTempiRepository _repository;
-        private readonly BubbleTeaContext _context;
+        private readonly IConfigSoglieTempiRepository _repository = repository;
+        private readonly ILogger<ConfigSoglieTempiController> _logger = logger;
 
-        public ConfigSoglieTempiController(
-            IConfigSoglieTempiRepository repository,
-            BubbleTeaContext context,
-            IWebHostEnvironment environment,
-            ILogger<ConfigSoglieTempiController> logger)
-            : base(environment, logger)
-        {
-            _repository = repository;
-            _context = context;
-        }
-
-        // GET: api/ConfigSoglieTempi
-        [HttpGet]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IEnumerable<ConfigSoglieTempiDTO>>> GetAll()
+        // GET: api/config-soglie-tempi
+        [HttpGet("")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<ConfigSoglieTempiDTO>>> GetAll(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                var configSoglieTempi = await _repository.GetAllAsync();
-                return Ok(configSoglieTempi);
+                var result = await _repository.GetAllAsync(page, pageSize);
+                return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero di tutte le configurazioni soglie tempi");
-                return SafeInternalError<IEnumerable<ConfigSoglieTempiDTO>>("Errore durante il recupero delle configurazioni");
+                _logger.LogError(ex, "GetAll configurazioni soglie tempi errore");
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // GET: api/ConfigSoglieTempi/5
-        [HttpGet("{id}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<ConfigSoglieTempiDTO>> GetById(int id)
+        // GET: api/config-soglie-tempi/{id}
+        [HttpGet("{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<ConfigSoglieTempiDTO>>> GetById(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest<ConfigSoglieTempiDTO>("ID soglia non valido");
+                var result = await _repository.GetByIdAsync(id);
 
-                var configSoglieTempi = await _repository.GetByIdAsync(id);
+                if (!result.Success)
+                    return NotFound(new { message = result.Message });
 
-                if (configSoglieTempi == null)
-                    return SafeNotFound<ConfigSoglieTempiDTO>("Configurazione soglie tempi");
-
-                return Ok(configSoglieTempi);
+                return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero della configurazione soglie tempi {Id}", id);
-                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante il recupero della configurazione");
+                _logger.LogError(ex, "GetById configurazione soglie tempi ID: {Id} errore", id);
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // GET: api/ConfigSoglieTempi/stato-ordine/5
-        [HttpGet("stato-ordine/{statoOrdineId}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<ConfigSoglieTempiDTO>> GetByStatoOrdineId(int statoOrdineId)
+        // GET: api/config-soglie-tempi/stato-ordine/{nome}
+        [HttpGet("stato-ordine/{nome}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<ConfigSoglieTempiDTO>>> GetByStatoOrdine(string nome)
         {
             try
             {
-                if (statoOrdineId <= 0)
-                    return SafeBadRequest<ConfigSoglieTempiDTO>("ID stato ordine non valido");
+                var result = await _repository.GetByStatoOrdineAsync(nome);
 
-                // ✅ Verifica se lo stato ordine esiste
-                var statoOrdineEsiste = await _context.StatoOrdine.AnyAsync(s => s.StatoOrdineId == statoOrdineId);
-                if (!statoOrdineEsiste)
-                    return SafeBadRequest<ConfigSoglieTempiDTO>("Stato ordine non trovato");
+                if (!result.Success)
+                    return NotFound(new { message = result.Message });
 
-                var configSoglieTempi = await _repository.GetByStatoOrdineIdAsync(statoOrdineId);
-
-                if (configSoglieTempi == null)
-                    return SafeNotFound<ConfigSoglieTempiDTO>("Configurazione soglie tempi per stato ordine");
-
-                return Ok(configSoglieTempi);
+                return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero della configurazione per stato ordine {StatoOrdineId}", statoOrdineId);
-                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante il recupero della configurazione");
+                _logger.LogError(ex, "GetByStatoOrdine configurazione soglie tempi nome: {Nome} errore", nome);
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // POST: api/ConfigSoglieTempi
+        // GET: api/config-soglie-tempi/configurazioni-per-stati
+        [HttpGet("configurazioni-per-stati")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<Dictionary<int, ConfigSoglieTempiDTO>>>> GetConfigurazioniPerStati(
+            [FromQuery] List<int> stati)
+        {
+            try
+            {
+                if (stati == null || !stati.Any())
+                    return BadRequest(new { message = "Specificare almeno uno stato ordine" });
+
+                var result = await _repository.GetSoglieByStatiOrdineAsync(stati);
+
+                if (!result.Success)
+                    return BadRequest(new { message = result.Message });
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetConfigurazioniPerStati configurazione soglie tempi stati: {Stati} errore",
+                    stati != null ? string.Join(", ", stati) : "null");
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        // POST: api/config-soglie-tempi
         [HttpPost]
-        //[Authorize(Roles = "admin")]
-        public async Task<ActionResult<ConfigSoglieTempiDTO>> Create([FromBody] ConfigSoglieTempiDTO configSoglieTempiDto)
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<ConfigSoglieTempiDTO>>> Create(
+            [FromBody] ConfigSoglieTempiDTO configSoglieTempiDto)
         {
             try
             {
-                if (!IsModelValid(configSoglieTempiDto))
-                    return SafeBadRequest<ConfigSoglieTempiDTO>("Dati configurazione non validi");
+                if (configSoglieTempiDto == null)
+                    return BadRequest(new { message = "Il corpo della richiesta non può essere vuoto" });
 
-                // ✅ Verifica se lo stato ordine esiste
-                var statoOrdineEsiste = await _context.StatoOrdine.AnyAsync(s => s.StatoOrdineId == configSoglieTempiDto.StatoOrdineId);
-                if (!statoOrdineEsiste)
-                    return SafeBadRequest<ConfigSoglieTempiDTO>("Stato ordine non trovato");
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
 
-                // ✅ Imposta l'utente di aggiornamento
-                configSoglieTempiDto.UtenteAggiornamento = User.Identity?.Name ?? "System";
-
-                // ✅ USA IL RISULTATO DI AddAsync - IL REPOSITORY FA TUTTE LE VALIDAZIONI
                 var result = await _repository.AddAsync(configSoglieTempiDto);
 
-                // ✅ Audit trail
-                LogAuditTrail("CREATE", "ConfigSoglieTempi", result.SogliaId.ToString());
-                LogSecurityEvent("ConfigSoglieTempiCreated", new
-                {
-                    result.SogliaId,
-                    result.StatoOrdineId,
-                    UserId = GetCurrentUserId()
-                });
+                if (!result.Success)
+                    return BadRequest(new { message = result.Message });
 
-                return CreatedAtAction(nameof(GetById), new { id = result.SogliaId }, result);
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest<ConfigSoglieTempiDTO>(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione");
-                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante il salvataggio");
+                // Controllo esplicito per evitare dereferenziamento null
+                if (result.Data == null)
+                {
+                    _logger.LogWarning("Create configurazione: operazione riuscita ma dati nulli");
+                    return StatusCode(500, "Errore interno del server: dati non disponibili");
+                }
+
+                return CreatedAtAction(nameof(GetById), new { id = result.Data.SogliaId }, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione");
-                return SafeInternalError<ConfigSoglieTempiDTO>("Errore durante la creazione");
+                _logger.LogError(ex, "Create configurazione soglie tempi errore");
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        // PUT: api/ConfigSoglieTempi/5
-        [HttpPut("{id}")]
-        //[Authorize(Roles = "admin")]
-        public async Task<ActionResult> Update(int id, [FromBody] ConfigSoglieTempiDTO configSoglieTempiDto)
+        // PUT: api/config-soglie-tempi/{id}
+        [HttpPut("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(
+            int id,
+            [FromBody] ConfigSoglieTempiDTO configSoglieTempiDto)
         {
             try
             {
-                if (id <= 0 || id != configSoglieTempiDto.SogliaId)
-                    return SafeBadRequest("ID non valido");
+                if (configSoglieTempiDto == null)
+                    return BadRequest(new { message = "Il corpo della richiesta non può essere vuoto" });
 
-                if (!IsModelValid(configSoglieTempiDto))
-                    return SafeBadRequest("Dati configurazione non validi");
+                if (id != configSoglieTempiDto.SogliaId)
+                    return BadRequest(new { message = "L'ID nella route non corrisponde all'ID nel corpo" });
 
-                // ✅ Verifica se lo stato ordine esiste
-                var statoOrdineEsiste = await _context.StatoOrdine.AnyAsync(s => s.StatoOrdineId == configSoglieTempiDto.StatoOrdineId);
-                if (!statoOrdineEsiste)
-                    return SafeBadRequest("Stato ordine non trovato");
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
 
-                // ✅ Imposta l'utente di aggiornamento
-                configSoglieTempiDto.UtenteAggiornamento = User.Identity?.Name ?? "System";
+                var result = await _repository.UpdateAsync(configSoglieTempiDto);
 
-                await _repository.UpdateAsync(configSoglieTempiDto);
+                if (!result.Success)
+                    return BadRequest(new { message = result.Message });
 
-                // ✅ Audit trail - SILENT FAIL, non verifica esistenza
-                LogAuditTrail("UPDATE", "ConfigSoglieTempi", configSoglieTempiDto.SogliaId.ToString());
-                LogSecurityEvent("ConfigSoglieTempiUpdated", new
-                {
-                    configSoglieTempiDto.SogliaId,
-                    UserId = GetCurrentUserId()
-                });
-
-                return NoContent();
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante l'aggiornamento {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
-            }
-        }
-
-        // DELETE: api/ConfigSoglieTempi/5
-        [HttpDelete("{id}")]
-        //[Authorize(Roles = "admin")]
-        public async Task<ActionResult> Delete(int id)
-        {
-            try
-            {
-                if (id <= 0)
-                    return SafeBadRequest("ID soglia non valido");
-
-                var configSoglieTempi = await _repository.GetByIdAsync(id);
-                if (configSoglieTempi == null)
-                    return SafeNotFound("Configurazione soglie tempi");
-
-                await _repository.DeleteAsync(id);
-
-                // ✅ Audit trail allineato
-                LogAuditTrail("DELETE", "ConfigSoglieTempi", id.ToString());
-                LogSecurityEvent("ConfigSoglieTempiDeleted", new
-                {
-                    SogliaId = id,
-                    StatoOrdineId = configSoglieTempi.StatoOrdineId,
-                    UserId = GetCurrentUserId()
-                });
-
-                return NoContent();
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante l'eliminazione {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
-            }
-        }
-
-        [HttpGet("stati-ordine")]
-        [AllowAnonymous]
-        public async Task<ActionResult<Dictionary<int, ConfigSoglieTempiDTO>>> GetSoglieByStatiOrdine([FromQuery] List<int> statiOrdineIds)
-        {
-            try
-            {
-                if (statiOrdineIds == null || !statiOrdineIds.Any())
-                    return SafeBadRequest<Dictionary<int, ConfigSoglieTempiDTO>>("Lista stati ordine vuota");
-
-                var result = await _repository.GetSoglieByStatiOrdineAsync(statiOrdineIds);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero soglie per stati ordine");
-                return SafeInternalError<Dictionary<int, ConfigSoglieTempiDTO>>("Errore durante il recupero");
+                _logger.LogError(ex, "Update configurazione soglie tempi {Id} errore", id);
+                return StatusCode(500, "Errore interno del server");
             }
         }
-        [HttpPost("validate")]
-        [AllowAnonymous]
-        public async Task<ActionResult<bool>> ValidateSoglie([FromBody] SoglieValidationRequestDTO request)
+
+        // DELETE: api/config-soglie-tempi/{id}
+        [HttpDelete("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Delete(int id)
         {
             try
             {
-                if (!IsModelValid(request))
-                    return SafeBadRequest<bool>("Dati validazione non validi");
+                var utenteRichiedente = User.Identity?.Name ?? "System";
 
-                var result = await _repository.ValidateSoglieAsync(request.SogliaAttenzione, request.SogliaCritico);
+                var result = await _repository.DeleteAsync(id, utenteRichiedente);
+
+                if (!result.Success)
+                    return BadRequest(new { message = result.Message });
+
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la validazione soglie");
-                return SafeInternalError<bool>("Errore durante la validazione");
+                _logger.LogError(ex, "Delete configurazione soglie tempi {Id} errore", id);
+                return StatusCode(500, "Errore interno del server");
             }
         }
 
-        [HttpGet("exists/stato-ordine/{statoOrdineId}")]
+        // GET: api/config-soglie-tempi/exists/{id}
+        [HttpGet("exists/{id:int}")]
         [AllowAnonymous]
-        public async Task<ActionResult<bool>> ExistsByStatoOrdineId(int statoOrdineId, [FromQuery] int? excludeSogliaId = null)
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Exists(int id)
         {
             try
             {
-                if (statoOrdineId <= 0)
-                    return SafeBadRequest<bool>("ID stato ordine non valido");
-
-                var result = await _repository.ExistsByStatoOrdineIdAsync(statoOrdineId, excludeSogliaId);
+                var result = await _repository.ExistsAsync(id);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la verifica esistenza per stato ordine {StatoOrdineId}", statoOrdineId);
-                return SafeInternalError<bool>("Errore durante la verifica");
+                _logger.LogError(ex, "Exists configurazione soglie tempi {Id} errore", id);
+                return StatusCode(500, "Errore interno del server");
+            }
+        }
+
+        // GET: api/config-soglie-tempi/exists/stato-ordine/{nome}
+        [HttpGet("exists/stato-ordine/{nome}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> StatoOrdineExists(string nome)
+        {
+            try
+            {
+                var result = await _repository.ExistsByStatoOrdine(nome);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "StatoOrdineExists configurazione soglie tempi nome: {Nome} errore", nome);
+                return StatusCode(500, "Errore interno del server");
             }
         }
     }

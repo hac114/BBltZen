@@ -1,12 +1,14 @@
 ﻿// RepositoryTest/BaseTestClean.cs
 using BBltZen;
+using DTO;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Xunit;
 
 namespace RepositoryTest
 {
@@ -227,7 +229,7 @@ namespace RepositoryTest
                     {
                         StatoOrdineId = 7,
                         StatoOrdine1 = "sospeso",
-                        Terminale = true
+                        Terminale = false
                     },
                     new StatoOrdine
                     {
@@ -461,6 +463,11 @@ namespace RepositoryTest
                 await CleanStatoPagamentoDependenciesAsync([.. entities.Cast<StatoPagamento>()]);
             }
 
+            else if (typeof(T) == typeof(ConfigSoglieTempi))
+            {
+                await CleanConfigSoglieTempiDependenciesAsync([.. entities.Cast<ConfigSoglieTempi>()]);
+            }
+
             // Aggiungi altri entity con dipendenze qui se necessario
             // else if (typeof(T) == typeof(AltraEntity)) { ... }
 
@@ -474,7 +481,9 @@ namespace RepositoryTest
             await CleanTableAsync<DimensioneBicchiere>();
             await CleanTableAsync<Ingrediente>();
             await CleanTableAsync<StatoPagamento>();
+            await CleanTableAsync<ConfigSoglieTempi>();
             await CleanTableAsync<StatoOrdine>();
+            await CleanTableAsync<LogAttivita>();
             await CleanTableAsync<TaxRates>();
             await CleanTableAsync<CategoriaIngrediente>();            
             await CleanTableAsync<UnitaDiMisura>();
@@ -994,6 +1003,280 @@ namespace RepositoryTest
             await CreateTestStatoPagamentoAsync("fallito", 4);
             await CreateTestStatoPagamentoAsync("rimborsato", 5);
             
+        }
+
+        #endregion
+
+        #region ConfigSoglieTempi Helpers
+
+        protected async Task<ConfigSoglieTempi> CreateTestConfigSoglieTempiAsync(
+            int statoOrdineId,
+            int sogliaAttenzione = 30,
+            int sogliaCritico = 60,
+            string utenteAggiornamento = "testUser",
+            DateTime? dataAggiornamento = null,
+            int? sogliaId = null)
+        {
+            // Assicurati che lo StatoOrdine esista
+            var statoOrdine = await _context.StatoOrdine
+                .FirstOrDefaultAsync(s => s.StatoOrdineId == statoOrdineId);
+
+            if (statoOrdine == null)
+            {
+                // Se lo stato non esiste, crealo usando l'ID fornito
+                var nomeStato = statoOrdineId switch
+                {
+                    1 => "bozza",
+                    2 => "in carrello",
+                    3 => "in coda",
+                    4 => "in preparazione",
+                    5 => "pronta consegna",
+                    6 => "consegnato",
+                    7 => "sospeso",
+                    8 => "annullato",
+                    _ => $"Stato Test {statoOrdineId}"
+                };
+
+                var terminale = statoOrdineId switch
+                {
+                    6 => true,                    
+                    8 => true,
+                    _ => false
+                };
+
+                statoOrdine = new StatoOrdine
+                {
+                    StatoOrdineId = statoOrdineId,
+                    StatoOrdine1 = nomeStato,
+                    Terminale = terminale
+                };
+                _context.StatoOrdine.Add(statoOrdine);
+                await _context.SaveChangesAsync();
+            }
+
+            var config = new ConfigSoglieTempi
+            {
+                StatoOrdineId = statoOrdineId,
+                SogliaAttenzione = sogliaAttenzione,
+                SogliaCritico = sogliaCritico,
+                UtenteAggiornamento = utenteAggiornamento,
+                DataAggiornamento = dataAggiornamento ?? DateTime.UtcNow
+            };
+
+            if (sogliaId.HasValue && sogliaId > 0)
+            {
+                config.SogliaId = sogliaId.Value;
+            }
+
+            _context.ConfigSoglieTempi.Add(config);
+            await _context.SaveChangesAsync();
+            
+            config.StatoOrdine = statoOrdine;
+
+            return config;
+        }
+
+        protected async Task<List<ConfigSoglieTempi>> CreateMultipleConfigSoglieTempiAsync(
+            List<int> statoOrdineIds,
+            int sogliaAttenzioneBase = 30,
+            int sogliaCriticoBase = 60,
+            int? sogliaIdStart = null)
+        {
+            var configs = new List<ConfigSoglieTempi>();
+
+            // Verifica/crea tutti gli stati ordine
+            foreach (var statoId in statoOrdineIds)
+            {
+                var stato = await _context.StatoOrdine
+                    .FirstOrDefaultAsync(s => s.StatoOrdineId == statoId);
+
+                if (stato == null)
+                {
+                    // Crea lo stato se non esiste
+                    stato = new StatoOrdine
+                    {
+                        StatoOrdineId = statoId,
+                        StatoOrdine1 = $"Stato Test {statoId}",
+                        Terminale = false
+                    };
+                    _context.StatoOrdine.Add(stato);
+                }
+            }
+            await _context.SaveChangesAsync();
+
+            // Ora crea le configurazioni
+            var statiOrdine = await _context.StatoOrdine
+                .Where(s => statoOrdineIds.Contains(s.StatoOrdineId))
+                .ToListAsync();
+
+            for (int i = 0; i < statoOrdineIds.Count; i++)
+            {
+                var statoId = statoOrdineIds[i];
+                var stato = statiOrdine.First(s => s.StatoOrdineId == statoId);
+
+                var config = new ConfigSoglieTempi
+                {
+                    StatoOrdineId = statoId,
+                    SogliaAttenzione = sogliaAttenzioneBase + (i * 10),
+                    SogliaCritico = sogliaCriticoBase + (i * 20),
+                    UtenteAggiornamento = $"testUser{i}",
+                    DataAggiornamento = DateTime.UtcNow.AddMinutes(-i),
+                    StatoOrdine = stato // Assegnazione diretta per i test
+                };
+
+                if (sogliaIdStart.HasValue)
+                {
+                    config.SogliaId = sogliaIdStart.Value + i;
+                }
+
+                configs.Add(config);
+            }
+
+            _context.ConfigSoglieTempi.AddRange(configs);
+            await _context.SaveChangesAsync();
+            return configs;
+        }
+
+        // Metodo per creare ConfigSoglieTempi con nuovo StatoOrdine (non usare ID predefiniti 1-8)
+        protected async Task<ConfigSoglieTempi> CreateTestConfigSoglieTempiWithNewStatoOrdineAsync(
+            string nomeStato = "Test Stato",
+            bool terminale = false,
+            int sogliaAttenzione = 30,
+            int sogliaCritico = 60,
+            string utenteAggiornamento = "testUser")
+        {
+            // Trova il prossimo ID disponibile
+            var maxId = await _context.StatoOrdine.MaxAsync(s => (int?)s.StatoOrdineId) ?? 0;
+            var newId = maxId + 1;
+
+            // Crea un nuovo stato (non sovrascrive quelli predefiniti)
+            var stato = new StatoOrdine
+            {
+                StatoOrdineId = newId,
+                StatoOrdine1 = nomeStato,
+                Terminale = terminale
+            };
+
+            _context.StatoOrdine.Add(stato);
+            await _context.SaveChangesAsync();
+
+            // Crea la configurazione
+            return await CreateTestConfigSoglieTempiAsync(
+                newId,
+                sogliaAttenzione,
+                sogliaCritico,
+                utenteAggiornamento);
+        }
+
+        // Metodo per pulire le dipendenze di ConfigSoglieTempi
+        protected async Task CleanConfigSoglieTempiDependenciesAsync(List<ConfigSoglieTempi> configs)
+        {
+            // ConfigSoglieTempi non ha dipendenze dirette verso altre tabelle
+            // Rimuove solo le configurazioni stesse
+            if (configs.Any())
+            {
+                _context.ConfigSoglieTempi.RemoveRange(configs);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // Setup dati di test per ConfigSoglieTempi usando gli stati predefiniti (ID 1-8)
+        protected async Task SetupConfigSoglieTempiTestDataAsync()
+        {
+            // Pulisce la tabella
+            await CleanTableAsync<ConfigSoglieTempi>();
+
+            // Assicurati che ci siano gli 8 stati predefiniti
+            if (!await _context.StatoOrdine.AnyAsync())
+            {
+                // Usa il codice fornito per creare gli 8 stati predefiniti
+                var stati = new[]
+                {
+                    new StatoOrdine { StatoOrdineId = 1, StatoOrdine1 = "bozza", Terminale = false },
+                    new StatoOrdine { StatoOrdineId = 2, StatoOrdine1 = "in carrello", Terminale = false },
+                    new StatoOrdine { StatoOrdineId = 3, StatoOrdine1 = "in coda", Terminale = false },
+                    new StatoOrdine { StatoOrdineId = 4, StatoOrdine1 = "in preparazione", Terminale = false },
+                    new StatoOrdine { StatoOrdineId = 5, StatoOrdine1 = "pronta consegna", Terminale = false },
+                    new StatoOrdine { StatoOrdineId = 6, StatoOrdine1 = "consegnato", Terminale = true },
+                    new StatoOrdine { StatoOrdineId = 7, StatoOrdine1 = "sospeso", Terminale = false },
+                    new StatoOrdine { StatoOrdineId = 8, StatoOrdine1 = "annullato", Terminale = true }
+                };
+
+                _context.StatoOrdine.AddRange(stati);
+                await _context.SaveChangesAsync();
+            }
+
+            // ✅ Crea configurazioni solo per stati NON terminali
+            // Stati non terminali nel vostro seed: 1, 2, 3, 4, 5, 7
+            var statiNonTerminali = new[] { 1, 2, 3, 4 }; // Creiamo 4 configs come esempio
+
+            for (int i = 0; i < statiNonTerminali.Length; i++)
+            {
+                var statoId = statiNonTerminali[i];
+                await CreateTestConfigSoglieTempiAsync(
+                    statoOrdineId: statoId,
+                    sogliaAttenzione: 30 + (i * 15),   // 30, 45, 60, 75
+                    sogliaCritico: 60 + (i * 30),      // 60, 90, 120, 150
+                    utenteAggiornamento: "admin",
+                    dataAggiornamento: DateTime.UtcNow.AddHours(-i)
+                );
+            }
+        }
+
+        // Metodo per validare un DTO ConfigSoglieTempi (utile per test di validazione)
+        protected void AssertConfigSoglieTempiDTO(
+            ConfigSoglieTempiDTO dto,
+            int expectedSogliaId,
+            int expectedStatoOrdineId,
+            int expectedSogliaAttenzione,
+            int expectedSogliaCritico,
+            string? expectedUtenteAggiornamento = null,
+            bool checkDate = false)
+        {
+            Assert.NotNull(dto);
+            Assert.Equal(expectedSogliaId, dto.SogliaId);
+            Assert.Equal(expectedStatoOrdineId, dto.StatoOrdineId);
+            Assert.Equal(expectedSogliaAttenzione, dto.SogliaAttenzione);
+            Assert.Equal(expectedSogliaCritico, dto.SogliaCritico);
+
+            if (expectedUtenteAggiornamento != null)
+            {
+                Assert.Equal(expectedUtenteAggiornamento, dto.UtenteAggiornamento);
+            }
+
+            if (checkDate && dto.DataAggiornamento.HasValue)
+            {
+                // ⚠️ Usa TimeSpan per confronti sicuri senza warning
+                var timeDifference = DateTime.UtcNow - dto.DataAggiornamento.Value;
+                Assert.True(timeDifference.TotalSeconds >= -1,
+                    $"DataAggiornamento ({dto.DataAggiornamento}) non può essere nel futuro (ora: {DateTime.UtcNow})");
+            }
+        }
+
+        // Metodo per validare un'entità ConfigSoglieTempi
+        protected void AssertConfigSoglieTempiEntity(
+            ConfigSoglieTempi entity,
+            int expectedStatoOrdineId,
+            int expectedSogliaAttenzione,
+            int expectedSogliaCritico,
+            string? expectedUtenteAggiornamento = null)
+        {
+            Assert.NotNull(entity);
+            Assert.Equal(expectedStatoOrdineId, entity.StatoOrdineId);
+            Assert.Equal(expectedSogliaAttenzione, entity.SogliaAttenzione);
+            Assert.Equal(expectedSogliaCritico, entity.SogliaCritico);
+
+            if (expectedUtenteAggiornamento != null)
+            {
+                Assert.Equal(expectedUtenteAggiornamento, entity.UtenteAggiornamento);
+            }
+
+            Assert.NotNull(entity.DataAggiornamento);
+
+            // ⚠️ Confronto sicuro con tolleranza di 1 secondo
+            var maxAllowed = DateTime.UtcNow.AddSeconds(1);
+            Assert.True(entity.DataAggiornamento <= maxAllowed,
+                $"DataAggiornamento ({entity.DataAggiornamento}) non può essere nel futuro (max: {maxAllowed})");
         }
 
         #endregion

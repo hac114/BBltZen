@@ -8,11 +8,15 @@ namespace Database.Configurations
     {
         public void Configure(EntityTypeBuilder<StatoOrdine> builder)
         {
-            // ✅ SINGOLA chiamata ToTable che definisce nome e check constraint
-            builder.ToTable("StatoOrdine", tb => tb.HasCheckConstraint(
-                "CK_terminale_solo_0_1",
-                "([terminale]=(1) OR [terminale]=(0))"
-            ));
+            // ✅ DEFINIZIONE TABELLA e CHECK CONSTRAINT (Sintassi aggiornata)
+            // Il check constraint viene configurato all'interno della lambda di ToTable
+            builder.ToTable(tb =>
+            {
+                tb.HasCheckConstraint(
+                    "CK_terminale_solo_0_1",
+                    "([terminale] = 1 OR [terminale] = 0)"
+                );
+            });
 
             // Chiave primaria
             builder.HasKey(so => so.StatoOrdineId);
@@ -23,27 +27,32 @@ namespace Database.Configurations
                 .HasMaxLength(100)
                 .HasColumnName("StatoOrdine");
 
-            // ✅ VINCOLO UNIQUE
+            // ✅ VINCOLO UNIQUE sul valore dello stato
             builder.HasIndex(so => so.StatoOrdine1)
                 .IsUnique()
                 .HasDatabaseName("UQ_stato_ordine_valore");
 
-            // ✅ Proprietà Terminale - CON VALORE DI DEFAULT FALSE (corrisponde a 0 nel DB)
+            // ✅ Proprietà Terminale - Mappatura corretta per BIT SQL -> bool C#
             builder.Property(so => so.Terminale)
                 .IsRequired()
-                .HasDefaultValue(false);
+                .HasDefaultValue(false)
+                .HasConversion<int>(); // Conversione opzionale per chiarezza
 
-            // Relazioni
-            builder.HasMany(so => so.ConfigSoglieTempi)
+            // ✅ RELAZIONE UNO-A-ZERO/UNO con ConfigSoglieTempi
+            // StatoOrdine può avere 0 o 1 ConfigSoglieTempi
+            // ConfigSoglieTempi deve avere esattamente 1 StatoOrdine
+            builder.HasOne(so => so.ConfigSoglieTempi)
                 .WithOne(cst => cst.StatoOrdine)
-                .HasForeignKey(cst => cst.StatoOrdineId)
+                .HasForeignKey<ConfigSoglieTempi>(cst => cst.StatoOrdineId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // ✅ RELAZIONE UNO-A-MOLTI con Ordine
             builder.HasMany(so => so.Ordine)
                 .WithOne(o => o.StatoOrdine)
                 .HasForeignKey(o => o.StatoOrdineId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // ✅ RELAZIONE UNO-A-MOLTI con StatoStoricoOrdine
             builder.HasMany(so => so.StatoStoricoOrdine)
                 .WithOne(sso => sso.StatoOrdine)
                 .HasForeignKey(sso => sso.StatoOrdineId)

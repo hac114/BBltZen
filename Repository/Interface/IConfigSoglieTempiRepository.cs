@@ -4,26 +4,19 @@ namespace Repository.Interface
 {
     public interface IConfigSoglieTempiRepository
     {
-        // ✅ CORREGGI: AddAsync deve ritornare DTO
-        Task<ConfigSoglieTempiDTO> AddAsync(ConfigSoglieTempiDTO configSoglieTempiDto);
+        Task<PaginatedResponseDTO<ConfigSoglieTempiDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<ConfigSoglieTempiDTO>> GetByIdAsync(int sogliaId);
+        Task<SingleResponseDTO<ConfigSoglieTempiDTO>> GetByStatoOrdineAsync(string statoOrdine);
+        Task<SingleResponseDTO<Dictionary<int, ConfigSoglieTempiDTO>>> GetSoglieByStatiOrdineAsync(IEnumerable<int> statiOrdineIds);       
 
-        Task UpdateAsync(ConfigSoglieTempiDTO configSoglieTempiDto);
-        Task DeleteAsync(int sogliaId);
-        Task<bool> ExistsAsync(int sogliaId);
-
-        // ✅ CORREGGI: GetAll con IEnumerable
-        Task<IEnumerable<ConfigSoglieTempiDTO>> GetAllAsync();
-        Task<ConfigSoglieTempiDTO?> GetByIdAsync(int sogliaId);
-
-        // ✅ METODI DI FILTRO
-        Task<ConfigSoglieTempiDTO?> GetByStatoOrdineIdAsync(int statoOrdineId);
-        Task<bool> ExistsByStatoOrdineIdAsync(int statoOrdineId, int? excludeSogliaId = null);
-
-        // ✅ AGGIUNGI: Metodi per business logic
-        Task<Dictionary<int, ConfigSoglieTempiDTO>> GetSoglieByStatiOrdineAsync(IEnumerable<int> statiOrdineIds);
-        Task<bool> ValidateSoglieAsync(int sogliaAttenzione, int sogliaCritico);
-
-        // ✅ NUOVO: Metodo per validazione completa DTO
-        Task<(bool IsValid, string? ErrorMessage)> ValidateConfigSoglieAsync(ConfigSoglieTempiDTO configDto);
+        Task<SingleResponseDTO<ConfigSoglieTempiDTO>> AddAsync(ConfigSoglieTempiDTO configSoglieTempiDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(ConfigSoglieTempiDTO configSoglieTempiDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int sogliaId, string utenteRichiedente);
+        
+        Task<SingleResponseDTO<bool>> ExistsAsync(int sogliaId);         
+        Task<SingleResponseDTO<bool>> ExistsByStatoOrdine(string statoOrdine);
+        
+        
+        
     }
 }

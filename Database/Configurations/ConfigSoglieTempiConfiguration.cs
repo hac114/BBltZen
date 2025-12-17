@@ -29,16 +29,37 @@ namespace Database.Configurations
             builder.Property(c => c.DataAggiornamento)
                 .HasDefaultValueSql("GETDATE()");
 
-            // ✅ CHECK CONSTRAINTS - SINTASSI CORRETTA (NON OBSOLETA)
-            builder.ToTable(tb => tb.HasCheckConstraint(
-                "CK_ConfigSoglieTempi_Soglie",
-                "[SogliaAttenzione] >= 0 AND [SogliaCritico] >= 0 AND [SogliaCritico] > [SogliaAttenzione]"));
+            // ✅ CHECK CONSTRAINTS - CORRISPONDONO AL DATABASE
+            builder.ToTable(tb =>
+            {
+                tb.HasCheckConstraint(
+                    "CK_CONFIG_SOGLIE_TEMPI",
+                    "[soglia_attenzione] >= 0 AND [soglia_attenzione] <= 1000");
 
-            // ✅ INDICI PER PERFORMANCE
+                tb.HasCheckConstraint(
+                    "CK_CONFIG_SOGLIE_TEMPI_1",
+                    "[soglia_critico] >= 0 AND [soglia_critico] <= 1000");
+
+                tb.HasCheckConstraint(
+                    "CK_CONFIG_SOGLIE_TEMPI_critico_gt_attenzione",
+                    "[soglia_critico] > [soglia_attenzione]");
+
+                // ✅ NUOVO VINCOLO AGGIUNTO: Impedisce configurazioni per stati terminali
+                // Stati terminali: 4 = consegnato, 6 = annullato
+                // ✅ CORREZIONE: Usa il nome della colonna nel database (stato_ordine_id)
+                tb.HasCheckConstraint(
+                    "CK_CONFIG_SOGLIE_TEMPI_no_stati_terminali",
+                    "[stato_ordine_id] NOT IN (4, 6)");
+            });
+
+            // ✅ UNIQUE CONSTRAINT (NEL DB: UQ_CONFIG_SOGLIE_TEMPI_stato_ordine_id)
             builder.HasIndex(c => c.StatoOrdineId)
-                .IsUnique(); // ✅ UNIQUE: Una configurazione per stato ordine
+                .IsUnique()
+                .HasDatabaseName("UQ_CONFIG_SOGLIE_TEMPI_stato_ordine_id");
 
-            builder.HasIndex(c => c.DataAggiornamento);
+            // ✅ INDICE SU DATA_AGGIORNAMENTO (NEL DB: IX_CONFIG_SOGLIE_TEMPI_data_aggiornamento)
+            builder.HasIndex(c => c.DataAggiornamento)
+                .HasDatabaseName("IX_CONFIG_SOGLIE_TEMPI_data_aggiornamento");
 
             // ✅ RELAZIONE CON STATO ORDINE
             builder.HasOne(c => c.StatoOrdine)
