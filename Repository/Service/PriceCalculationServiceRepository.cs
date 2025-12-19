@@ -104,10 +104,10 @@ namespace Repository.Service
                 if (!dimensioneResponse.Success || dimensioneResponse.Data == null)
                     throw new ArgumentException($"Dimensione bicchiere non trovata: {personalizzazione.DimensioneBicchiereId}");
 
-                var dimensione = dimensioneResponse.Data; // ✅ Prendi i dati dalla risposta
+                var dimensione = dimensioneResponse.Data;
 
                 // 3. Calcola prezzo base dalla dimensione
-                decimal prezzoBase = dimensione.PrezzoBase; // ✅ Ora funziona perché dimensione è DimensioneBicchiereDTO
+                decimal prezzoBase = dimensione.PrezzoBase;
 
                 // 4. Calcola somma ingredienti con moltiplicatore dimensione
                 decimal prezzoIngredienti = 0;
@@ -115,11 +115,17 @@ namespace Repository.Service
 
                 foreach (var ingredientePers in ingredientiPersonalizzazione)
                 {
-                    var ingrediente = await _ingredienteRepo.GetByIdAsync(ingredientePers.IngredienteId);
-                    if (ingrediente != null && ingrediente.Disponibile)
+                    // ✅ CORREZIONE: Ora gestiamo correttamente il SingleResponseDTO
+                    var ingredienteResponse = await _ingredienteRepo.GetByIdAsync(ingredientePers.IngredienteId);
+
+                    // Controlla: 1) che la risposta non sia null, 2) che sia successo, 3) che i dati esistano
+                    if (ingredienteResponse != null &&
+                        ingredienteResponse.Success &&
+                        ingredienteResponse.Data != null &&
+                        ingredienteResponse.Data.Disponibile)  // ✅ Ora funziona!
                     {
-                        // ✅ CORREZIONE: Accesso corretto al moltiplicatore
-                        prezzoIngredienti += ingrediente.PrezzoAggiunto * dimensione.Moltiplicatore;
+                        // ✅ CORREZIONE: Accesso corretto tramite .Data
+                        prezzoIngredienti += ingredienteResponse.Data.PrezzoAggiunto * dimensione.Moltiplicatore;
                     }
                 }
 

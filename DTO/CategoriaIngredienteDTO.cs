@@ -8,5 +8,5 @@ namespace DTO
 
         [StringLength(50, ErrorMessage = "La categoria non può superare 50 caratteri")]
         public required string Categoria { get; set; }
-    }
+    }    
 }

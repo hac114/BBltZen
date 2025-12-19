@@ -1,26 +1,30 @@
 ﻿using DTO;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Repository.Interface
 {
     public interface IIngredienteRepository
-    {
-        // ✅ CORRETTO: AddAsync deve ritornare DTO
-        Task<IngredienteDTO> AddAsync(IngredienteDTO ingredienteDto);
+    {        
+        Task<PaginatedResponseDTO<IngredienteDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<IngredienteDTO>> GetByIdAsync(int ingredienteId);
+        Task<PaginatedResponseDTO<IngredienteDTO>> GetByNomeAsync(string ingrediente, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<IngredienteDTO>> GetByCategoriaAsync(string categoria, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<IngredienteDTO>> GetByDisponibilisync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<IngredienteDTO>> GetByNonDisponibilisync(int page = 1, int pageSize = 10);
 
-        Task UpdateAsync(IngredienteDTO ingredienteDto);
-        Task DeleteAsync(int id);
-        Task<bool> ExistsAsync(int id);
 
-        // ✅ CORRETTO: GetAll con IEnumerable
-        Task<IEnumerable<IngredienteDTO>> GetAllAsync();
-        Task<IngredienteDTO?> GetByIdAsync(int id);
+        Task<SingleResponseDTO<IngredienteDTO>> AddAsync(IngredienteDTO ingredienteDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(IngredienteDTO ingredienteDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int ingredienteId);
+                
+        Task<SingleResponseDTO<bool>> ExistsAsync(int ingredienteId);
+        Task<SingleResponseDTO<bool>> ExistsByNomeAsync(string ingrediente);
 
-        // ✅ METODI BUSINESS SPECIFICI
-        Task<IEnumerable<IngredienteDTO>> GetByCategoriaAsync(int categoriaId);
-        Task<IEnumerable<IngredienteDTO>> GetDisponibiliAsync();
-        Task ToggleDisponibilitaAsync(int id);
-        Task SetDisponibilitaAsync(int id, bool disponibile);
+        Task<SingleResponseDTO<bool>> ToggleDisponibilitaAsync(int ingredienteId);       
+
+        Task<SingleResponseDTO<int>> CountAsync();
+        Task<SingleResponseDTO<int>> CountDisponibiliAsync();
+        Task<SingleResponseDTO<int>> CountNonDisponibiliAsync();
+
     }
 }

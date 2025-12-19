@@ -2,6 +2,7 @@
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Repository.Interface;
 using Repository.Service;
 
@@ -31,8 +32,8 @@ namespace RepositoryTest
             // ✅ CREA IL CONTEXT
             _context = new BubbleTeaContext(options);
 
-            // ✅ CREA IL REPOSITORY DIRETTAMENTE
-            _ingredienteRepository = new IngredienteRepository(_context);
+            // ✅ CREA IL REPOSITORY DIRETTAMENTE (CON LOGGER)
+            _ingredienteRepository = new IngredienteRepository(_context, NullLogger<IngredienteRepository>.Instance); // ✅ Aggiunto logger
 
             // ✅ INIZIALIZZA IL DATABASE
             InitializeTestDatabase();

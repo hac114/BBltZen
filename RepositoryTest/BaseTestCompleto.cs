@@ -1,8 +1,9 @@
-﻿using Database;
-using BBltZen;
+﻿using BBltZen;
+using Database;
 using DTO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Repository.Interface;
 using Repository.Service;
 using Stripe;
@@ -38,7 +39,7 @@ namespace RepositoryTest
             _context = new BubbleTeaContext(options);
 
             // ✅ CREA IL REPOSITORY DIRETTAMENTE
-            _ingredienteRepository = new IngredienteRepository(_context);
+            _ingredienteRepository = new IngredienteRepository(_context, NullLogger<IngredienteRepository>.Instance); // ✅ Aggiunto logger
 
             _now = DateTime.UtcNow;
 

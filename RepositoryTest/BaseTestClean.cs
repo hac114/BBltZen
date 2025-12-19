@@ -2,12 +2,7 @@
 using BBltZen;
 using DTO;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace RepositoryTest
@@ -468,10 +463,15 @@ namespace RepositoryTest
                 await CleanConfigSoglieTempiDependenciesAsync([.. entities.Cast<ConfigSoglieTempi>()]);
             }
 
-            // Aggiungi altri entity con dipendenze qui se necessario
-            // else if (typeof(T) == typeof(AltraEntity)) { ... }
+            else if (typeof(T) == typeof(Ingrediente))
+            {
+                await CleanIngredienteDependenciesAsync([.. entities.Cast<Ingrediente>()]);
+            }
 
-            _context.Set<T>().RemoveRange(entities);
+                // Aggiungi altri entity con dipendenze qui se necessario
+                // else if (typeof(T) == typeof(AltraEntity)) { ... }
+
+                _context.Set<T>().RemoveRange(entities);
             await _context.SaveChangesAsync();
         }
 
@@ -1277,6 +1277,248 @@ namespace RepositoryTest
             var maxAllowed = DateTime.UtcNow.AddSeconds(1);
             Assert.True(entity.DataAggiornamento <= maxAllowed,
                 $"DataAggiornamento ({entity.DataAggiornamento}) non può essere nel futuro (max: {maxAllowed})");
+        }
+
+        #endregion
+
+        #region Ingrediente Helpers
+
+        // Metodo per creare un ingrediente di test
+        protected async Task<Ingrediente> CreateTestIngredienteAsync(
+            string nome = "Test Ingrediente",
+            int categoriaId = 1,
+            decimal prezzoAggiunto = 1.50m,
+            bool disponibile = true,
+            DateTime? dataInserimento = null,
+            DateTime? dataAggiornamento = null,
+            int? ingredienteId = null)
+        {
+            // Assicurati che la categoria esista
+            var categoria = await _context.CategoriaIngrediente
+                .FirstOrDefaultAsync(c => c.CategoriaId == categoriaId);
+
+            if (categoria == null)
+            {
+                // Crea una categoria di test se non esiste
+                categoria = new CategoriaIngrediente
+                {
+                    CategoriaId = categoriaId,
+                    Categoria = categoriaId switch
+                    {
+                        1 => "tea",
+                        2 => "latte",
+                        3 => "dolcificante",
+                        4 => "topping",
+                        5 => "aroma",
+                        6 => "speciale",
+                        _ => $"Categoria Test {categoriaId}"
+                    }
+                };
+                _context.CategoriaIngrediente.Add(categoria);
+                await _context.SaveChangesAsync();
+            }
+
+            var ingrediente = new Ingrediente
+            {
+                Ingrediente1 = nome,
+                CategoriaId = categoriaId,
+                PrezzoAggiunto = prezzoAggiunto,
+                Disponibile = disponibile,
+                DataInserimento = dataInserimento ?? DateTime.UtcNow,
+                DataAggiornamento = dataAggiornamento ?? DateTime.UtcNow
+            };
+
+            if (ingredienteId.HasValue && ingredienteId > 0)
+            {
+                ingrediente.IngredienteId = ingredienteId.Value;
+            }
+
+            _context.Ingrediente.Add(ingrediente);
+            await _context.SaveChangesAsync();
+
+            // Imposta la navigazione per i test
+            ingrediente.Categoria = categoria;
+
+            return ingrediente;
+        }
+
+        // Metodo per creare più ingredienti
+        protected async Task<List<Ingrediente>> CreateMultipleIngredientiAsync(
+            List<(string nome, int categoriaId, decimal prezzo, bool disponibile)> ingredientiData,
+            int? startId = null)
+        {
+            var ingredienti = new List<Ingrediente>();
+            var idCounter = startId ?? 1;
+
+            // Prima assicurati che le categorie esistano
+            var categorieIds = ingredientiData.Select(d => d.categoriaId).Distinct().ToList();
+            var categorieEsistenti = await _context.CategoriaIngrediente
+                .Where(c => categorieIds.Contains(c.CategoriaId))
+                .ToListAsync();
+
+            foreach (var categoriaId in categorieIds)
+            {
+                if (!categorieEsistenti.Any(c => c.CategoriaId == categoriaId))
+                {
+                    var nuovaCategoria = new CategoriaIngrediente
+                    {
+                        CategoriaId = categoriaId,
+                        Categoria = $"Categoria Test {categoriaId}"
+                    };
+                    _context.CategoriaIngrediente.Add(nuovaCategoria);
+                    categorieEsistenti.Add(nuovaCategoria);
+                }
+            }
+            await _context.SaveChangesAsync();
+
+            // Ora crea gli ingredienti
+            foreach (var (nome, categoriaId, prezzo, disponibile) in ingredientiData)
+            {
+                var categoria = categorieEsistenti.First(c => c.CategoriaId == categoriaId);
+
+                var ingrediente = new Ingrediente
+                {
+                    IngredienteId = idCounter++,
+                    Ingrediente1 = nome,
+                    CategoriaId = categoriaId,
+                    PrezzoAggiunto = prezzo,
+                    Disponibile = disponibile,
+                    DataInserimento = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow
+                };
+
+                ingredienti.Add(ingrediente);
+            }
+
+            _context.Ingrediente.AddRange(ingredienti);
+            await _context.SaveChangesAsync();
+
+            // Collega le categorie per i test
+            foreach (var ingrediente in ingredienti)
+            {
+                ingrediente.Categoria = categorieEsistenti.First(c => c.CategoriaId == ingrediente.CategoriaId);
+            }
+
+            return ingredienti;
+        }
+
+        // Metodo per pulire le dipendenze di Ingrediente
+        protected async Task CleanIngredienteDependenciesAsync(List<Ingrediente> ingredienti)
+        {
+            if (ingredienti.Count == 0)  // ✅ Count > 0 invece di Any()
+                return;
+
+            var ingredienteIds = ingredienti.Select(i => i.IngredienteId).ToList();
+
+            // Pulisci IngredientiPersonalizzazione
+            var ingredientiPers = await _context.IngredientiPersonalizzazione
+                .Where(ip => ingredienteIds.Contains(ip.IngredienteId))
+                .ToListAsync();
+
+            if (ingredientiPers.Count > 0)  // ✅ Count > 0 invece di Any()
+            {
+                _context.IngredientiPersonalizzazione.RemoveRange(ingredientiPers);
+            }
+
+            // Pulisci PersonalizzazioneIngrediente
+            var personalizzazioni = await _context.PersonalizzazioneIngrediente
+                .Where(pi => ingredienteIds.Contains(pi.IngredienteId))
+                .ToListAsync();
+
+            if (personalizzazioni.Count > 0)  // ✅ Count > 0 invece di Any()
+            {
+                _context.PersonalizzazioneIngrediente.RemoveRange(personalizzazioni);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        // Setup dati di test per Ingrediente
+        protected async Task SetupIngredienteTestDataAsync()
+        {
+            // Pulisce la tabella
+            await CleanTableAsync<Ingrediente>();
+
+            // Crea 5 ingredienti di test con categorie diverse
+            var ingredientiData = new List<(string, int, decimal, bool)>
+            {
+                ("Tea Nero Premium", 1, 0.50m, true),
+                ("Latte di Cocco", 2, 0.80m, true),
+                ("Sciroppo di Caramello", 3, 1.50m, true),
+                ("Perle di Tapioca", 4, 1.20m, false), // Non disponibile
+                ("Aroma di Vaniglia", 5, 0.30m, true)
+            };
+
+            await CreateMultipleIngredientiAsync(ingredientiData, 1);
+        }
+
+        // Metodo per validare un DTO Ingrediente
+        protected void AssertIngredienteDTO(
+            IngredienteDTO dto,
+            int expectedIngredienteId,
+            string expectedNome,
+            int expectedCategoriaId,
+            decimal expectedPrezzoAggiunto,
+            bool expectedDisponibile,
+            bool checkDates = false)
+        {
+            Assert.NotNull(dto);
+            Assert.Equal(expectedIngredienteId, dto.IngredienteId);
+            Assert.Equal(expectedNome, dto.Nome);
+            Assert.Equal(expectedCategoriaId, dto.CategoriaId);
+            Assert.Equal(expectedPrezzoAggiunto, dto.PrezzoAggiunto);
+            Assert.Equal(expectedDisponibile, dto.Disponibile);
+
+            if (checkDates)
+            {
+                // ⚠️ Usa TimeSpan per confronti sicuri senza warning
+                Assert.NotEqual(DateTime.MinValue, dto.DataInserimento);
+                Assert.NotEqual(DateTime.MinValue, dto.DataAggiornamento);
+
+                var inserimentoDiff = DateTime.UtcNow - dto.DataInserimento;
+                Assert.True(inserimentoDiff.TotalSeconds >= -1,
+                    $"DataInserimento non può essere nel futuro: {dto.DataInserimento}");
+
+                var aggiornamentoDiff = DateTime.UtcNow - dto.DataAggiornamento;
+                Assert.True(aggiornamentoDiff.TotalSeconds >= -1,
+                    $"DataAggiornamento non può essere nel futuro: {dto.DataAggiornamento}");
+            }
+        }
+
+        // Metodo per validare un'entità Ingrediente
+        protected void AssertIngredienteEntity(
+            Ingrediente entity,
+            string expectedNome,
+            int expectedCategoriaId,
+            decimal expectedPrezzoAggiunto,
+            bool expectedDisponibile)
+        {
+            Assert.NotNull(entity);
+            Assert.Equal(expectedNome, entity.Ingrediente1);
+            Assert.Equal(expectedCategoriaId, entity.CategoriaId);
+            Assert.Equal(expectedPrezzoAggiunto, entity.PrezzoAggiunto);
+            Assert.Equal(expectedDisponibile, entity.Disponibile);
+            Assert.NotEqual(DateTime.MinValue, entity.DataInserimento);
+            Assert.NotEqual(DateTime.MinValue, entity.DataAggiornamento);
+        }
+
+        // Helper per creare DTO di test
+        protected IngredienteDTO CreateTestIngredienteDTO(
+            string nome = "Test Ingrediente DTO",
+            int categoriaId = 1,
+            decimal prezzoAggiunto = 1.00m,
+            bool disponibile = true)
+        {
+            return new IngredienteDTO
+            {
+                IngredienteId = 0, // Per create
+                Nome = nome,
+                CategoriaId = categoriaId,
+                PrezzoAggiunto = prezzoAggiunto,
+                Disponibile = disponibile,
+                DataInserimento = DateTime.UtcNow,
+                DataAggiornamento = DateTime.UtcNow
+            };
         }
 
         #endregion

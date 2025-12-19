@@ -1,429 +1,302 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Repository.Interface;
-using DTO;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using DTO;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using System.Linq;
-using BBltZen;
+using Microsoft.AspNetCore.Mvc;
+using Repository.Interface;
+using System.Threading.Tasks;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [AllowAnonymous] // ✅ OVERRIDE DELL'[Authorize] DEL BASE CONTROLLER
-    public class IngredienteController : SecureBaseController
+    // [Authorize] // ✅ Commentato per test Swagger
+    public class IngredienteController(
+        IIngredienteRepository repository,
+        ILogger<IngredienteController> logger) : ControllerBase
     {
-        private readonly IIngredienteRepository _ingredienteRepository;
-        private readonly BubbleTeaContext _context;
+        private readonly IIngredienteRepository _repository = repository;
+        private readonly ILogger<IngredienteController> _logger = logger;
 
-        public IngredienteController(
-            IIngredienteRepository ingredienteRepository,
-            BubbleTeaContext context,
-            IWebHostEnvironment environment,
-            ILogger<IngredienteController> logger)
-            : base(environment, logger)
-        {
-            _ingredienteRepository = ingredienteRepository;
-            _context = context;
-        }
+        // ============================================
+        // METODI GET (LETTURA)
+        // ============================================
 
-        // GET: api/Ingrediente
-        // ✅ PER ADMIN: Mostra TUTTI gli ingredienti (anche non disponibili)
-        [HttpGet]
-        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        public async Task<ActionResult<IEnumerable<IngredienteDTO>>> GetAll()
+        // GET: api/ingrediente
+        [HttpGet("")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredienteDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var ingredienti = await _ingredienteRepository.GetAllAsync();
-                return Ok(ingredienti);
+                var result = await _repository.GetAllAsync(page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero di tutti gli ingredienti");
-                return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti");
+                _logger.LogError(ex, "GetAll ingredienti errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Ingrediente/5
-        // ✅ PER TUTTI: Cerca per ID (se DISPONIBILE) - altrimenti 404 per clienti
-        [HttpGet("{id}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IngredienteDTO>> GetById(int id)
+        // GET: api/ingrediente/{id}
+        [HttpGet("{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<IngredienteDTO>>> GetById(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest<IngredienteDTO>("ID ingrediente non valido");
-
-                var ingrediente = await _ingredienteRepository.GetByIdAsync(id);
-
-                if (ingrediente == null)
-                    return SafeNotFound<IngredienteDTO>("Ingrediente");
-
-                // ✅ Se l'utente NON è admin, mostra solo quelli DISPONIBILI
-                if (!User.IsInRole("admin") && !ingrediente.Disponibile)
-                {
-                    LogSecurityEvent("AttemptAccessUnavailableIngredient", new
-                    {
-                        IngredienteId = id,
-                        User = User.Identity?.Name,
-                        Timestamp = DateTime.UtcNow
-                    });
-                    return SafeNotFound<IngredienteDTO>("Ingrediente");
-                }
-
-                return Ok(ingrediente);
+                var result = await _repository.GetByIdAsync(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dell'ingrediente {Id}", id);
-                return SafeInternalError<IngredienteDTO>("Errore durante il recupero dell'ingrediente");
+                _logger.LogError(ex, "GetById ingrediente errore ID: {Id}", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Ingrediente/categoria/5
-        // ✅ PER TUTTI: Mostra ingredienti per categoria (solo disponibili per clienti)
-        [HttpGet("categoria/{categoriaId}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IEnumerable<IngredienteDTO>>> GetByCategoria(int categoriaId)
+        // GET: api/ingrediente/nome/{nome}
+        [HttpGet("nome/{nome}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredienteDTO>>> GetByNome(string nome, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (categoriaId <= 0)
-                    return SafeBadRequest<IEnumerable<IngredienteDTO>>("ID categoria non valido");
-
-                // ✅ Verifica se la categoria esiste
-                var categoriaEsiste = await _context.CategoriaIngrediente.AnyAsync(c => c.CategoriaId == categoriaId);
-                if (!categoriaEsiste)
-                    return SafeNotFound<IEnumerable<IngredienteDTO>>("Categoria ingrediente");
-
-                var ingredienti = await _ingredienteRepository.GetByCategoriaAsync(categoriaId);
-
-                // ✅ Se l'utente NON è admin, filtra solo quelli disponibili
-                if (!User.IsInRole("admin"))
-                {
-                    ingredienti = ingredienti.Where(i => i.Disponibile);
-                }
-
-                return Ok(ingredienti);
+                var result = await _repository.GetByNomeAsync(nome, page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero degli ingredienti per categoria {CategoriaId}", categoriaId);
-                return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti");
+                _logger.LogError(ex, "GetByNome ingrediente errore nome: {Nome}", nome);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Ingrediente/disponibili
-        // ✅ PER TUTTI: Solo ingredienti DISPONIBILI
+        // GET: api/ingrediente/categoria/{categoria}
+        [HttpGet("categoria/{categoria}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredienteDTO>>> GetByCategoria(string categoria, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                var result = await _repository.GetByCategoriaAsync(categoria, page, pageSize);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetByCategoria ingrediente errore categoria: {Categoria}", categoria);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/ingrediente/disponibili
         [HttpGet("disponibili")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IEnumerable<IngredienteDTO>>> GetDisponibili()
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredienteDTO>>> GetDisponibili([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var ingredienti = await _ingredienteRepository.GetDisponibiliAsync();
-                return Ok(ingredienti);
+                var result = await _repository.GetByDisponibilisync(page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero degli ingredienti disponibili");
-                return SafeInternalError<IEnumerable<IngredienteDTO>>("Errore durante il recupero degli ingredienti disponibili");
+                _logger.LogError(ex, "GetDisponibili ingredienti errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // POST: api/Ingrediente
-        // ✅ SOLO ADMIN: Crea nuovo ingrediente
+        // GET: api/ingrediente/non-disponibili
+        [HttpGet("non-disponibili")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredienteDTO>>> GetNonDisponibili([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            try
+            {
+                var result = await _repository.GetByNonDisponibilisync(page, pageSize);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetNonDisponibili ingredienti errore");
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // ============================================
+        // METODI CRUD (CREAZIONE, MODIFICA, ELIMINAZIONE)
+        // ============================================
+
+        // POST: api/ingrediente
         [HttpPost]
-        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
-        public async Task<ActionResult<IngredienteDTO>> Create([FromBody] IngredienteDTO ingredienteDto)
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<IngredienteDTO>>> Create([FromBody] IngredienteDTO ingredienteDto)
         {
             try
             {
-                if (!IsModelValid(ingredienteDto))
-                    return SafeBadRequest<IngredienteDTO>("Dati ingrediente non validi");
+                if (ingredienteDto == null)
+                    return BadRequest();
 
-                // ✅ Verifica se la categoria esiste
-                var categoriaEsiste = await _context.CategoriaIngrediente.AnyAsync(c => c.CategoriaId == ingredienteDto.CategoriaId);
-                if (!categoriaEsiste)
-                    return SafeBadRequest<IngredienteDTO>("Categoria ingrediente non trovata");
-
-                // ✅ USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
-                var result = await _ingredienteRepository.AddAsync(ingredienteDto);
-
-                // ✅ AUDIT & SECURITY
-                LogAuditTrail("CREATE", "Ingrediente", result.IngredienteId.ToString());
-                LogSecurityEvent("IngredienteCreated", new
-                {
-                    result.IngredienteId,
-                    result.Nome,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return CreatedAtAction(nameof(GetById), new { id = result.IngredienteId }, result);
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest<IngredienteDTO>(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione ingrediente");
-                return SafeInternalError<IngredienteDTO>("Errore durante il salvataggio");
+                var result = await _repository.AddAsync(ingredienteDto);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione ingrediente");
-                return SafeInternalError<IngredienteDTO>("Errore durante la creazione");
+                _logger.LogError(ex, "Create ingrediente errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // PUT: api/Ingrediente/5
-        // ✅ SOLO ADMIN: Aggiorna ingrediente (può modificare anche disponibilità)
-        [HttpPut("{id}")]
-        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
-        public async Task<ActionResult> Update(int id, [FromBody] IngredienteDTO ingredienteDto)
+        // PUT: api/ingrediente/{id}
+        [HttpPut("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] IngredienteDTO ingredienteDto)
         {
             try
             {
-                if (id <= 0 || id != ingredienteDto.IngredienteId)
-                    return SafeBadRequest("ID ingrediente non valido");
+                if (ingredienteDto == null)
+                    return BadRequest();
 
-                if (!IsModelValid(ingredienteDto))
-                    return SafeBadRequest("Dati ingrediente non validi");
+                if (id != ingredienteDto.IngredienteId)
+                    return BadRequest();
 
-                // ✅ VERIFICA ESISTENZA
-                if (!await _ingredienteRepository.ExistsAsync(id))
-                    return SafeNotFound("Ingrediente");
-
-                // ✅ Verifica se la categoria esiste
-                var categoriaEsiste = await _context.CategoriaIngrediente.AnyAsync(c => c.CategoriaId == ingredienteDto.CategoriaId);
-                if (!categoriaEsiste)
-                    return SafeBadRequest("Categoria ingrediente non trovata");
-
-                await _ingredienteRepository.UpdateAsync(ingredienteDto);
-
-                // ✅ AUDIT & SECURITY
-                LogAuditTrail("UPDATE", "Ingrediente", id.ToString());
-                LogSecurityEvent("IngredienteUpdated", new
-                {
-                    IngredienteId = id,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return NoContent();
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                var result = await _repository.UpdateAsync(ingredienteDto);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                _logger.LogError(ex, "Update ingrediente {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // DELETE: api/Ingrediente/5
-        // ✅ SOLO ADMIN: Eliminazione definitiva (HARD DELETE)
-        [HttpDelete("{id}")]
-        // [Authorize(Roles = "admin")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
-        public async Task<ActionResult> Delete(int id)
+        // DELETE: api/ingrediente/{id}
+        [HttpDelete("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Delete(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest("ID ingrediente non valido");
-
-                var ingrediente = await _ingredienteRepository.GetByIdAsync(id);
-                if (ingrediente == null)
-                    return SafeNotFound("Ingrediente");
-
-                await _ingredienteRepository.DeleteAsync(id);
-
-                // ✅ AUDIT & SECURITY
-                LogAuditTrail("DELETE", "Ingrediente", id.ToString());
-                LogSecurityEvent("IngredienteDeleted", new
-                {
-                    IngredienteId = id,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return NoContent();
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Tentativo eliminazione ingrediente {Id} con dipendenze", id);
-                return SafeBadRequest(ex.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
+                var result = await _repository.DeleteAsync(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
+                _logger.LogError(ex, "Delete ingrediente {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // POST: api/Ingrediente/{id}/toggle-disponibilita
-        [HttpPost("{id}/toggle-disponibilita")]
-        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        public async Task<IActionResult> ToggleDisponibilita(int id)
+        // ============================================
+        // METODI DI VERIFICA (EXISTS)
+        // ============================================
+
+        // GET: api/ingrediente/exists/{id}
+        [HttpGet("exists/{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Exists(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest("ID ingrediente non valido");
-
-                var existingIngrediente = await _ingredienteRepository.GetByIdAsync(id);
-                if (existingIngrediente == null)
-                    return SafeNotFound("Ingrediente");
-
-                // ✅ SALVA lo stato PRIMA del toggle
-                var statoPrima = existingIngrediente.Disponibile;
-
-                // ✅ Esegui il toggle (inverte Disponibile)
-                await _ingredienteRepository.ToggleDisponibilitaAsync(id);
-
-                // ✅ Ricarica l'ingrediente per ottenere il nuovo stato
-                var ingredienteDopoToggle = await _ingredienteRepository.GetByIdAsync(id);
-
-                if (ingredienteDopoToggle == null)
-                    return SafeNotFound("Ingrediente dopo toggle");
-
-                // ✅ LOGICA MESSAGGI CORRETTA:
-                var messaggio = ingredienteDopoToggle.Disponibile ? "attivato" : "disattivato";
-
-                // ✅ Audit trail
-                LogAuditTrail("TOGGLE_DISPONIBILITA_INGREDIENTE", "Ingrediente", id.ToString());
-
-                // ✅ Security event completo con timestamp
-                LogSecurityEvent("IngredienteAvailabilityToggled", new
-                {
-                    IngredienteId = id,
-                    DaDisponibile = statoPrima,
-                    ADisponibile = ingredienteDopoToggle.Disponibile,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
-                });
-
-                return Ok(new
-                {
-                    message = $"Ingrediente {messaggio}",
-                    disponibile = ingredienteDopoToggle.Disponibile
-                });
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante il toggle disponibilità ingrediente {Id}", id);
-                return SafeInternalError("Errore durante la modifica della disponibilità");
+                var result = await _repository.ExistsAsync(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il toggle disponibilità ingrediente {Id}", id);
-                return SafeInternalError("Errore durante la modifica della disponibilità");
+                _logger.LogError(ex, "Exists ingrediente {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // PUT: api/Ingrediente/5/disponibilita
-        // ✅ SOLO ADMIN: Imposta disponibilità specifica
-        [HttpPut("{id}/disponibilita")]
-        // [Authorize(Roles = "admin")] // ✅ COMMENTATO PER TEST
-        public async Task<IActionResult> SetDisponibilita(int id, [FromBody] bool disponibile)
-        {
-            try
-            {
-                if (id <= 0)
-                    return SafeBadRequest("ID ingrediente non valido");
-
-                var existingIngrediente = await _ingredienteRepository.GetByIdAsync(id);
-                if (existingIngrediente == null)
-                    return SafeNotFound("Ingrediente");
-
-                await _ingredienteRepository.SetDisponibilitaAsync(id, disponibile);
-
-                // ✅ Audit trail
-                LogAuditTrail("SET_DISPONIBILITA_INGREDIENTE", "Ingrediente", id.ToString());
-
-                // ✅ Security event completo con timestamp
-                LogSecurityEvent("IngredienteAvailabilitySet", new
-                {
-                    IngredienteId = id,
-                    OldDisponibile = existingIngrediente.Disponibile,
-                    NewDisponibile = disponibile,
-                    User = User.Identity?.Name,
-                    Timestamp = DateTime.UtcNow
-                });
-
-                return Ok(new
-                {
-                    message = $"Ingrediente {(disponibile ? "attivato" : "disattivato")}",
-                    disponibile = disponibile
-                });
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'impostazione disponibilità ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'impostazione della disponibilità");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante l'impostazione disponibilità ingrediente {Id}", id);
-                return SafeInternalError("Errore durante l'impostazione della disponibilità");
-            }
-        }
-
-        // GET: api/Ingrediente/exists/5
-        // ✅ PER TUTTI: Verifica esistenza (indipendentemente dalla disponibilità)
-        [HttpGet("exists/{id}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<bool>> Exists(int id)
-        {
-            try
-            {
-                if (id <= 0)
-                    return SafeBadRequest<bool>("ID ingrediente non valido");
-
-                var exists = await _ingredienteRepository.ExistsAsync(id);
-                return Ok(exists);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante la verifica esistenza ingrediente {Id}", id);
-                return SafeInternalError<bool>("Errore durante la verifica esistenza ingrediente");
-            }
-        }
-
+        // GET: api/ingrediente/exists/nome/{nome}
         [HttpGet("exists/nome/{nome}")]
-        public async Task<ActionResult<bool>> CheckNomeExists(string nome, [FromQuery] int? excludeId = null)
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> NomeExists(string nome)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(nome))
-                    return SafeBadRequest<bool>("Nome ingrediente non valido");
-
-                // ✅ USA IL METODO DEL REPOSITORY SE ESISTE, ALTRIMENTI IMPLEMENTA
-                var exists = await _context.Ingrediente
-                    .AnyAsync(i => i.Ingrediente1.ToLower() == nome.ToLower() &&
-                                  (!excludeId.HasValue || i.IngredienteId != excludeId.Value));
-
-                return Ok(exists);
+                var result = await _repository.ExistsByNomeAsync(nome);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante verifica esistenza nome ingrediente {Nome}", nome);
-                return SafeInternalError<bool>("Errore durante la verifica");
+                _logger.LogError(ex, "NomeExists ingrediente {Nome} errore", nome);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // ============================================
+        // METODI BUSINESS (TOGGLE DISPONIBILITÀ)
+        // ============================================
+
+        // PATCH: api/ingrediente/{id}/toggle-disponibilita
+        [HttpPatch("{id:int}/toggle-disponibilita")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> ToggleDisponibilita(int id)
+        {
+            try
+            {
+                var result = await _repository.ToggleDisponibilitaAsync(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ToggleDisponibilita ingrediente {Id} errore", id);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // ============================================
+        // METODI DI STATISTICA (COUNT)
+        // ============================================
+
+        // GET: api/ingrediente/count
+        [HttpGet("count")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<int>>> Count()
+        {
+            try
+            {
+                var result = await _repository.CountAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Count ingredienti errore");
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/ingrediente/count/disponibili
+        [HttpGet("count/disponibili")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<int>>> CountDisponibili()
+        {
+            try
+            {
+                var result = await _repository.CountDisponibiliAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CountDisponibili ingredienti errore");
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/ingrediente/count/non-disponibili
+        [HttpGet("count/non-disponibili")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<int>>> CountNonDisponibili()
+        {
+            try
+            {
+                var result = await _repository.CountNonDisponibiliAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CountNonDisponibili ingredienti errore");
+                return StatusCode(500, "Errore server");
             }
         }
     }

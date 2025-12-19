@@ -411,6 +411,8 @@ public partial class BubbleTeaContext : DbContext
         {
             entity.ToTable(tb => tb.HasTrigger("trg_Ingrediente_Update_Disponibilita"));
 
+            entity.HasIndex(e => e.Ingrediente1, "UQ_Ingrediente_Nome").IsUnique();
+
             entity.Property(e => e.IngredienteId).HasColumnName("ingrediente_id");
             entity.Property(e => e.CategoriaId).HasColumnName("categoria_id");
             entity.Property(e => e.DataAggiornamento)
