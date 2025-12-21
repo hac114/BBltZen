@@ -14,11 +14,7 @@ namespace Database.Configurations
             // ✅ PROPRIETÀ OBBLIGATORIE
             builder.Property(a => a.Tipo)
                 .IsRequired()
-                .HasMaxLength(50)
-                .HasConversion(
-                    v => v.ToUpper(), // ✅ Salva sempre in maiuscolo
-                    v => v
-                );
+                .HasMaxLength(2);                
 
             builder.Property(a => a.DataCreazione)
                 .IsRequired();

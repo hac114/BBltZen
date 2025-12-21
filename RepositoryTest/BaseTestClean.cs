@@ -351,8 +351,36 @@ namespace RepositoryTest
                 );               
             }
 
+            // 9. Articoli (solo se vuoi dati di base per tutti i test)
+            if (!_context.Articolo.Any())
+            {
+                _context.Articolo.AddRange(
+                    new Articolo
+                    {
+                        ArticoloId = 1,
+                        Tipo = "BC",
+                        DataCreazione = now,
+                        DataAggiornamento = now
+                    },
+                    new Articolo
+                    {
+                        ArticoloId = 2,
+                        Tipo = "BS",
+                        DataCreazione = now,
+                        DataAggiornamento = now
+                    },
+                    new Articolo
+                    {
+                        ArticoloId = 3,
+                        Tipo = "D",
+                        DataCreazione = now,
+                        DataAggiornamento = now
+                    }
+                );
+            }
 
-            // 9. Utenti
+
+            // 10. Utenti
             if (!_context.Utenti.Any())
             {
                 _context.Utenti.AddRange(
@@ -397,29 +425,7 @@ namespace RepositoryTest
                     _context.SaveChanges();
         }
 
-        // ✅ METODI HELPER PER TUTTI I TEST CLEAN
-
-        private async Task CleanUnitaDiMisuraDependenciesAsync(List<UnitaDiMisura> unitaList)
-        {
-            var unitaIds = unitaList.Select(u => u.UnitaMisuraId).ToList();
-
-            // 1. Elimina DimensioneBicchiere collegati
-            var dimensioni = await _context.DimensioneBicchiere
-                .Where(d => unitaIds.Contains(d.UnitaMisuraId))
-                .ToListAsync();
-            _context.DimensioneBicchiere.RemoveRange(dimensioni);
-
-            // 2. Elimina PersonalizzazioneIngrediente collegati
-            var personalizzazioni = await _context.PersonalizzazioneIngrediente
-                .Where(p => unitaIds.Contains(p.UnitaMisuraId))
-                .ToListAsync();
-            _context.PersonalizzazioneIngrediente.RemoveRange(personalizzazioni);
-
-            if (dimensioni.Count > 0 || personalizzazioni.Count > 0)
-            {
-                await _context.SaveChangesAsync();
-            }
-        }
+        // ✅ METODI HELPER PER TUTTI I TEST CLEAN        
 
         protected async Task CleanTableAsync<T>() where T : class
         {
@@ -468,16 +474,22 @@ namespace RepositoryTest
                 await CleanIngredienteDependenciesAsync([.. entities.Cast<Ingrediente>()]);
             }
 
-                // Aggiungi altri entity con dipendenze qui se necessario
-                // else if (typeof(T) == typeof(AltraEntity)) { ... }
+            else if (typeof(T) == typeof(Articolo))
+            {
+                await CleanArticoloDependenciesAsync([.. entities.Cast<Articolo>()]);
+            }
 
-                _context.Set<T>().RemoveRange(entities);
+            // Aggiungi altri entity con dipendenze qui se necessario
+            // else if (typeof(T) == typeof(AltraEntity)) { ... }
+
+            _context.Set<T>().RemoveRange(entities);
             await _context.SaveChangesAsync();
         }
 
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<Articolo>();
             await CleanTableAsync<DimensioneBicchiere>();
             await CleanTableAsync<Ingrediente>();
             await CleanTableAsync<StatoPagamento>();
@@ -491,6 +503,28 @@ namespace RepositoryTest
 
             // Riempi con i dati essenziali
             SeedEssentialTables();
+        }
+
+        private async Task CleanUnitaDiMisuraDependenciesAsync(List<UnitaDiMisura> unitaList)
+        {
+            var unitaIds = unitaList.Select(u => u.UnitaMisuraId).ToList();
+
+            // 1. Elimina DimensioneBicchiere collegati
+            var dimensioni = await _context.DimensioneBicchiere
+                .Where(d => unitaIds.Contains(d.UnitaMisuraId))
+                .ToListAsync();
+            _context.DimensioneBicchiere.RemoveRange(dimensioni);
+
+            // 2. Elimina PersonalizzazioneIngrediente collegati
+            var personalizzazioni = await _context.PersonalizzazioneIngrediente
+                .Where(p => unitaIds.Contains(p.UnitaMisuraId))
+                .ToListAsync();
+            _context.PersonalizzazioneIngrediente.RemoveRange(personalizzazioni);
+
+            if (dimensioni.Count > 0 || personalizzazioni.Count > 0)
+            {
+                await _context.SaveChangesAsync();
+            }
         }
 
         protected async Task<LogAttivita> CreateTestLogWithUtenteAsync(string tipoAttivita = "Test", string tipoUtente = "Admin", string nome = "Test", string cognome = "Test")
@@ -1519,6 +1553,173 @@ namespace RepositoryTest
                 DataInserimento = DateTime.UtcNow,
                 DataAggiornamento = DateTime.UtcNow
             };
+        }
+
+        #endregion
+
+        #region Articolo Helpers
+
+        /// <summary>
+        /// Crea un articolo di test con tipo specifico
+        /// </summary>
+        protected async Task<Articolo> CreateTestArticoloAsync(string tipo = "BC", int? articoloId = null, DateTime? dataCreazione = null)
+        {
+            var now = DateTime.UtcNow;
+
+            var articolo = new Articolo
+            {
+                Tipo = tipo,
+                DataCreazione = dataCreazione ?? now,
+                DataAggiornamento = dataCreazione ?? now
+            };
+
+            if (articoloId.HasValue && articoloId.Value > 0)
+            {
+                // Per test che richiedono ID specifico
+                articolo.ArticoloId = articoloId.Value;
+            }
+
+            _context.Articolo.Add(articolo);
+            await _context.SaveChangesAsync();
+            return articolo;
+        }
+
+        /// <summary>
+        /// Crea articoli dei 3 tipi diversi (BC, BS, D)
+        /// </summary>
+        protected async Task<List<Articolo>> CreateAllTipiArticoliAsync()
+        {
+            var now = DateTime.UtcNow;
+            var articoli = new List<Articolo>
+            {
+                new Articolo { Tipo = "BC", DataCreazione = now, DataAggiornamento = now },
+                new Articolo { Tipo = "BS", DataCreazione = now.AddMinutes(1), DataAggiornamento = now.AddMinutes(1) },
+                new Articolo { Tipo = "D", DataCreazione = now.AddMinutes(2), DataAggiornamento = now.AddMinutes(2) }
+            };
+
+            _context.Articolo.AddRange(articoli);
+            await _context.SaveChangesAsync();
+            return articoli;
+        }
+
+        /// <summary>
+        /// Crea multipli articoli dello stesso tipo
+        /// </summary>
+        protected async Task<List<Articolo>> CreateMultipleArticoliAsync(string tipo, int count = 5)
+        {
+            var articoli = new List<Articolo>();
+            var now = DateTime.UtcNow;
+
+            for (int i = 0; i < count; i++)
+            {
+                articoli.Add(new Articolo
+                {
+                    Tipo = tipo,
+                    DataCreazione = now.AddMinutes(i),
+                    DataAggiornamento = now.AddMinutes(i)
+                });
+            }
+
+            _context.Articolo.AddRange(articoli);
+            await _context.SaveChangesAsync();
+            return articoli;
+        }
+
+        /// <summary>
+        /// Pulisce tutte le dipendenze di un articolo
+        /// IMPORTANTE: Elimina prima le dipendenze, poi l'articolo
+        /// </summary>
+        protected async Task CleanArticoloDependenciesAsync(List<Articolo> articoli)
+        {
+            var articoloIds = articoli.Select(a => a.ArticoloId).ToList();
+
+            // OrderItem
+            var orderItems = await _context.OrderItem
+                .Where(oi => articoloIds.Contains(oi.ArticoloId))
+                .ToListAsync();
+
+            if (orderItems.Count > 0)
+            {
+                _context.OrderItem.RemoveRange(orderItems);
+            }
+
+            // BevandaCustom
+            var bevandeCustom = await _context.BevandaCustom
+                .Where(bc => articoloIds.Contains(bc.ArticoloId))
+                .ToListAsync();
+
+            if (bevandeCustom.Count > 0)
+            {
+                _context.BevandaCustom.RemoveRange(bevandeCustom);
+            }
+
+            // BevandaStandard
+            var bevandeStandard = await _context.BevandaStandard
+                .Where(bs => articoloIds.Contains(bs.ArticoloId))
+                .ToListAsync();
+
+            if (bevandeStandard.Count > 0)
+            {
+                _context.BevandaStandard.RemoveRange(bevandeStandard);
+            }
+
+            // Dolce
+            var dolci = await _context.Dolce
+                .Where(d => articoloIds.Contains(d.ArticoloId))
+                .ToListAsync();
+
+            if (dolci.Count > 0)
+            {
+                _context.Dolce.RemoveRange(dolci);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Verifica se un articolo ha dipendenze attive
+        /// </summary>
+        protected async Task<bool> ArticoloHasDependenciesAsync(int articoloId)
+        {
+            bool hasOrderItem = await _context.OrderItem
+                .AnyAsync(oi => oi.ArticoloId == articoloId);
+
+            bool hasBevandaCustom = await _context.BevandaCustom
+                .AnyAsync(bc => bc.ArticoloId == articoloId);
+
+            bool hasBevandaStandard = await _context.BevandaStandard
+                .AnyAsync(bs => bs.ArticoloId == articoloId);
+
+            bool hasDolce = await _context.Dolce
+                .AnyAsync(d => d.ArticoloId == articoloId);
+
+            return hasOrderItem || hasBevandaCustom || hasBevandaStandard || hasDolce;
+        }
+
+        /// <summary>
+        /// Assert per confrontare date con tolleranza (evita warning)
+        /// </summary>
+        protected void AssertDateTimeWithTolerance(DateTime expected, DateTime actual, int toleranceSeconds = 2)
+        {
+            var timeDifference = Math.Abs((expected - actual).TotalSeconds);
+            Assert.True(timeDifference <= toleranceSeconds,
+                $"Date differiscono di {timeDifference} secondi (tolleranza: {toleranceSeconds}s). " +
+                $"Expected: {expected:yyyy-MM-dd HH:mm:ss}, Actual: {actual:yyyy-MM-dd HH:mm:ss}");
+        }
+
+        /// <summary>
+        /// Assert per confrontare articoli ignorando date
+        /// </summary>
+        protected void AssertArticoliEqual(Articolo expected, Articolo actual, bool ignoreDates = true)
+        {
+            Assert.Equal(expected.ArticoloId, actual.ArticoloId);
+            Assert.Equal(expected.Tipo, actual.Tipo);
+
+            if (!ignoreDates)
+            {
+                AssertDateTimeWithTolerance(expected.DataCreazione, actual.DataCreazione);
+                AssertDateTimeWithTolerance(expected.DataAggiornamento, actual.DataAggiornamento);
+            }
         }
 
         #endregion
