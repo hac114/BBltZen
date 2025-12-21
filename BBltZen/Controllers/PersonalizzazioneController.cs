@@ -1,258 +1,162 @@
-﻿using BBltZen;
-using DTO;
+﻿using DTO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Repository.Interface;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [AllowAnonymous] // ✅ OVERRIDE DELL'[Authorize] DEL BASE CONTROLLER
-    public class PersonalizzazioneController : SecureBaseController
+    // [Authorize] // ✅ Commentato per test Swagger
+    public class PersonalizzazioneController(
+        IPersonalizzazioneRepository repository,
+        ILogger<PersonalizzazioneController> logger) : ControllerBase
     {
-        private readonly IPersonalizzazioneRepository _personalizzazioneRepository;
-        private readonly BubbleTeaContext _context;
+        private readonly IPersonalizzazioneRepository _repository = repository;
+        private readonly ILogger<PersonalizzazioneController> _logger = logger;
 
-        public PersonalizzazioneController(
-            IPersonalizzazioneRepository personalizzazioneRepository,
-            BubbleTeaContext context,
-            IWebHostEnvironment environment,
-            ILogger<PersonalizzazioneController> logger)
-            : base(environment, logger)
-        {
-            _personalizzazioneRepository = personalizzazioneRepository;
-            _context = context;
-        }
-
-        // GET: api/Personalizzazione
-        //[Authorize(Roles = "admin")]
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<PersonalizzazioneDTO>>> GetAll()
+        // GET: api/personalizzazione
+        [HttpGet("")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<PersonalizzazioneDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var personalizzazioni = await _personalizzazioneRepository.GetAllAsync();
-                return Ok(personalizzazioni);
+                var result = await _repository.GetAllAsync(page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero di tutte le personalizzazioni");
-                return SafeInternalError("Errore durante il recupero delle personalizzazioni");
+                _logger.LogError(ex, "GetAll personalizzazioni errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Personalizzazione/{id}
-        [HttpGet("{id}")]
-        public async Task<ActionResult<PersonalizzazioneDTO>> GetById(int id)
+        // GET: api/personalizzazione/{id}
+        [HttpGet("{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<PersonalizzazioneDTO>>> GetById(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest<PersonalizzazioneDTO>("ID personalizzazione non valido");
-
-                var personalizzazione = await _personalizzazioneRepository.GetByIdAsync(id);
-
-                if (personalizzazione == null)
-                    return SafeNotFound<PersonalizzazioneDTO>("Personalizzazione");
-
-                return Ok(personalizzazione);
+                var result = await _repository.GetByIdAsync(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero della personalizzazione con ID {Id}", id);
-                return SafeInternalError("Errore durante il recupero della personalizzazione");
+                _logger.LogError(ex, "GetById errore ID: {Id}", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        [HttpGet("exists/nome/{nome}")]
-        public async Task<ActionResult<bool>> CheckNomeExists(string nome, [FromQuery] int? excludeId = null)
+        // GET: api/personalizzazione/nome/{nome}
+        [HttpGet("nome/{nome}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<PersonalizzazioneDTO>>> GetByNome(string nome, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(nome))
-                    return SafeBadRequest<bool>("Nome personalizzazione non valido");
-
-                // ✅ USA IL METODO DEL REPOSITORY CON ESCLUSIONE ID
-                var exists = await _personalizzazioneRepository.ExistsByNameAsync(nome, excludeId);
-
-                return Ok(exists);
+                var result = await _repository.GetByNomeAsync(nome, page, pageSize);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante verifica esistenza nome personalizzazione {Nome}", nome);
-                return SafeInternalError<bool>("Errore durante la verifica");
+                _logger.LogError(ex, "GetByNome errore nome: {Nome}", nome);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // POST: api/Personalizzazione
-        //[Authorize(Roles = "admin")]
+        // POST: api/personalizzazione
         [HttpPost]
-        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
-        public async Task<ActionResult<PersonalizzazioneDTO>> Create([FromBody] PersonalizzazioneDTO personalizzazioneDto)
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<PersonalizzazioneDTO>>> Create([FromBody] PersonalizzazioneDTO personalizzazioneDto)
         {
             try
             {
-                if (!IsModelValid(personalizzazioneDto))
-                    return SafeBadRequest<PersonalizzazioneDTO>("Dati personalizzazione non validi");
+                if (personalizzazioneDto == null)
+                    return BadRequest();
 
-                // ✅ USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
-                var result = await _personalizzazioneRepository.AddAsync(personalizzazioneDto);
-
-                // ✅ AUDIT & SECURITY
-                LogAuditTrail("CREATE", "Personalizzazione", result.PersonalizzazioneId.ToString());
-                LogSecurityEvent("PersonalizzazioneCreated", new
-                {
-                    result.PersonalizzazioneId,
-                    result.Nome,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return CreatedAtAction(nameof(GetById), new { id = result.PersonalizzazioneId }, result);
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest<PersonalizzazioneDTO>(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione personalizzazione");
-                return SafeInternalError<PersonalizzazioneDTO>("Errore durante il salvataggio");
+                var result = await _repository.AddAsync(personalizzazioneDto);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione personalizzazione");
-                return SafeInternalError<PersonalizzazioneDTO>("Errore durante la creazione");
+                _logger.LogError(ex, "Create personalizzazione errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // PUT: api/Personalizzazione/{id}
-        //[Authorize(Roles = "admin")]
-        [HttpPut("{id}")]
-        // [Authorize(Roles = "admin,manager")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
-        public async Task<ActionResult> Update(int id, [FromBody] PersonalizzazioneDTO personalizzazioneDto)
+        // PUT: api/personalizzazione/{id}
+        [HttpPut("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] PersonalizzazioneDTO personalizzazioneDto)
         {
             try
             {
-                if (id <= 0 || id != personalizzazioneDto.PersonalizzazioneId)
-                    return SafeBadRequest("ID personalizzazione non valido");
+                if (personalizzazioneDto == null)
+                    return BadRequest();
 
-                if (!IsModelValid(personalizzazioneDto))
-                    return SafeBadRequest("Dati personalizzazione non validi");
+                if (id != personalizzazioneDto.PersonalizzazioneId)
+                    return BadRequest();
 
-                // ✅ VERIFICA ESISTENZA
-                if (!await _personalizzazioneRepository.ExistsAsync(id))
-                    return SafeNotFound("Personalizzazione");
-
-                await _personalizzazioneRepository.UpdateAsync(personalizzazioneDto);
-
-                // ✅ AUDIT & SECURITY
-                LogAuditTrail("UPDATE", "Personalizzazione", id.ToString());
-                LogSecurityEvent("PersonalizzazioneUpdated", new
-                {
-                    PersonalizzazioneId = id,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return NoContent();
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento personalizzazione {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                var result = await _repository.UpdateAsync(personalizzazioneDto);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento personalizzazione {Id}", id);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                _logger.LogError(ex, "Update personalizzazione {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Personalizzazione/exists/{id}
-        [HttpGet("exists/{id}")]
-        public async Task<ActionResult<bool>> Exists(int id)
+        // DELETE: api/personalizzazione/{id}
+        [HttpDelete("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Delete(int id)
         {
             try
             {
-                if (id <= 0)
-                    return SafeBadRequest<bool>("ID personalizzazione non valido");
-
-                var exists = await _personalizzazioneRepository.ExistsAsync(id);
-                return Ok(exists);
+                var result = await _repository.DeleteAsync(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la verifica esistenza personalizzazione con ID {Id}", id);
-                return SafeInternalError("Errore durante la verifica esistenza personalizzazione");
+                _logger.LogError(ex, "Delete personalizzazione {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        // GET: api/Personalizzazione/exists/name/NomePersonalizzazione
-        [HttpGet("exists/name/{nome}")]
-        public async Task<ActionResult<bool>> ExistsByName(string nome)
+        // GET: api/personalizzazione/exists/{id}
+        [HttpGet("exists/{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Exists(int id)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(nome))
-                    return SafeBadRequest<bool>("Nome personalizzazione non valido");
-
-                var exists = await _personalizzazioneRepository.ExistsByNameAsync(nome);
-                return Ok(exists);
-            }
-            catch (System.Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante la verifica esistenza personalizzazione con nome {Nome}", nome);
-                return SafeInternalError("Errore durante la verifica esistenza personalizzazione");
-            }
-        }
-
-        // DELETE: api/Personalizzazione/{id}
-        [HttpDelete("{id}")]
-        // [Authorize(Roles = "admin")] // ✅ KEYCLOAK READY - COMMENTATO PER TEST
-        public async Task<ActionResult> Delete(int id)
-        {
-            try
-            {
-                if (id <= 0)
-                    return SafeBadRequest("ID personalizzazione non valido");
-
-                var personalizzazione = await _personalizzazioneRepository.GetByIdAsync(id);
-                if (personalizzazione == null)
-                    return SafeNotFound("Personalizzazione");
-
-                await _personalizzazioneRepository.DeleteAsync(id);
-
-                // ✅ AUDIT & SECURITY
-                LogAuditTrail("DELETE", "Personalizzazione", id.ToString());
-                LogSecurityEvent("PersonalizzazioneDeleted", new
-                {
-                    PersonalizzazioneId = id,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return NoContent();
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Tentativo eliminazione personalizzazione {Id} con dipendenze", id);
-                return SafeBadRequest(ex.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione personalizzazione {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
+                var result = await _repository.ExistsAsync(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione personalizzazione {Id}", id);
-                return SafeInternalError("Errore durante l'eliminazione");
+                _logger.LogError(ex, "Exists {Id} errore", id);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/personalizzazione/exists/nome/{nome}
+        [HttpGet("exists/nome/{nome}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> NomeExists(string nome)
+        {
+            try
+            {
+                var result = await _repository.ExistsByNomeAsync(nome);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "NomeExists {Nome} errore", nome);
+                return StatusCode(500, "Errore server");
             }
         }
     }

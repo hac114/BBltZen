@@ -18,7 +18,7 @@ namespace Repository.Service
             _context = context;
         }
 
-        private IngredientiPersonalizzazioneDTO MapToDTO(IngredientiPersonalizzazione ingredientePers)
+        private static IngredientiPersonalizzazioneDTO MapToDTO(IngredientiPersonalizzazione ingredientePers)
         {
             return new IngredientiPersonalizzazioneDTO
             {

@@ -379,8 +379,49 @@ namespace RepositoryTest
                 );
             }
 
+            // 10. Personalizzazioni
+            if (!_context.Personalizzazione.Any())
+            {
+                _context.Personalizzazione.AddRange(
+                    new Personalizzazione
+                    {
+                        PersonalizzazioneId = 1,
+                        Nome = "classic milk tea",
+                        Descrizione = "Preparazione tradizionale con tè nero e latte",
+                        DtCreazione = now.AddHours(-5)
+                    },
+                    new Personalizzazione
+                    {
+                        PersonalizzazioneId = 2,
+                        Nome = "taro milk tea",
+                        Descrizione = "tea al latte di taro",
+                        DtCreazione = now.AddHours(-4)
+                    },
+                    new Personalizzazione
+                    {
+                        PersonalizzazioneId = 3,
+                        Nome = "matcha latte",
+                        Descrizione = "bubble tea al matcha",
+                        DtCreazione = now.AddHours(-3)
+                    },
+                    new Personalizzazione
+                    {
+                        PersonalizzazioneId = 4,
+                        Nome = "fruit tea",
+                        Descrizione = "tea alla frutta secca",
+                        DtCreazione = now.AddHours(-2)
+                    },
+                    new Personalizzazione
+                    {
+                        PersonalizzazioneId = 5,
+                        Nome = "brown sugar boba milk",
+                        Descrizione = "latte con perle di zucchero bruno",
+                        DtCreazione = now.AddHours(-1)
+                    }
+                );
+            }
 
-            // 10. Utenti
+            // 11. Utenti
             if (!_context.Utenti.Any())
             {
                 _context.Utenti.AddRange(
@@ -479,6 +520,11 @@ namespace RepositoryTest
                 await CleanArticoloDependenciesAsync([.. entities.Cast<Articolo>()]);
             }
 
+            else if (typeof(T) == typeof(Personalizzazione))
+            {
+                await CleanPersonalizzazioneDependenciesAsync([.. entities.Cast<Personalizzazione>()]);
+            }
+
             // Aggiungi altri entity con dipendenze qui se necessario
             // else if (typeof(T) == typeof(AltraEntity)) { ... }
 
@@ -489,6 +535,7 @@ namespace RepositoryTest
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<Personalizzazione>();
             await CleanTableAsync<Articolo>();
             await CleanTableAsync<DimensioneBicchiere>();
             await CleanTableAsync<Ingrediente>();
@@ -1559,9 +1606,6 @@ namespace RepositoryTest
 
         #region Articolo Helpers
 
-        /// <summary>
-        /// Crea un articolo di test con tipo specifico
-        /// </summary>
         protected async Task<Articolo> CreateTestArticoloAsync(string tipo = "BC", int? articoloId = null, DateTime? dataCreazione = null)
         {
             var now = DateTime.UtcNow;
@@ -1583,28 +1627,22 @@ namespace RepositoryTest
             await _context.SaveChangesAsync();
             return articolo;
         }
-
-        /// <summary>
-        /// Crea articoli dei 3 tipi diversi (BC, BS, D)
-        /// </summary>
+        
         protected async Task<List<Articolo>> CreateAllTipiArticoliAsync()
         {
             var now = DateTime.UtcNow;
             var articoli = new List<Articolo>
             {
-                new Articolo { Tipo = "BC", DataCreazione = now, DataAggiornamento = now },
-                new Articolo { Tipo = "BS", DataCreazione = now.AddMinutes(1), DataAggiornamento = now.AddMinutes(1) },
-                new Articolo { Tipo = "D", DataCreazione = now.AddMinutes(2), DataAggiornamento = now.AddMinutes(2) }
+                new() { Tipo = "BC", DataCreazione = now, DataAggiornamento = now },
+                new() { Tipo = "BS", DataCreazione = now.AddMinutes(1), DataAggiornamento = now.AddMinutes(1) },
+                new() { Tipo = "D", DataCreazione = now.AddMinutes(2), DataAggiornamento = now.AddMinutes(2) }
             };
 
             _context.Articolo.AddRange(articoli);
             await _context.SaveChangesAsync();
             return articoli;
         }
-
-        /// <summary>
-        /// Crea multipli articoli dello stesso tipo
-        /// </summary>
+        
         protected async Task<List<Articolo>> CreateMultipleArticoliAsync(string tipo, int count = 5)
         {
             var articoli = new List<Articolo>();
@@ -1624,11 +1662,7 @@ namespace RepositoryTest
             await _context.SaveChangesAsync();
             return articoli;
         }
-
-        /// <summary>
-        /// Pulisce tutte le dipendenze di un articolo
-        /// IMPORTANTE: Elimina prima le dipendenze, poi l'articolo
-        /// </summary>
+        
         protected async Task CleanArticoloDependenciesAsync(List<Articolo> articoli)
         {
             var articoloIds = articoli.Select(a => a.ArticoloId).ToList();
@@ -1675,10 +1709,7 @@ namespace RepositoryTest
 
             await _context.SaveChangesAsync();
         }
-
-        /// <summary>
-        /// Verifica se un articolo ha dipendenze attive
-        /// </summary>
+        
         protected async Task<bool> ArticoloHasDependenciesAsync(int articoloId)
         {
             bool hasOrderItem = await _context.OrderItem
@@ -1695,10 +1726,7 @@ namespace RepositoryTest
 
             return hasOrderItem || hasBevandaCustom || hasBevandaStandard || hasDolce;
         }
-
-        /// <summary>
-        /// Assert per confrontare date con tolleranza (evita warning)
-        /// </summary>
+        
         protected void AssertDateTimeWithTolerance(DateTime expected, DateTime actual, int toleranceSeconds = 2)
         {
             var timeDifference = Math.Abs((expected - actual).TotalSeconds);
@@ -1706,10 +1734,7 @@ namespace RepositoryTest
                 $"Date differiscono di {timeDifference} secondi (tolleranza: {toleranceSeconds}s). " +
                 $"Expected: {expected:yyyy-MM-dd HH:mm:ss}, Actual: {actual:yyyy-MM-dd HH:mm:ss}");
         }
-
-        /// <summary>
-        /// Assert per confrontare articoli ignorando date
-        /// </summary>
+        
         protected void AssertArticoliEqual(Articolo expected, Articolo actual, bool ignoreDates = true)
         {
             Assert.Equal(expected.ArticoloId, actual.ArticoloId);
@@ -1720,6 +1745,159 @@ namespace RepositoryTest
                 AssertDateTimeWithTolerance(expected.DataCreazione, actual.DataCreazione);
                 AssertDateTimeWithTolerance(expected.DataAggiornamento, actual.DataAggiornamento);
             }
+        }
+
+        #endregion
+
+        #region Personalizzazione Helpers
+        
+        protected async Task<Personalizzazione> CreateTestPersonalizzazioneAsync(
+            string nome = "TEST",
+            string descrizione = "Descrizione di test",
+            int? personalizzazioneId = null,
+            DateTime? dataCreazione = null)
+        {
+            var now = DateTime.UtcNow;
+
+            var personalizzazione = new Personalizzazione
+            {
+                Nome = nome.ToUpper(), // Il repository converte in maiuscolo
+                Descrizione = descrizione,
+                DtCreazione = dataCreazione ?? now
+            };
+
+            if (personalizzazioneId.HasValue && personalizzazioneId.Value > 0)
+            {
+                // Per test che richiedono ID specifico
+                personalizzazione.PersonalizzazioneId = personalizzazioneId.Value;
+            }
+
+            _context.Personalizzazione.Add(personalizzazione);
+            await _context.SaveChangesAsync();
+            return personalizzazione;
+        }
+        
+        protected async Task<List<Personalizzazione>> CreateMultiplePersonalizzazioniAsync(int count = 5)
+        {
+            var personalizzazioni = new List<Personalizzazione>();
+            var now = DateTime.UtcNow;
+            var baseNome = "PERSONALIZZAZIONE";
+
+            for (int i = 1; i <= count; i++)
+            {
+                personalizzazioni.Add(new Personalizzazione
+                {
+                    Nome = $"{baseNome} {i}",
+                    Descrizione = $"Descrizione personalizzazione {i}",
+                    DtCreazione = now.AddMinutes(i)
+                });
+            }
+
+            _context.Personalizzazione.AddRange(personalizzazioni);
+            await _context.SaveChangesAsync();
+            return personalizzazioni;
+        }
+        
+        protected async Task CleanPersonalizzazioneDependenciesAsync(List<Personalizzazione> personalizzazioni)
+        {
+            var personalizzazioneIds = personalizzazioni.Select(p => p.PersonalizzazioneId).ToList();
+
+            // BevandaStandard
+            var bevandeStandard = await _context.BevandaStandard
+                .Where(bs => personalizzazioneIds.Contains(bs.PersonalizzazioneId))
+                .ToListAsync();
+
+            if (bevandeStandard.Count > 0)
+            {
+                _context.BevandaStandard.RemoveRange(bevandeStandard);
+            }
+
+            // PersonalizzazioneIngrediente
+            var personalizzazioneIngredienti = await _context.PersonalizzazioneIngrediente
+                .Where(pi => personalizzazioneIds.Contains(pi.PersonalizzazioneId))
+                .ToListAsync();
+
+            if (personalizzazioneIngredienti.Count > 0)
+            {
+                _context.PersonalizzazioneIngrediente.RemoveRange(personalizzazioneIngredienti);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+        
+        protected async Task<bool> PersonalizzazioneHasDependenciesAsync(int personalizzazioneId)
+        {
+            bool hasBevandaStandard = await _context.BevandaStandard
+                .AnyAsync(bs => bs.PersonalizzazioneId == personalizzazioneId);
+
+            bool hasPersonalizzazioneIngrediente = await _context.PersonalizzazioneIngrediente
+                .AnyAsync(pi => pi.PersonalizzazioneId == personalizzazioneId);
+
+            return hasBevandaStandard || hasPersonalizzazioneIngrediente;
+        }
+        
+        protected void AssertPersonalizzazioniEqual(Personalizzazione expected, Personalizzazione actual, bool ignoreId = false, bool ignoreDate = true)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.PersonalizzazioneId, actual.PersonalizzazioneId);
+            }
+
+            Assert.Equal(expected.Nome, actual.Nome);
+            Assert.Equal(expected.Descrizione, actual.Descrizione);
+
+            if (!ignoreDate)
+            {
+                AssertDateTimeWithTolerance(expected.DtCreazione, actual.DtCreazione);
+            }
+        }
+        
+        protected void AssertPersonalizzazioneDTOEqual(PersonalizzazioneDTO expected, PersonalizzazioneDTO actual, bool ignoreId = false, bool ignoreDate = true)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.PersonalizzazioneId, actual.PersonalizzazioneId);
+            }
+
+            Assert.Equal(expected.Nome, actual.Nome);
+            Assert.Equal(expected.Descrizione, actual.Descrizione);
+
+            if (!ignoreDate)
+            {
+                AssertDateTimeWithTolerance(expected.DtCreazione, actual.DtCreazione);
+            }
+        }
+        
+        protected async Task<Personalizzazione> CreateDuplicatePersonalizzazioneAsync(string nome = "DUPLICATO")
+        {
+            var now = DateTime.UtcNow;
+
+            // Prima crea una personalizzazione con il nome
+            var prima = new Personalizzazione
+            {
+                Nome = nome.ToUpper(),
+                Descrizione = "Prima personalizzazione",
+                DtCreazione = now
+            };
+
+            _context.Personalizzazione.Add(prima);
+            await _context.SaveChangesAsync();
+
+            return prima;
+        }
+        
+        protected async Task<List<Personalizzazione>> CreateCaseVariationsAsync(string baseNome = "Test")
+        {
+            var variations = new List<Personalizzazione>
+            {
+                new() { Nome = baseNome.ToUpper(), Descrizione = "Tutto maiuscolo", DtCreazione = DateTime.UtcNow },
+                new() { Nome = baseNome.ToLower(), Descrizione = "Tutto minuscolo", DtCreazione = DateTime.UtcNow.AddMinutes(1) },
+                new() { Nome = char.ToUpper(baseNome[0]) + baseNome.Substring(1).ToLower(), Descrizione = "Prima maiuscola", DtCreazione = DateTime.UtcNow.AddMinutes(2) }
+            };
+
+            _context.Personalizzazione.AddRange(variations);
+            await _context.SaveChangesAsync();
+            return variations;
         }
 
         #endregion

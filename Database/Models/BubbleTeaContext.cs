@@ -732,6 +732,8 @@ public partial class BubbleTeaContext : DbContext
 
         modelBuilder.Entity<Personalizzazione>(entity =>
         {
+            entity.HasIndex(e => e.Nome, "UQ_Personalizzazione_Nome").IsUnique();
+
             entity.Property(e => e.PersonalizzazioneId).HasColumnName("personalizzazione_id");
             entity.Property(e => e.Descrizione).HasColumnName("descrizione");
             entity.Property(e => e.DtCreazione)

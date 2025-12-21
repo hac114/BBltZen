@@ -6,18 +6,15 @@ namespace Repository.Interface
 {
     public interface IPersonalizzazioneRepository
     {
-        // ✅ CORRETTO: AddAsync deve ritornare DTO
-        Task<PersonalizzazioneDTO> AddAsync(PersonalizzazioneDTO personalizzazioneDto);
+        Task<PaginatedResponseDTO<PersonalizzazioneDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<PersonalizzazioneDTO>> GetByIdAsync(int personalizzazioneId);
+        Task<PaginatedResponseDTO<PersonalizzazioneDTO>> GetByNomeAsync(string nome, int page = 1, int pageSize = 10);
 
-        Task UpdateAsync(PersonalizzazioneDTO personalizzazioneDto);
-        Task DeleteAsync(int id);
-        Task<bool> ExistsAsync(int id);
+        Task<SingleResponseDTO<PersonalizzazioneDTO>> AddAsync(PersonalizzazioneDTO personalizzazioneDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(PersonalizzazioneDTO personalizzazioneDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int personalizzazioneId);
 
-        // ✅ CORRETTO: GetAll con IEnumerable
-        Task<IEnumerable<PersonalizzazioneDTO>> GetAllAsync();
-        Task<PersonalizzazioneDTO?> GetByIdAsync(int id);
-
-        // ✅ METODI BUSINESS
-        Task<bool> ExistsByNameAsync(string nome, int? excludeId = null);
+        Task<SingleResponseDTO<bool>> ExistsAsync(int personalizzazioneId);        
+        Task<SingleResponseDTO<bool>> ExistsByNomeAsync(string nome);
     }
 }
