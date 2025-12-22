@@ -20,7 +20,7 @@ namespace Database.Configurations
 
             builder.Property(pi => pi.Quantita)
                 .IsRequired()
-                .HasColumnType("decimal(10,3)"); // ✅ Precisione quantità
+                .HasColumnType("decimal(5,2)"); // ✅ Precisione quantità
 
             builder.Property(pi => pi.UnitaMisuraId)
                 .IsRequired();
@@ -59,7 +59,7 @@ namespace Database.Configurations
             // ✅ CHECK CONSTRAINTS
             builder.ToTable(tb => tb.HasCheckConstraint(
                 "CK_PersonalizzazioneIngrediente_Quantita",
-                "[Quantita] > 0 AND [Quantita] <= 1000"));
+                "[Quantita] > 0 AND [Quantita] <= 999.99"));
 
             builder.ToTable("PersonalizzazioneIngrediente");
         }

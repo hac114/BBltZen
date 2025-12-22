@@ -6,22 +6,21 @@ namespace Repository.Interface
 {
     public interface IPersonalizzazioneIngredienteRepository
     {
-        // ✅ CORRETTO: AddAsync deve ritornare DTO
-        Task<PersonalizzazioneIngredienteDTO> AddAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
+        Task<PaginatedResponseDTO<PersonalizzazioneIngredienteDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<PersonalizzazioneIngredienteDTO>> GetByIdAsync(int personalizzazioneIngredienteId);
+        Task<PaginatedResponseDTO<PersonalizzazioneIngredienteDTO>> GetByPersonalizzazioneAsync(string nomePersonalizzazione, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<PersonalizzazioneIngredienteDTO>> GetByIngredienteAsync(string ingrediente, int page = 1, int pageSize = 10);
 
-        Task UpdateAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
-        Task DeleteAsync(int id);
-        Task<bool> ExistsAsync(int id);
 
-        // ✅ CORRETTO: GetAll con IEnumerable
-        Task<IEnumerable<PersonalizzazioneIngredienteDTO>> GetAllAsync();
-        Task<PersonalizzazioneIngredienteDTO?> GetByIdAsync(int id);
+        Task<SingleResponseDTO<PersonalizzazioneIngredienteDTO>> AddAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int personalizzazioneIngredienteId, bool forceDelete = false);
 
-        // ✅ METODI BUSINESS SPECIFICI
-        Task<IEnumerable<PersonalizzazioneIngredienteDTO>> GetByPersonalizzazioneIdAsync(int personalizzazioneId);
-        Task<IEnumerable<PersonalizzazioneIngredienteDTO>> GetByIngredienteIdAsync(int ingredienteId);
-        Task<PersonalizzazioneIngredienteDTO?> GetByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId);
-        Task<bool> ExistsByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId);
-        Task<int> GetCountByPersonalizzazioneAsync(int personalizzazioneId);
+
+        Task<SingleResponseDTO<bool>> ExistsAsync(int id);
+        Task<SingleResponseDTO<bool>> ExistsByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId);
+
+        Task<SingleResponseDTO<int>> CountAsync();
+        Task<SingleResponseDTO<int>> GetCountByPersonalizzazioneAsync(string nomePersonalizzazione);
     }
 }
