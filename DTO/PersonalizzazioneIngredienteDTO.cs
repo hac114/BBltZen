@@ -21,6 +21,8 @@ namespace DTO
 
         [Range(1, int.MaxValue, ErrorMessage = "UnitaMisuraId è obbligatorio")]
         public int UnitaMisuraId { get; set; }
+
+        public string? UnitaMisura { get; set; }
     }
 
 }

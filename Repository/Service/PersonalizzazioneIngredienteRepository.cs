@@ -24,9 +24,10 @@ namespace Repository.Service
                 PersonalizzazioneId = personalizzazioneIngrediente.PersonalizzazioneId,
                 NomePersonalizzazione = personalizzazioneIngrediente.Personalizzazione?.Nome,    // ✅ Corretto: nullable
                 IngredienteId = personalizzazioneIngrediente.IngredienteId,
-                NomeIngrediente = personalizzazioneIngrediente.Ingrediente?.Ingrediente1, // ✅ Corretto: nullable
+                NomeIngrediente = personalizzazioneIngrediente.Ingrediente?.Ingrediente1,       // ✅ Corretto: nullable
                 Quantita = personalizzazioneIngrediente.Quantita,
-                UnitaMisuraId = personalizzazioneIngrediente.UnitaMisuraId
+                UnitaMisuraId = personalizzazioneIngrediente.UnitaMisuraId,
+                UnitaMisura = personalizzazioneIngrediente.UnitaMisura.Descrizione             // ✅ Corretto: nullable
             };
         }
 
@@ -40,6 +41,7 @@ namespace Repository.Service
                 var query = _context.PersonalizzazioneIngrediente
                     .Include(p => p.Personalizzazione)
                     .Include(p => p.Ingrediente) // ✅ Aggiunto per avere i nomi
+                    .Include(p => p.UnitaMisura)
                     .AsNoTracking()
                     .OrderBy(p => p.Personalizzazione.Nome);
 
@@ -85,6 +87,7 @@ namespace Repository.Service
                 var personalizzazioneIngrediente = await _context.PersonalizzazioneIngrediente
                     .Include(p => p.Personalizzazione)
                     .Include(p => p.Ingrediente) // ✅ Aggiunto per avere il nome
+                    .Include(p => p.UnitaMisura)
                     .AsNoTracking()
                     .FirstOrDefaultAsync(p => p.PersonalizzazioneIngredienteId == personalizzazioneIngredienteId); // ✅ Corretto!
 
@@ -146,6 +149,7 @@ namespace Repository.Service
                 var query = _context.PersonalizzazioneIngrediente
                     .Include(p => p.Personalizzazione)
                     .Include(p => p.Ingrediente) // ✅ Aggiunto per avere i nomi
+                    .Include(p => p.UnitaMisura)
                     .AsNoTracking()
                     .Where(p => p.Personalizzazione != null &&
                            StringHelper.ContainsCaseInsensitive(p.Personalizzazione.Nome, searchTerm))
@@ -232,6 +236,7 @@ namespace Repository.Service
                 var query = _context.PersonalizzazioneIngrediente
                     .Include(p => p.Personalizzazione)
                     .Include(p => p.Ingrediente) // ✅ Aggiunto per cercare nell'ingrediente
+                    .Include(p => p.UnitaMisura)
                     .AsNoTracking()
                     .Where(p => p.Ingrediente != null &&
                            StringHelper.ContainsCaseInsensitive(p.Ingrediente.Ingrediente1, searchTerm))

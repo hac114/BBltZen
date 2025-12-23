@@ -652,77 +652,24 @@ namespace BBltZen.Infrastructure
         {
             if (await _context.PersonalizzazioneIngrediente.AnyAsync()) return;
 
-            try
+            var piList = new[]
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
-                var personalizzazioni = await _context.Personalizzazione.ToListAsync();
-                var ingredienti = await _context.Ingrediente.ToListAsync();
-                var unitaMisura = await _context.UnitaDiMisura.ToListAsync();
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 1, IngredienteId = 1, Quantita = 250m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 1, IngredienteId = 3, Quantita = 50m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 2, IngredienteId = 2, Quantita = 300m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 2, IngredienteId = 8, Quantita = 30m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 3, IngredienteId = 5, Quantita = 200m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 3, IngredienteId = 9, Quantita = 100m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 4, IngredienteId = 6, Quantita = 150m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 4, IngredienteId = 10, Quantita = 100m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 5, IngredienteId = 1, Quantita = 200m, UnitaMisuraId = 1 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 5, IngredienteId = 7, Quantita = 50m, UnitaMisuraId = 3 },
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 5, IngredienteId = 4, Quantita = 20m, UnitaMisuraId = 1 }
+            };
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var personalizzazioneClassic = personalizzazioni.FirstOrDefault(p => p.Nome == "Classic Milk Tea");
-                var personalizzazioneFruit = personalizzazioni.FirstOrDefault(p => p.Nome == "Fruit Fusion");
-
-                var teaNero = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Tea nero premium");
-                var teaVerde = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Tea verde special");
-                var caramello = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Sciroppo di caramello");
-                var latteCocco = ingredienti.FirstOrDefault(i => i.Ingrediente1 == "Latte di cocco");
-
-                var grUnit = unitaMisura.FirstOrDefault(u => u.Sigla == "GR");
-                var mlUnit = unitaMisura.FirstOrDefault(u => u.Sigla == "ML");
-
-                // ✅ Verifica che tutte le entità esistano
-                if (personalizzazioneClassic == null || personalizzazioneFruit == null ||
-                    teaNero == null || teaVerde == null || caramello == null || latteCocco == null ||
-                    grUnit == null || mlUnit == null)
-                {
-                    Console.WriteLine("⚠️  Entità mancanti per PersonalizzazioneIngredienti");
-                    return;
-                }
-
-                var personalizzazioneIngredienti = new[]
-                {
-                    // Classic Milk Tea ingredients
-                    new PersonalizzazioneIngrediente
-                    {
-                        PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
-                        IngredienteId = teaNero.IngredienteId,
-                        Quantita = 10.0m,
-                        UnitaMisuraId = grUnit.UnitaMisuraId
-                    },
-                    new PersonalizzazioneIngrediente
-                    {
-                        PersonalizzazioneId = personalizzazioneClassic.PersonalizzazioneId,
-                        IngredienteId = caramello.IngredienteId,
-                        Quantita = 20.0m,
-                        UnitaMisuraId = mlUnit.UnitaMisuraId
-                    },
-
-                    // Fruit Fusion ingredients
-                    new PersonalizzazioneIngrediente
-                    {
-                        PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
-                        IngredienteId = teaVerde.IngredienteId,
-                        Quantita = 8.0m,
-                        UnitaMisuraId = grUnit.UnitaMisuraId
-                    },
-                    new PersonalizzazioneIngrediente
-                    {
-                        PersonalizzazioneId = personalizzazioneFruit.PersonalizzazioneId,
-                        IngredienteId = latteCocco.IngredienteId,
-                        Quantita = 150.0m,
-                        UnitaMisuraId = mlUnit.UnitaMisuraId
-                    }
-                };
-
-                await _context.PersonalizzazioneIngrediente.AddRangeAsync(personalizzazioneIngredienti);
-                Console.WriteLine("✅ PersonalizzazioneIngredienti seeded successfully");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️  Errore in SeedPersonalizzazioneIngredientiAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
-            }
+            await _context.PersonalizzazioneIngrediente.AddRangeAsync(piList);
+            await _context.SaveChangesAsync();
+            Console.WriteLine($"✅ PersonalizzazioneIngredienti seeded: {piList.Length} records");
         }
 
         private async Task SeedDimensioneQuantitaIngredientiAsync()

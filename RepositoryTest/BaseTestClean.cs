@@ -267,62 +267,62 @@ namespace RepositoryTest
                 );
             }
 
-            // 7. Ingrediente
-            if (!_context.Ingrediente.Any())
-            {
-                _context.Ingrediente.AddRange(
-                    new Ingrediente
-                    {
-                        IngredienteId = 1,
-                        Ingrediente1 = "Tea nero premium",
-                        CategoriaId = 1,
-                        PrezzoAggiunto = 0.50m,
-                        Disponibile = true,
-                        DataInserimento = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
-                    },
-                    new Ingrediente
-                    {
-                        IngredienteId = 2,
-                        Ingrediente1 = "Tea verde special",
-                        CategoriaId = 1,
-                        PrezzoAggiunto = 0.45m,
-                        Disponibile = true,
-                        DataInserimento = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
-                    },
-                    new Ingrediente
-                    {
-                        IngredienteId = 3,
-                        Ingrediente1 = "Sciroppo di caramello",
-                        CategoriaId = 3,
-                        PrezzoAggiunto = 1.50m,
-                        Disponibile = true,
-                        DataInserimento = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
-                    },
-                    new Ingrediente
-                    {
-                        IngredienteId = 4,
-                        Ingrediente1 = "Perle di tapioca",
-                        CategoriaId = 4,
-                        PrezzoAggiunto = 1.20m,
-                        Disponibile = true,
-                        DataInserimento = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
-                    },
-                    new Ingrediente
-                    {
-                        IngredienteId = 5,
-                        Ingrediente1 = "Latte di cocco",
-                        CategoriaId = 2,
-                        PrezzoAggiunto = 0.80m,
-                        Disponibile = true,
-                        DataInserimento = DateTime.UtcNow,
-                        DataAggiornamento = DateTime.UtcNow
-                    }
-                );
-            }
+            //// 7. Ingrediente
+            //if (!_context.Ingrediente.Any())
+            //{
+            //    _context.Ingrediente.AddRange(
+            //        new Ingrediente
+            //        {
+            //            IngredienteId = 1,
+            //            Ingrediente1 = "Tea nero premium",
+            //            CategoriaId = 1,
+            //            PrezzoAggiunto = 0.50m,
+            //            Disponibile = true,
+            //            DataInserimento = DateTime.UtcNow,
+            //            DataAggiornamento = DateTime.UtcNow
+            //        },
+            //        new Ingrediente
+            //        {
+            //            IngredienteId = 2,
+            //            Ingrediente1 = "Tea verde special",
+            //            CategoriaId = 1,
+            //            PrezzoAggiunto = 0.45m,
+            //            Disponibile = true,
+            //            DataInserimento = DateTime.UtcNow,
+            //            DataAggiornamento = DateTime.UtcNow
+            //        },
+            //        new Ingrediente
+            //        {
+            //            IngredienteId = 3,
+            //            Ingrediente1 = "Sciroppo di caramello",
+            //            CategoriaId = 3,
+            //            PrezzoAggiunto = 1.50m,
+            //            Disponibile = true,
+            //            DataInserimento = DateTime.UtcNow,
+            //            DataAggiornamento = DateTime.UtcNow
+            //        },
+            //        new Ingrediente
+            //        {
+            //            IngredienteId = 4,
+            //            Ingrediente1 = "Perle di tapioca",
+            //            CategoriaId = 4,
+            //            PrezzoAggiunto = 1.20m,
+            //            Disponibile = true,
+            //            DataInserimento = DateTime.UtcNow,
+            //            DataAggiornamento = DateTime.UtcNow
+            //        },
+            //        new Ingrediente
+            //        {
+            //            IngredienteId = 5,
+            //            Ingrediente1 = "Latte di cocco",
+            //            CategoriaId = 2,
+            //            PrezzoAggiunto = 0.80m,
+            //            Disponibile = true,
+            //            DataInserimento = DateTime.UtcNow,
+            //            DataAggiornamento = DateTime.UtcNow
+            //        }
+            //    );
+            //}
 
             // 8. DimensioneBicchiere
             if (!_context.DimensioneBicchiere.Any())
@@ -421,7 +421,46 @@ namespace RepositoryTest
                 );
             }
 
-            // 11. Utenti
+            //// 11. PersonalizzazioneIngrediente
+            //if (!_context.PersonalizzazioneIngrediente.Any())
+            //{
+            //    _context.PersonalizzazioneIngrediente.AddRange(
+            //        new PersonalizzazioneIngrediente
+            //        {
+            //            PersonalizzazioneIngredienteId = 1,
+            //            PersonalizzazioneId = 1, // Classic Milk Tea
+            //            IngredienteId = 1,       // Tè Nero Premium
+            //            Quantita = 250.00m,
+            //            UnitaMisuraId = 1        // ML
+            //        },
+            //        new PersonalizzazioneIngrediente
+            //        {
+            //            PersonalizzazioneIngredienteId = 2,
+            //            PersonalizzazioneId = 1, // Classic Milk Tea
+            //            IngredienteId = 3,       // Latte Condensato
+            //            Quantita = 50.00m,
+            //            UnitaMisuraId = 1        // ML
+            //        },
+            //        new PersonalizzazioneIngrediente
+            //        {
+            //            PersonalizzazioneIngredienteId = 3,
+            //            PersonalizzazioneId = 2, // Fruit Green Tea
+            //            IngredienteId = 2,       // Tè Verde Special
+            //            Quantita = 300.00m,
+            //            UnitaMisuraId = 1        // ML
+            //        },
+            //        new PersonalizzazioneIngrediente
+            //        {
+            //            PersonalizzazioneIngredienteId = 4,
+            //            PersonalizzazioneId = 3, // Taro Coconut Delight
+            //            IngredienteId = 5,       // Tè Bianco
+            //            Quantita = 200.00m,
+            //            UnitaMisuraId = 1        // ML
+            //        }
+            //    );
+            //}
+
+            // 12. Utenti
             if (!_context.Utenti.Any())
             {
                 _context.Utenti.AddRange(
@@ -525,6 +564,12 @@ namespace RepositoryTest
                 await CleanPersonalizzazioneDependenciesAsync([.. entities.Cast<Personalizzazione>()]);
             }
 
+            else if (typeof(T) == typeof(PersonalizzazioneIngrediente))
+            {
+                await CleanPersonalizzazioneIngredienteDependenciesAsync([.. entities.Cast<PersonalizzazioneIngrediente>()]);
+            }
+                
+
             // Aggiungi altri entity con dipendenze qui se necessario
             // else if (typeof(T) == typeof(AltraEntity)) { ... }
 
@@ -535,6 +580,7 @@ namespace RepositoryTest
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<PersonalizzazioneIngrediente>();
             await CleanTableAsync<Personalizzazione>();
             await CleanTableAsync<Articolo>();
             await CleanTableAsync<DimensioneBicchiere>();
@@ -1898,6 +1944,187 @@ namespace RepositoryTest
             _context.Personalizzazione.AddRange(variations);
             await _context.SaveChangesAsync();
             return variations;
+        }
+
+        #endregion
+
+        #region PersonalizzazioneIngrediente Helpers
+
+        protected async Task<PersonalizzazioneIngrediente> CreateTestPersonalizzazioneIngredienteAsync(
+            int personalizzazioneId = 1,
+            int ingredienteId = 1,
+            decimal quantita = 100.00m,
+            int unitaMisuraId = 1,
+            int? personalizzazioneIngredienteId = null)
+        {
+            var personalizzazioneIngrediente = new PersonalizzazioneIngrediente
+            {
+                PersonalizzazioneId = personalizzazioneId,
+                IngredienteId = ingredienteId,
+                Quantita = quantita,
+                UnitaMisuraId = unitaMisuraId
+            };
+
+            if (personalizzazioneIngredienteId.HasValue && personalizzazioneIngredienteId.Value > 0)
+            {
+                personalizzazioneIngrediente.PersonalizzazioneIngredienteId = personalizzazioneIngredienteId.Value;
+            }
+
+            _context.PersonalizzazioneIngrediente.Add(personalizzazioneIngrediente);
+            await _context.SaveChangesAsync();
+            return personalizzazioneIngrediente;
+        }
+
+        protected async Task<List<PersonalizzazioneIngrediente>> CreateMultiplePersonalizzazioneIngredientiAsync(int count = 3)
+        {
+            var personalizzazioni = await CreateMultiplePersonalizzazioniAsync(count);
+            var personalizzazioneIngredienti = new List<PersonalizzazioneIngrediente>();
+            var now = DateTime.UtcNow;
+
+            // Creiamo ingredienti di test se non ci sono abbastanza
+            var ingredientiEsistenti = await _context.Ingrediente.CountAsync();
+            if (ingredientiEsistenti < count)
+            {
+                for (int i = ingredientiEsistenti + 1; i <= count; i++)
+                {
+                    _context.Ingrediente.Add(new Ingrediente
+                    {
+                        IngredienteId = 100 + i, // ID alti per non sovrascrivere quelli di seed
+                        Ingrediente1 = $"Ingrediente Test {i}",
+                        CategoriaId = 1,
+                        PrezzoAggiunto = 1.00m,
+                        Disponibile = true,
+                        DataInserimento = now,
+                        DataAggiornamento = now
+                    });
+                }
+                await _context.SaveChangesAsync();
+            }
+
+            var ingredienti = await _context.Ingrediente
+                .Take(count)
+                .ToListAsync();
+
+            for (int i = 0; i < count; i++)
+            {
+                personalizzazioneIngredienti.Add(new PersonalizzazioneIngrediente
+                {
+                    PersonalizzazioneId = personalizzazioni[i].PersonalizzazioneId,
+                    IngredienteId = ingredienti[i].IngredienteId,
+                    Quantita = (i + 1) * 50.00m, // 50, 100, 150, ...
+                    UnitaMisuraId = 1 // ML
+                });
+            }
+
+            _context.PersonalizzazioneIngrediente.AddRange(personalizzazioneIngredienti);
+            await _context.SaveChangesAsync();
+            return personalizzazioneIngredienti;
+        }
+
+        protected async Task CleanPersonalizzazioneIngredienteDependenciesAsync(List<PersonalizzazioneIngrediente> personalizzazioneIngredienti)
+        {
+            var personalizzazioneIngredienteIds = personalizzazioneIngredienti.Select(pi => pi.PersonalizzazioneIngredienteId).ToList();
+
+            // DimensioneQuantitaIngredienti
+            var dimensioniQuantita = await _context.DimensioneQuantitaIngredienti
+                .Where(dqi => personalizzazioneIngredienteIds.Contains(dqi.PersonalizzazioneIngredienteId))
+                .ToListAsync();
+
+            if (dimensioniQuantita.Count > 0)
+            {
+                _context.DimensioneQuantitaIngredienti.RemoveRange(dimensioniQuantita);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        protected async Task<bool> PersonalizzazioneIngredienteHasDependenciesAsync(int personalizzazioneIngredienteId)
+        {
+            return await _context.DimensioneQuantitaIngredienti
+                .AnyAsync(dqi => dqi.PersonalizzazioneIngredienteId == personalizzazioneIngredienteId);
+        }
+
+        protected void AssertPersonalizzazioneIngredienteEqual(PersonalizzazioneIngrediente expected, PersonalizzazioneIngrediente actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.PersonalizzazioneIngredienteId, actual.PersonalizzazioneIngredienteId);
+            }
+
+            Assert.Equal(expected.PersonalizzazioneId, actual.PersonalizzazioneId);
+            Assert.Equal(expected.IngredienteId, actual.IngredienteId);
+            Assert.Equal(expected.Quantita, actual.Quantita);
+            Assert.Equal(expected.UnitaMisuraId, actual.UnitaMisuraId);
+        }
+
+        protected void AssertPersonalizzazioneIngredienteDTOEqual(PersonalizzazioneIngredienteDTO expected, PersonalizzazioneIngredienteDTO actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.PersonalizzazioneIngredienteId, actual.PersonalizzazioneIngredienteId);
+            }
+
+            Assert.Equal(expected.PersonalizzazioneId, actual.PersonalizzazioneId);
+            Assert.Equal(expected.IngredienteId, actual.IngredienteId);
+            Assert.Equal(expected.Quantita, actual.Quantita);
+            Assert.Equal(expected.UnitaMisuraId, actual.UnitaMisuraId);
+        }
+
+        protected async Task<PersonalizzazioneIngrediente> CreateDuplicatePersonalizzazioneIngredienteAsync(int personalizzazioneId, int ingredienteId)
+        {
+            var existing = new PersonalizzazioneIngrediente
+            {
+                PersonalizzazioneId = personalizzazioneId,
+                IngredienteId = ingredienteId,
+                Quantita = 100.00m,
+                UnitaMisuraId = 1
+            };
+
+            _context.PersonalizzazioneIngrediente.Add(existing);
+            await _context.SaveChangesAsync();
+            return existing;
+        }
+
+        protected PersonalizzazioneIngredienteDTO CreateTestPersonalizzazioneIngredienteDTO(
+    int personalizzazioneId = 1,
+    int ingredienteId = 1,
+    decimal quantita = 100.00m,
+    int unitaMisuraId = 1)
+        {
+            return new PersonalizzazioneIngredienteDTO
+            {
+                PersonalizzazioneId = personalizzazioneId,
+                IngredienteId = ingredienteId,
+                Quantita = quantita,
+                UnitaMisuraId = unitaMisuraId
+            };
+        }
+
+        protected async Task<Ingrediente> CreateTestIngredienteAsync(
+            string nome = "Test Ingrediente",
+            int categoriaId = 1,
+            decimal prezzoAggiunto = 1.00m,
+            bool disponibile = true,
+            int? ingredienteId = null)
+        {
+            var now = DateTime.UtcNow;
+            var ingrediente = new Ingrediente
+            {
+                Ingrediente1 = nome,
+                CategoriaId = categoriaId,
+                PrezzoAggiunto = prezzoAggiunto,
+                Disponibile = disponibile,
+                DataInserimento = now,
+                DataAggiornamento = now
+            };
+
+            if (ingredienteId.HasValue && ingredienteId.Value > 0)
+            {
+                ingrediente.IngredienteId = ingredienteId.Value;
+            }
+
+            _context.Ingrediente.Add(ingrediente);
+            await _context.SaveChangesAsync();
+            return ingrediente;
         }
 
         #endregion
