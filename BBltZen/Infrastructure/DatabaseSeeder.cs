@@ -652,23 +652,25 @@ namespace BBltZen.Infrastructure
         {
             if (await _context.PersonalizzazioneIngrediente.AnyAsync()) return;
 
+            // Classic Milk Tea: Tea nero + Sciroppo di caramello
+            // Fruit Fusion: Tea verde + Latte di cocco  
+            // Caramel Dream: Latte di cocco
+
             var piList = new[]
             {
+                // Classic Milk Tea
                 new PersonalizzazioneIngrediente { PersonalizzazioneId = 1, IngredienteId = 1, Quantita = 250m, UnitaMisuraId = 1 },
                 new PersonalizzazioneIngrediente { PersonalizzazioneId = 1, IngredienteId = 3, Quantita = 50m, UnitaMisuraId = 1 },
+        
+                // Fruit Fusion
                 new PersonalizzazioneIngrediente { PersonalizzazioneId = 2, IngredienteId = 2, Quantita = 300m, UnitaMisuraId = 1 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 2, IngredienteId = 8, Quantita = 30m, UnitaMisuraId = 1 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 3, IngredienteId = 5, Quantita = 200m, UnitaMisuraId = 1 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 3, IngredienteId = 9, Quantita = 100m, UnitaMisuraId = 1 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 4, IngredienteId = 6, Quantita = 150m, UnitaMisuraId = 1 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 4, IngredienteId = 10, Quantita = 100m, UnitaMisuraId = 1 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 5, IngredienteId = 1, Quantita = 200m, UnitaMisuraId = 1 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 5, IngredienteId = 7, Quantita = 50m, UnitaMisuraId = 3 },
-                new PersonalizzazioneIngrediente { PersonalizzazioneId = 5, IngredienteId = 4, Quantita = 20m, UnitaMisuraId = 1 }
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 2, IngredienteId = 5, Quantita = 100m, UnitaMisuraId = 1 },
+        
+                // Caramel Dream
+                new PersonalizzazioneIngrediente { PersonalizzazioneId = 3, IngredienteId = 5, Quantita = 200m, UnitaMisuraId = 1 }
             };
 
             await _context.PersonalizzazioneIngrediente.AddRangeAsync(piList);
-            await _context.SaveChangesAsync();
             Console.WriteLine($"✅ PersonalizzazioneIngredienti seeded: {piList.Length} records");
         }
 
