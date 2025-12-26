@@ -1,26 +1,23 @@
 ﻿using DTO;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Repository.Interface
 {
     public interface IDimensioneQuantitaIngredientiRepository
     {
-        // ✅ CORRETTO: AddAsync deve ritornare DTO
-        Task<DimensioneQuantitaIngredientiDTO> AddAsync(DimensioneQuantitaIngredientiDTO dimensioneQuantitaDto);
+        Task<PaginatedResponseDTO<DimensioneQuantitaIngredientiDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<DimensioneQuantitaIngredientiDTO>> GetByIdAsync(int dimensioneId);
+        Task<PaginatedResponseDTO<DimensioneQuantitaIngredientiDTO>> GetByBicchiereIdAsync(int bicchiereId, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<DimensioneQuantitaIngredientiDTO>> GetByPersonalizzazioneIngredienteIdAsync(int personalizzazioneIngredienteId, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<DimensioneQuantitaIngredientiDTO>> GetByBicchiereDescrizioneAsync(string descrizioneBicchiere, int page = 1, int pageSize = 10);
 
-        Task UpdateAsync(DimensioneQuantitaIngredientiDTO dimensioneQuantitaDto);
-        Task DeleteAsync(int dimensioneId, int personalizzazioneIngredienteId);
-        Task<bool> ExistsAsync(int dimensioneId, int personalizzazioneIngredienteId);
+        Task<SingleResponseDTO<DimensioneQuantitaIngredientiDTO>> AddAsync(DimensioneQuantitaIngredientiDTO dimensioneQuantitaIngredientiDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(DimensioneQuantitaIngredientiDTO dimensioneQuantitaIngredientiDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int dimensioneId);
 
-        // ✅ CORRETTO: GetAll con IEnumerable
-        Task<IEnumerable<DimensioneQuantitaIngredientiDTO>> GetAllAsync();
-        Task<DimensioneQuantitaIngredientiDTO?> GetByIdAsync(int dimensioneId, int personalizzazioneIngredienteId);
+        Task<SingleResponseDTO<bool>> ExistsAsync(int dimensioneId);
+        Task<SingleResponseDTO<bool>> ExistsByCombinazioneAsync(int personalizzazioneIngredienteId, int bicchiereId);
 
-        // ✅ METODI BUSINESS SPECIFICI
-        Task<IEnumerable<DimensioneQuantitaIngredientiDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId);
-        Task<IEnumerable<DimensioneQuantitaIngredientiDTO>> GetByPersonalizzazioneIngredienteAsync(int personalizzazioneIngredienteId);
-        Task<DimensioneQuantitaIngredientiDTO?> GetByCombinazioneAsync(int dimensioneBicchiereId, int personalizzazioneIngredienteId);
-        Task<bool> ExistsByCombinazioneAsync(int dimensioneBicchiereId, int personalizzazioneIngredienteId);
+        Task<SingleResponseDTO<int>> CountAsync();
+        Task<SingleResponseDTO<int>> GetCountByPersonalizzazioneIngredientiAsync(int personalizzazioneIngredienteId);
     }
 }

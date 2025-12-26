@@ -345,7 +345,7 @@ public partial class BubbleTeaContext : DbContext
             entity.Property(e => e.DimensioneId).HasColumnName("dimensione_id");
             entity.Property(e => e.DimensioneBicchiereId).HasColumnName("dimensione_bicchiere_id");
             entity.Property(e => e.Moltiplicatore)
-                .HasColumnType("decimal(3, 2)")
+                .HasColumnType("decimal(5, 2)")
                 .HasColumnName("moltiplicatore");
             entity.Property(e => e.PersonalizzazioneIngredienteId).HasColumnName("personalizzazione_ingrediente_id");
 

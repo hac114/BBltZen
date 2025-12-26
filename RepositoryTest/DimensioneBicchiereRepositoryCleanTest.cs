@@ -17,7 +17,7 @@ namespace RepositoryTest
         {
             _repository = new DimensioneBicchiereRepository(_context, GetTestLogger<DimensioneBicchiereRepository>());
         }
-        
+
         #region GetAllAsync Tests
 
         [Fact]
@@ -26,10 +26,30 @@ namespace RepositoryTest
             // Arrange - Usa i metodi helper
             await CleanTableAsync<DimensioneBicchiere>();
 
-            // Crea 3 dimensioni usando il metodo helper
-            var dimensione1 = await CreateTestDimensioneBicchiereAsync("S", "Small", 250.00m, 2.50m, 0.85m);
-            var dimensione2 = await CreateTestDimensioneBicchiereAsync("M", "Medium", 500.00m, 3.50m, 1.00m);
-            var dimensione3 = await CreateTestDimensioneBicchiereAsync("L", "Large", 750.00m, 4.50m, 1.30m);
+            // Crea 3 dimensioni usando il metodo helper CON TUTTI I PARAMETRI
+            var dimensione1 = await CreateTestDimensioneBicchiereAsync(
+                sigla: "S",
+                descrizione: "Small",
+                capienza: 250.00m,
+                unitaMisuraId: 1,  // ← AGGIUNGI QUESTO!
+                prezzoBase: 2.50m,
+                moltiplicatore: 0.85m);
+
+            var dimensione2 = await CreateTestDimensioneBicchiereAsync(
+                sigla: "M",
+                descrizione: "Medium",
+                capienza: 500.00m,
+                unitaMisuraId: 1,  // ← AGGIUNGI QUESTO!
+                prezzoBase: 3.50m,
+                moltiplicatore: 1.00m);
+
+            var dimensione3 = await CreateTestDimensioneBicchiereAsync(
+                sigla: "L",
+                descrizione: "Large",
+                capienza: 750.00m,
+                unitaMisuraId: 1,  // ← AGGIUNGI QUESTO!
+                prezzoBase: 4.50m,
+                moltiplicatore: 1.30m);
 
             Console.WriteLine($"Created dimensioni with IDs: {dimensione1.DimensioneBicchiereId}, {dimensione2.DimensioneBicchiereId}, {dimensione3.DimensioneBicchiereId}");
 

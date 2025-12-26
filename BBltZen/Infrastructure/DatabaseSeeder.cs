@@ -680,31 +680,38 @@ namespace BBltZen.Infrastructure
 
             try
             {
-                // ✅ CORREZIONE: Carica tutto in memoria prima di filtrare
+                // ✅ CORREZIONE: Assicurati che il contesto sia salvato prima delle query
+                await _context.SaveChangesAsync();
+
+                // ✅ Carica tutto in memoria
                 var personalizzazioneIngredienti = await _context.PersonalizzazioneIngrediente.ToListAsync();
                 var dimensioniBicchieri = await _context.DimensioneBicchiere.ToListAsync();
 
-                // ✅ Usa FirstOrDefault invece di FirstAsync per InMemory
-                var dimensioneMedia = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "M");
-                var dimensioneLarge = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "L");
-
-                // ✅ Verifica che le dimensioni esistano
-                if (dimensioneMedia == null || dimensioneLarge == null)
+                // ✅ Verifica che i dati esistano
+                if (personalizzazioneIngredienti.Count == 0)
                 {
-                    Console.WriteLine("⚠️  Dimensioni bicchieri non trovate per DimensioneQuantitaIngredienti");
+                    Console.WriteLine("⚠️  Nessuna PersonalizzazioneIngrediente trovata");
                     return;
                 }
 
-                // ✅ Verifica che ci siano personalizzazione ingredienti
-                if (!personalizzazioneIngredienti.Any())
+                if (dimensioniBicchieri.Count == 0)
                 {
-                    Console.WriteLine("⚠️  Nessuna PersonalizzazioneIngrediente trovata per DimensioneQuantitaIngredienti");
+                    Console.WriteLine("⚠️  Nessuna DimensioneBicchiere trovata");
+                    return;
+                }
+
+                // ✅ Trova le dimensioni per sigla
+                var dimensioneMedia = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "M");
+                var dimensioneLarge = dimensioniBicchieri.FirstOrDefault(d => d.Sigla == "L");
+
+                if (dimensioneMedia == null || dimensioneLarge == null)
+                {
+                    Console.WriteLine($"⚠️  Dimensioni bicchieri non trovate. Disponibili: {string.Join(", ", dimensioniBicchieri.Select(d => d.Sigla))}");
                     return;
                 }
 
                 var dimensioneQuantitaIngredienti = new List<DimensioneQuantitaIngredienti>();
 
-                // Per ogni personalizzazione ingrediente, crea record per entrambe le dimensioni
                 foreach (var personalizzazioneIngrediente in personalizzazioneIngredienti)
                 {
                     // Per dimensione Media
@@ -712,7 +719,7 @@ namespace BBltZen.Infrastructure
                     {
                         PersonalizzazioneIngredienteId = personalizzazioneIngrediente.PersonalizzazioneIngredienteId,
                         DimensioneBicchiereId = dimensioneMedia.DimensioneBicchiereId,
-                        Moltiplicatore = 1.0m // Moltiplicatore base per dimensione media
+                        Moltiplicatore = 1.0m
                     });
 
                     // Per dimensione Large
@@ -720,17 +727,25 @@ namespace BBltZen.Infrastructure
                     {
                         PersonalizzazioneIngredienteId = personalizzazioneIngrediente.PersonalizzazioneIngredienteId,
                         DimensioneBicchiereId = dimensioneLarge.DimensioneBicchiereId,
-                        Moltiplicatore = 1.3m // 30% in più per dimensione large
+                        Moltiplicatore = 1.3m
                     });
                 }
 
                 await _context.DimensioneQuantitaIngredienti.AddRangeAsync(dimensioneQuantitaIngredienti);
-                Console.WriteLine($"✅ DimensioneQuantitaIngredienti seeded successfully ({dimensioneQuantitaIngredienti.Count} records)");
+
+                // ✅ SALVA ESPLICITAMENTE questa tabella
+                await _context.SaveChangesAsync();
+
+                Console.WriteLine($"✅ DimensioneQuantitaIngredienti seeded: {dimensioneQuantitaIngredienti.Count} records");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️  Errore in SeedDimensioneQuantitaIngredientiAsync: {ex.Message}");
-                // Continua senza bloccare tutto il seeding
+                Console.WriteLine($"❌ Errore in SeedDimensioneQuantitaIngredientiAsync: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"❌ Inner Exception: {ex.InnerException.Message}");
+                }
+                // Non propagare l'eccezione per non bloccare tutto il seeding
             }
         }
 

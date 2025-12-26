@@ -265,66 +265,9 @@ namespace RepositoryTest
                         StatoPagamento1 = "rimborsato"
                     }
                 );
-            }
+            }           
 
-            //// 7. Ingrediente
-            //if (!_context.Ingrediente.Any())
-            //{
-            //    _context.Ingrediente.AddRange(
-            //        new Ingrediente
-            //        {
-            //            IngredienteId = 1,
-            //            Ingrediente1 = "Tea nero premium",
-            //            CategoriaId = 1,
-            //            PrezzoAggiunto = 0.50m,
-            //            Disponibile = true,
-            //            DataInserimento = DateTime.UtcNow,
-            //            DataAggiornamento = DateTime.UtcNow
-            //        },
-            //        new Ingrediente
-            //        {
-            //            IngredienteId = 2,
-            //            Ingrediente1 = "Tea verde special",
-            //            CategoriaId = 1,
-            //            PrezzoAggiunto = 0.45m,
-            //            Disponibile = true,
-            //            DataInserimento = DateTime.UtcNow,
-            //            DataAggiornamento = DateTime.UtcNow
-            //        },
-            //        new Ingrediente
-            //        {
-            //            IngredienteId = 3,
-            //            Ingrediente1 = "Sciroppo di caramello",
-            //            CategoriaId = 3,
-            //            PrezzoAggiunto = 1.50m,
-            //            Disponibile = true,
-            //            DataInserimento = DateTime.UtcNow,
-            //            DataAggiornamento = DateTime.UtcNow
-            //        },
-            //        new Ingrediente
-            //        {
-            //            IngredienteId = 4,
-            //            Ingrediente1 = "Perle di tapioca",
-            //            CategoriaId = 4,
-            //            PrezzoAggiunto = 1.20m,
-            //            Disponibile = true,
-            //            DataInserimento = DateTime.UtcNow,
-            //            DataAggiornamento = DateTime.UtcNow
-            //        },
-            //        new Ingrediente
-            //        {
-            //            IngredienteId = 5,
-            //            Ingrediente1 = "Latte di cocco",
-            //            CategoriaId = 2,
-            //            PrezzoAggiunto = 0.80m,
-            //            Disponibile = true,
-            //            DataInserimento = DateTime.UtcNow,
-            //            DataAggiornamento = DateTime.UtcNow
-            //        }
-            //    );
-            //}
-
-            // 8. DimensioneBicchiere
+            // 7. DimensioneBicchiere
             if (!_context.DimensioneBicchiere.Any())
             {
                 _context.DimensioneBicchiere.AddRange(
@@ -420,47 +363,8 @@ namespace RepositoryTest
                     }
                 );
             }
-
-            //// 11. PersonalizzazioneIngrediente
-            //if (!_context.PersonalizzazioneIngrediente.Any())
-            //{
-            //    _context.PersonalizzazioneIngrediente.AddRange(
-            //        new PersonalizzazioneIngrediente
-            //        {
-            //            PersonalizzazioneIngredienteId = 1,
-            //            PersonalizzazioneId = 1, // Classic Milk Tea
-            //            IngredienteId = 1,       // Tè Nero Premium
-            //            Quantita = 250.00m,
-            //            UnitaMisuraId = 1        // ML
-            //        },
-            //        new PersonalizzazioneIngrediente
-            //        {
-            //            PersonalizzazioneIngredienteId = 2,
-            //            PersonalizzazioneId = 1, // Classic Milk Tea
-            //            IngredienteId = 3,       // Latte Condensato
-            //            Quantita = 50.00m,
-            //            UnitaMisuraId = 1        // ML
-            //        },
-            //        new PersonalizzazioneIngrediente
-            //        {
-            //            PersonalizzazioneIngredienteId = 3,
-            //            PersonalizzazioneId = 2, // Fruit Green Tea
-            //            IngredienteId = 2,       // Tè Verde Special
-            //            Quantita = 300.00m,
-            //            UnitaMisuraId = 1        // ML
-            //        },
-            //        new PersonalizzazioneIngrediente
-            //        {
-            //            PersonalizzazioneIngredienteId = 4,
-            //            PersonalizzazioneId = 3, // Taro Coconut Delight
-            //            IngredienteId = 5,       // Tè Bianco
-            //            Quantita = 200.00m,
-            //            UnitaMisuraId = 1        // ML
-            //        }
-            //    );
-            //}
-
-            // 12. Utenti
+            
+            // 11. Utenti
             if (!_context.Utenti.Any())
             {
                 _context.Utenti.AddRange(
@@ -848,43 +752,43 @@ namespace RepositoryTest
 
         #region DimensioneBicchiere Helpers
 
-        protected async Task<DimensioneBicchiere> CreateTestDimensioneBicchiereAsync(
-    string sigla = "TEST",
-    string descrizione = "Test Dimensione",
-    decimal capienza = 500.00m,
-    decimal prezzoBase = 3.50m,
-    decimal moltiplicatore = 1.00m)
-        {
-            // ✅ VERIFICA E CREA UNITA DI MISURA SE NECESSARIO
-            var unita = await _context.UnitaDiMisura.FirstOrDefaultAsync();
+    //    protected async Task<DimensioneBicchiere> CreateTestDimensioneBicchiereAsync(
+    //string sigla = "TEST",
+    //string descrizione = "Test Dimensione",
+    //decimal capienza = 500.00m,
+    //decimal prezzoBase = 3.50m,
+    //decimal moltiplicatore = 1.00m)
+    //    {
+    //        // ✅ VERIFICA E CREA UNITA DI MISURA SE NECESSARIO
+    //        var unita = await _context.UnitaDiMisura.FirstOrDefaultAsync();
 
-            if (unita == null)
-            {
-                // Crea e salva prima l'unità di misura
-                unita = new UnitaDiMisura
-                {
-                    Sigla = "ML",
-                    Descrizione = "Millilitri"
-                };
-                _context.UnitaDiMisura.Add(unita);
-                await _context.SaveChangesAsync(); // ✅ SALVA PRIMA DI USARE L'ID
-            }
+    //        if (unita == null)
+    //        {
+    //            // Crea e salva prima l'unità di misura
+    //            unita = new UnitaDiMisura
+    //            {
+    //                Sigla = "ML",
+    //                Descrizione = "Millilitri"
+    //            };
+    //            _context.UnitaDiMisura.Add(unita);
+    //            await _context.SaveChangesAsync(); // ✅ SALVA PRIMA DI USARE L'ID
+    //        }
 
-            var dimensione = new DimensioneBicchiere
-            {
-                Sigla = sigla,
-                Descrizione = descrizione,
-                Capienza = capienza,
-                UnitaMisuraId = unita.UnitaMisuraId, // ✅ Ora l'ID esiste nel DB
-                PrezzoBase = prezzoBase,
-                Moltiplicatore = moltiplicatore
-            };
+    //        var dimensione = new DimensioneBicchiere
+    //        {
+    //            Sigla = sigla,
+    //            Descrizione = descrizione,
+    //            Capienza = capienza,
+    //            UnitaMisuraId = unita.UnitaMisuraId, // ✅ Ora l'ID esiste nel DB
+    //            PrezzoBase = prezzoBase,
+    //            Moltiplicatore = moltiplicatore
+    //        };
 
-            _context.DimensioneBicchiere.Add(dimensione);
-            await _context.SaveChangesAsync();
+    //        _context.DimensioneBicchiere.Add(dimensione);
+    //        await _context.SaveChangesAsync();
 
-            return dimensione;
-        }
+    //        return dimensione;
+    //    }
 
         protected async Task<List<DimensioneBicchiere>> CreateMultipleDimensioniAsync(int count = 3)
         {
@@ -962,10 +866,30 @@ namespace RepositoryTest
                 await _context.SaveChangesAsync(); // ✅ SALVA PRIMA
             }
 
-            // Crea dati di test usando i metodi helper
-            await CreateTestDimensioneBicchiereAsync("S", "Small", 250.00m, 2.50m, 0.85m);
-            await CreateTestDimensioneBicchiereAsync("M", "Medium", 500.00m, 3.50m, 1.00m);
-            await CreateTestDimensioneBicchiereAsync("L", "Large", 750.00m, 4.50m, 1.30m);
+            // Crea dati di test usando i metodi helper CON TUTTI I PARAMETRI
+            await CreateTestDimensioneBicchiereAsync(
+                sigla: "S",
+                descrizione: "Small",
+                capienza: 250.00m,
+                unitaMisuraId: 1,  // ← OBBLIGATORIO: int, non decimal!
+                prezzoBase: 2.50m,
+                moltiplicatore: 0.85m);
+
+            await CreateTestDimensioneBicchiereAsync(
+                sigla: "M",
+                descrizione: "Medium",
+                capienza: 500.00m,
+                unitaMisuraId: 1,  // ← int!
+                prezzoBase: 3.50m,
+                moltiplicatore: 1.00m);
+
+            await CreateTestDimensioneBicchiereAsync(
+                sigla: "L",
+                descrizione: "Large",
+                capienza: 750.00m,
+                unitaMisuraId: 1,  // ← int!
+                prezzoBase: 4.50m,
+                moltiplicatore: 1.30m);
         }
 
         #endregion
@@ -2125,6 +2049,229 @@ namespace RepositoryTest
             _context.Ingrediente.Add(ingrediente);
             await _context.SaveChangesAsync();
             return ingrediente;
+        }
+
+        #endregion
+
+        #region DimensioneQuantitaIngredienti Helpers
+
+        protected async Task<DimensioneQuantitaIngredienti> CreateTestDimensioneQuantitaIngredientiAsync(
+            int personalizzazioneIngredienteId = 1,
+            int dimensioneBicchiereId = 1,
+            decimal moltiplicatore = 1.5m,
+            int? dimensioneId = null)
+        {
+            // Creiamo le entità dipendenti se non esistono
+            await EnsurePersonalizzazioneIngredienteExistsAsync(personalizzazioneIngredienteId);
+            await EnsureDimensioneBicchiereExistsAsync(dimensioneBicchiereId);
+
+            var dimensioneQuantita = new DimensioneQuantitaIngredienti
+            {
+                PersonalizzazioneIngredienteId = personalizzazioneIngredienteId,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                Moltiplicatore = moltiplicatore
+            };
+
+            if (dimensioneId.HasValue && dimensioneId.Value > 0)
+            {
+                dimensioneQuantita.DimensioneId = dimensioneId.Value;
+            }
+
+            _context.DimensioneQuantitaIngredienti.Add(dimensioneQuantita);
+            await _context.SaveChangesAsync();
+            return dimensioneQuantita;
+        }
+
+        protected async Task<List<DimensioneQuantitaIngredienti>> CreateMultipleDimensioneQuantitaIngredientiAsync(int count = 3)
+        {
+            var dimensioniQuantita = new List<DimensioneQuantitaIngredienti>();
+
+            // Creiamo personalizzazioni ingredienti di test
+            var personalizzazioneIngredienti = await CreateMultiplePersonalizzazioneIngredientiAsync(count);
+
+            // Usiamo le dimensioni bicchiere esistenti (dal seed)
+            var dimensioniBicchiere = await _context.DimensioneBicchiere
+                .Take(count)
+                .ToListAsync();
+
+            // Se non ci sono abbastanza dimensioni, creiamo quelle mancanti
+            for (int i = dimensioniBicchiere.Count; i < count; i++)
+            {
+                var nuovaDimensione = await CreateTestDimensioneBicchiereAsync(
+                    sigla: $"T{i}", // T per "Test"
+                    descrizione: $"Bicchiere Test {i}",
+                    dimensioneBicchiereId: 100 + i // ID alti per non sovrascrivere il seed
+                );
+                dimensioniBicchiere.Add(nuovaDimensione);
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                var dimensioneQuantita = new DimensioneQuantitaIngredienti
+                {
+                    PersonalizzazioneIngredienteId = personalizzazioneIngredienti[i].PersonalizzazioneIngredienteId,
+                    DimensioneBicchiereId = dimensioniBicchiere[i].DimensioneBicchiereId,
+                    Moltiplicatore = (i + 1) * 0.5m // 0.5, 1.0, 1.5, ...
+                };
+
+                dimensioniQuantita.Add(dimensioneQuantita);
+            }
+
+            _context.DimensioneQuantitaIngredienti.AddRange(dimensioniQuantita);
+            await _context.SaveChangesAsync();
+            return dimensioniQuantita;
+        }
+
+        // ✅ MANTIENI SOLO QUESTO (quello con 7 parametri)
+        protected async Task<DimensioneBicchiere> CreateTestDimensioneBicchiereAsync(
+            string sigla = "M",
+            string descrizione = "medium",
+            decimal capienza = 500m,
+            int unitaMisuraId = 2,
+            decimal prezzoBase = 5.00m,
+            decimal moltiplicatore = 2.0m,
+            int? dimensioneBicchiereId = null)
+        {
+            var dimensioneBicchiere = new DimensioneBicchiere
+            {
+                Sigla = sigla,
+                Descrizione = descrizione,
+                Capienza = capienza,
+                UnitaMisuraId = unitaMisuraId,  // <-- IMPORTANTE: questo mancava nell'altra versione
+                PrezzoBase = prezzoBase,
+                Moltiplicatore = moltiplicatore,
+            };
+
+            if (dimensioneBicchiereId.HasValue && dimensioneBicchiereId.Value > 0)
+            {
+                dimensioneBicchiere.DimensioneBicchiereId = dimensioneBicchiereId.Value;
+            }
+
+            _context.DimensioneBicchiere.Add(dimensioneBicchiere);
+            await _context.SaveChangesAsync();
+            return dimensioneBicchiere;
+        }
+
+        protected async Task<DimensioneBicchiere> GetSeedDimensioneBicchiereAsync(int seedId = 1)
+        {
+            // Ritorna una dimensione bicchiere dal seed (1: Medium, 2: Large)
+            var dimensione = await _context.DimensioneBicchiere
+                .FirstOrDefaultAsync(db => db.DimensioneBicchiereId == seedId);
+
+            if (dimensione == null)
+            {
+                throw new InvalidOperationException(
+                    $"DimensioneBicchiere con ID {seedId} non trovata nel seed. " +
+                    "Assicurati che il seed sia stato eseguito prima dei test.");
+            }
+
+            return dimensione;
+        }
+
+        protected async Task EnsurePersonalizzazioneIngredienteExistsAsync(int personalizzazioneIngredienteId)
+        {
+            var existing = await _context.PersonalizzazioneIngrediente
+                .AnyAsync(pi => pi.PersonalizzazioneIngredienteId == personalizzazioneIngredienteId);
+
+            if (!existing)
+            {
+                await CreateTestPersonalizzazioneIngredienteAsync(personalizzazioneIngredienteId: personalizzazioneIngredienteId);
+            }
+        }
+
+        protected async Task EnsureDimensioneBicchiereExistsAsync(int dimensioneBicchiereId)
+        {
+            var existing = await _context.DimensioneBicchiere
+                .AnyAsync(db => db.DimensioneBicchiereId == dimensioneBicchiereId);
+
+            if (!existing)
+            {
+                // Se l'ID è 1 o 2, usiamo i valori del seed
+                if (dimensioneBicchiereId == 1 || dimensioneBicchiereId == 2)
+                {
+                    await GetSeedDimensioneBicchiereAsync(dimensioneBicchiereId);
+                }
+                else
+                {
+                    await CreateTestDimensioneBicchiereAsync(
+                        dimensioneBicchiereId: dimensioneBicchiereId,
+                        sigla: $"T{dimensioneBicchiereId}",
+                        descrizione: $"Bicchiere Test {dimensioneBicchiereId}"
+                    );
+                }
+            }
+        }
+
+        protected void AssertDimensioneQuantitaIngredientiEqual(DimensioneQuantitaIngredienti expected, DimensioneQuantitaIngredienti actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.DimensioneId, actual.DimensioneId);
+            }
+
+            Assert.Equal(expected.PersonalizzazioneIngredienteId, actual.PersonalizzazioneIngredienteId);
+            Assert.Equal(expected.DimensioneBicchiereId, actual.DimensioneBicchiereId);
+            Assert.Equal(expected.Moltiplicatore, actual.Moltiplicatore);
+        }
+
+        protected void AssertDimensioneQuantitaIngredientiDTOEqual(DimensioneQuantitaIngredientiDTO expected, DimensioneQuantitaIngredientiDTO actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.DimensioneId, actual.DimensioneId);
+            }
+
+            Assert.Equal(expected.PersonalizzazioneIngredienteId, actual.PersonalizzazioneIngredienteId);
+            Assert.Equal(expected.DimensioneBicchiereId, actual.DimensioneBicchiereId);
+            Assert.Equal(expected.Moltiplicatore, actual.Moltiplicatore);
+        }
+
+        protected async Task<DimensioneQuantitaIngredienti> CreateDuplicateDimensioneQuantitaIngredientiAsync(
+            int personalizzazioneIngredienteId = 1,
+            int dimensioneBicchiereId = 1)
+        {
+            await EnsurePersonalizzazioneIngredienteExistsAsync(personalizzazioneIngredienteId);
+            await EnsureDimensioneBicchiereExistsAsync(dimensioneBicchiereId);
+
+            var existing = new DimensioneQuantitaIngredienti
+            {
+                PersonalizzazioneIngredienteId = personalizzazioneIngredienteId,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                Moltiplicatore = 1.0m
+            };
+
+            _context.DimensioneQuantitaIngredienti.Add(existing);
+            await _context.SaveChangesAsync();
+            return existing;
+        }
+
+        protected DimensioneQuantitaIngredientiDTO CreateTestDimensioneQuantitaIngredientiDTO(
+            int personalizzazioneIngredienteId = 1,
+            int dimensioneBicchiereId = 1,
+            decimal moltiplicatore = 1.5m)
+        {
+            return new DimensioneQuantitaIngredientiDTO
+            {
+                PersonalizzazioneIngredienteId = personalizzazioneIngredienteId,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                Moltiplicatore = moltiplicatore
+            };
+        }
+
+        protected async Task CleanAllTestDimensioneQuantitaIngredientiAsync()
+        {
+            // Rimuove solo i record con ID alti (creati per test)
+            var allTestDimensioni = await _context.DimensioneQuantitaIngredienti
+                .Where(d => d.DimensioneId >= 1000 ||
+                           (d.PersonalizzazioneIngredienteId >= 1000 && d.PersonalizzazioneIngredienteId < 2000) ||
+                           (d.DimensioneBicchiereId >= 1000 && d.DimensioneBicchiereId < 2000))
+                .ToListAsync();
+
+            if (allTestDimensioni.Count > 0)
+            {
+                _context.DimensioneQuantitaIngredienti.RemoveRange(allTestDimensioni);
+                await _context.SaveChangesAsync();
+            }
         }
 
         #endregion

@@ -13,7 +13,8 @@ namespace DTO
         public required string Sigla { get; set; }
 
         [Required(ErrorMessage = "La descrizione è obbligatoria")]
-        [StringLength(50, MinimumLength = 2, ErrorMessage = "La descrizione deve avere tra 2 e 50 caratteri")]
+        //[StringLength(50, MinimumLength = 2, ErrorMessage = "La descrizione deve avere tra 2 e 50 caratteri")]
+        [StringLength(50, ErrorMessage = "La descrizione può contenere al massimo 50 caratteri")]
         public required string Descrizione { get; set; }
 
         [Required(ErrorMessage = "La capienza è obbligatoria")]

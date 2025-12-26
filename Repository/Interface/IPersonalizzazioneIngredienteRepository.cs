@@ -11,11 +11,9 @@ namespace Repository.Interface
         Task<PaginatedResponseDTO<PersonalizzazioneIngredienteDTO>> GetByPersonalizzazioneAsync(string nomePersonalizzazione, int page = 1, int pageSize = 10);
         Task<PaginatedResponseDTO<PersonalizzazioneIngredienteDTO>> GetByIngredienteAsync(string ingrediente, int page = 1, int pageSize = 10);
 
-
         Task<SingleResponseDTO<PersonalizzazioneIngredienteDTO>> AddAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
         Task<SingleResponseDTO<bool>> UpdateAsync(PersonalizzazioneIngredienteDTO personalizzazioneIngredienteDto);
         Task<SingleResponseDTO<bool>> DeleteAsync(int personalizzazioneIngredienteId, bool forceDelete = false);
-
 
         Task<SingleResponseDTO<bool>> ExistsAsync(int id);
         Task<SingleResponseDTO<bool>> ExistsByPersonalizzazioneAndIngredienteAsync(int personalizzazioneId, int ingredienteId);

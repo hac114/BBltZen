@@ -8,7 +8,7 @@ namespace Database.Configurations
     {
         public void Configure(EntityTypeBuilder<DimensioneQuantitaIngredienti> builder)
         {
-            // ✅ CORREZIONE: CHIAVE PRIMARIA SINGOLA (dimensione_id è Identity)
+            // ✅ CHIAVE PRIMARIA
             builder.HasKey(dq => dq.DimensioneId);
 
             // ✅ PROPRIETÀ OBBLIGATORIE
@@ -22,11 +22,16 @@ namespace Database.Configurations
                 .IsRequired()
                 .HasColumnType("decimal(5,2)");
 
-            // ✅ INDICE UNIVOCO PER EVITARE DUPLICATI (il vincolo che abbiamo creato)
+            // ✅ VINCOLO CHECK SU MOLTIPLICATORE
+            builder.ToTable("Dimensione_quantita_ingredienti",
+               t => t.HasCheckConstraint("CK_Dimensione_quantita_ingredienti",
+                   "[moltiplicatore] > 0 AND [moltiplicatore] <= 10"));
+
+            // ✅ INDICE UNIVOCO PER EVITARE DUPLICATI
             builder.HasIndex(dq => new { dq.DimensioneBicchiereId, dq.PersonalizzazioneIngredienteId })
                 .IsUnique();
 
-            // ✅ INDICI PER PERFORMANCE
+            // ✅ INDICI PER PERFORMANCE (già presenti)
             builder.HasIndex(dq => dq.DimensioneBicchiereId);
             builder.HasIndex(dq => dq.PersonalizzazioneIngredienteId);
 
@@ -46,7 +51,7 @@ namespace Database.Configurations
                 .ValueGeneratedOnAdd();
 
             // ✅ CONFIGURAZIONE NOME TABELLA
-            builder.ToTable("Dimensione_quantita_ingredienti"); // ✅ Nome esatto del database
+            builder.ToTable("Dimensione_quantita_ingredienti");
         }
     }
 }
