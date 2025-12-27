@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
+
 
 namespace DTO
 {
@@ -18,6 +14,8 @@ namespace DTO
         public byte GradoDolcezza { get; set; }
 
         public int DimensioneBicchiereId { get; set; }
+
+        public string? DescrizioneBicchiere { get; set; }         //Campo aggiunto
 
         public DateTime DataCreazione { get; set; }
 

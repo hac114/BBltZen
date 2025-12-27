@@ -1,18 +1,24 @@
 ﻿using DTO;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Repository.Interface
 {
     public interface IPersonalizzazioneCustomRepository
     {
-        Task<IEnumerable<PersonalizzazioneCustomDTO>> GetAllAsync();
-        Task<PersonalizzazioneCustomDTO?> GetByIdAsync(int persCustomId);
-        Task<IEnumerable<PersonalizzazioneCustomDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId);
-        Task<IEnumerable<PersonalizzazioneCustomDTO>> GetByGradoDolcezzaAsync(byte gradoDolcezza);
-        Task<PersonalizzazioneCustomDTO> AddAsync(PersonalizzazioneCustomDTO personalizzazioneCustomDto);
-        Task UpdateAsync(PersonalizzazioneCustomDTO personalizzazioneCustomDto);
-        Task DeleteAsync(int persCustomId);
-        Task<bool> ExistsAsync(int persCustomId);
+        Task<PaginatedResponseDTO<PersonalizzazioneCustomDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<PersonalizzazioneCustomDTO>> GetByIdAsync(int persCustomId);
+        Task<PaginatedResponseDTO<PersonalizzazioneCustomDTO>> GetBicchiereByIdAsync(int bicchiereId, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<PersonalizzazioneCustomDTO>> GetByGradoDolcezzaAsync(byte gradoDolcezza, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<PersonalizzazioneCustomDTO>> GetBicchiereByDescrizioneAsync(string  descrizioneBicchiere, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<PersonalizzazioneCustomDTO>> GetByNomeAsync(string nome, int page = 1, int pageSize = 10);
+
+        Task<SingleResponseDTO<PersonalizzazioneCustomDTO>> AddAsync(PersonalizzazioneCustomDTO personalizzazioneCustomDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(PersonalizzazioneCustomDTO personalizzazioneCustomDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int persCustomId);
+
+        Task<SingleResponseDTO<bool>> ExistsAsync(int persCustomId);
+
+        Task<SingleResponseDTO<int>> CountAsync();
+        Task<SingleResponseDTO<int>> CountBicchiereByDescrizioneAsync(string descrizioneBicchiere);
+        Task<SingleResponseDTO<int>> CountByGradoDolcezzaAsync(byte gradoDolcezza);
     }
 }

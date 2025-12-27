@@ -9,12 +9,14 @@ namespace Database.Configurations
         public void Configure(EntityTypeBuilder<PersonalizzazioneCustom> builder)
         {
             // ✅ CHIAVE PRIMARIA
-            builder.HasKey(pc => pc.PersCustomId);
+            builder.HasKey(pc => pc.PersCustomId)
+                .HasName("PK__PERSONAL__776FA86624F5A943");
 
             // ✅ PROPRIETÀ OBBLIGATORIE
             builder.Property(pc => pc.Nome)
                 .IsRequired()
-                .HasMaxLength(100);
+                .HasMaxLength(100)
+                .HasDefaultValue("Bevanda Custom");
 
             builder.Property(pc => pc.GradoDolcezza)
                 .IsRequired();
@@ -33,15 +35,7 @@ namespace Database.Configurations
                 .HasDefaultValueSql("GETDATE()");
 
             builder.Property(pc => pc.DataAggiornamento)
-                .HasDefaultValueSql("GETDATE()");
-
-            // ✅ INDICI PER PERFORMANCE
-            builder.HasIndex(pc => pc.Nome)
-                .IsUnique();
-
-            builder.HasIndex(pc => pc.DimensioneBicchiereId);
-            builder.HasIndex(pc => pc.GradoDolcezza);
-            builder.HasIndex(pc => pc.DataCreazione);
+                .HasDefaultValueSql("GETDATE()");            
 
             // ✅ RELAZIONE CON DIMENSIONE BICCHIERE
             builder.HasOne(pc => pc.DimensioneBicchiere)
@@ -64,15 +58,17 @@ namespace Database.Configurations
             // ✅ CHECK CONSTRAINTS
             builder.ToTable(tb =>
             {
-                tb.HasCheckConstraint("CK_PersonalizzazioneCustom_GradoDolcezza",
-                    "[GradoDolcezza] BETWEEN 0 AND 10");
+                // Constraint per grado_dolcezza (1-3) - esistente nel DB
+                tb.HasCheckConstraint("CK__PERSONALI__grado__08162EEB",
+                    "[grado_dolcezza] >= 1 AND [grado_dolcezza] <= 3");
 
-                tb.HasCheckConstraint("CK_PersonalizzazioneCustom_DateConsistency",
-                    "[DataAggiornamento] >= [DataCreazione]");
+                // Constraint per consistenza date - ora anche nel DB
+                tb.HasCheckConstraint("CK_PERSONALIZZAZIONE_CUSTOM_DateConsistency",
+                    "[data_aggiornamento] >= [data_creazione]");
             });
 
             // ✅ CONFIGURAZIONE NOME TABELLA
-            builder.ToTable("PersonalizzazioneCustom");
-        }
+            builder.ToTable("PERSONALIZZAZIONE_CUSTOM");
+        }        
     }
 }

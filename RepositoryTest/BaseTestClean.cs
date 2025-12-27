@@ -363,8 +363,33 @@ namespace RepositoryTest
                     }
                 );
             }
-            
-            // 11. Utenti
+
+            // 12. PersonalizzazioniCustom
+            if (!_context.PersonalizzazioneCustom.Any())
+            {
+                _context.PersonalizzazioneCustom.AddRange(
+                    new PersonalizzazioneCustom
+                    {
+                        PersCustomId = 1,
+                        Nome = "Bubble Tea Classico",
+                        GradoDolcezza = 2,
+                        DimensioneBicchiereId = 1, // Medium
+                        DataCreazione = now,
+                        DataAggiornamento = now
+                    },
+                    new PersonalizzazioneCustom
+                    {
+                        PersCustomId = 2,
+                        Nome = "Bubble Tea Fruttato",
+                        GradoDolcezza = 1,
+                        DimensioneBicchiereId = 2, // Large
+                        DataCreazione = now,
+                        DataAggiornamento = now
+                    }
+                );
+            }
+
+            // 13. Utenti
             if (!_context.Utenti.Any())
             {
                 _context.Utenti.AddRange(
@@ -472,7 +497,11 @@ namespace RepositoryTest
             {
                 await CleanPersonalizzazioneIngredienteDependenciesAsync([.. entities.Cast<PersonalizzazioneIngrediente>()]);
             }
-                
+            
+            else if (typeof(T) == typeof(PersonalizzazioneCustom))
+            {
+                await CleanPersonalizzazioneCustomDependenciesAsync([.. entities.Cast<PersonalizzazioneCustom>()]);
+            }
 
             // Aggiungi altri entity con dipendenze qui se necessario
             // else if (typeof(T) == typeof(AltraEntity)) { ... }
@@ -484,6 +513,7 @@ namespace RepositoryTest
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<PersonalizzazioneCustom>();
             await CleanTableAsync<PersonalizzazioneIngrediente>();
             await CleanTableAsync<Personalizzazione>();
             await CleanTableAsync<Articolo>();
@@ -502,26 +532,40 @@ namespace RepositoryTest
             SeedEssentialTables();
         }
 
-        private async Task CleanUnitaDiMisuraDependenciesAsync(List<UnitaDiMisura> unitaList)
+        protected async Task CleanUnitaDiMisuraDependenciesAsync(List<UnitaDiMisura> unitaList)
         {
+            if (unitaList.Count == 0) return;
+
             var unitaIds = unitaList.Select(u => u.UnitaMisuraId).ToList();
 
-            // 1. Elimina DimensioneBicchiere collegati
-            var dimensioni = await _context.DimensioneBicchiere
-                .Where(d => unitaIds.Contains(d.UnitaMisuraId))
+            // ✅ PRIMA: Trova tutte le DimensioneBicchiere che usano queste unità
+            var dimensioniBicchiere = await _context.DimensioneBicchiere
+                .Where(db => unitaIds.Contains(db.UnitaMisuraId))
                 .ToListAsync();
-            _context.DimensioneBicchiere.RemoveRange(dimensioni);
 
-            // 2. Elimina PersonalizzazioneIngrediente collegati
-            var personalizzazioni = await _context.PersonalizzazioneIngrediente
-                .Where(p => unitaIds.Contains(p.UnitaMisuraId))
-                .ToListAsync();
-            _context.PersonalizzazioneIngrediente.RemoveRange(personalizzazioni);
-
-            if (dimensioni.Count > 0 || personalizzazioni.Count > 0)
+            if (dimensioniBicchiere.Count != 0)
             {
+                var dimensioneBicchiereIds = dimensioniBicchiere.Select(db => db.DimensioneBicchiereId).ToList();
+
+                // ✅ SECONDA: Trova tutte le PersonalizzazioneCustom che usano queste dimensioni bicchiere
+                var personalizzazioniCustom = await _context.PersonalizzazioneCustom
+                    .Where(pc => dimensioneBicchiereIds.Contains(pc.DimensioneBicchiereId))
+                    .ToListAsync();
+
+                // ✅ TERZA: Rimuovi prima le PersonalizzazioneCustom
+                if (personalizzazioniCustom.Count != 0)
+                {
+                    _context.PersonalizzazioneCustom.RemoveRange(personalizzazioniCustom);
+                    await _context.SaveChangesAsync();
+                }
+
+                // ✅ QUARTA: Rimuovi le DimensioneBicchiere
+                _context.DimensioneBicchiere.RemoveRange(dimensioniBicchiere);
                 await _context.SaveChangesAsync();
             }
+
+            // ✅ QUINTA: Le UnitaDiMisura verranno rimosse dal metodo chiamante
+            // Non c'è bisogno di rimuoverle qui
         }
 
         protected async Task<LogAttivita> CreateTestLogWithUtenteAsync(string tipoAttivita = "Test", string tipoUtente = "Admin", string nome = "Test", string cognome = "Test")
@@ -1224,7 +1268,7 @@ namespace RepositoryTest
         {
             // ConfigSoglieTempi non ha dipendenze dirette verso altre tabelle
             // Rimuove solo le configurazioni stesse
-            if (configs.Any())
+            if (configs.Count != 0)
             {
                 _context.ConfigSoglieTempi.RemoveRange(configs);
                 await _context.SaveChangesAsync();
@@ -2158,14 +2202,9 @@ namespace RepositoryTest
             var dimensione = await _context.DimensioneBicchiere
                 .FirstOrDefaultAsync(db => db.DimensioneBicchiereId == seedId);
 
-            if (dimensione == null)
-            {
-                throw new InvalidOperationException(
+            return dimensione ?? throw new InvalidOperationException(
                     $"DimensioneBicchiere con ID {seedId} non trovata nel seed. " +
                     "Assicurati che il seed sia stato eseguito prima dei test.");
-            }
-
-            return dimensione;
         }
 
         protected async Task EnsurePersonalizzazioneIngredienteExistsAsync(int personalizzazioneIngredienteId)
@@ -2270,6 +2309,336 @@ namespace RepositoryTest
             if (allTestDimensioni.Count > 0)
             {
                 _context.DimensioneQuantitaIngredienti.RemoveRange(allTestDimensioni);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        #endregion
+
+        #region PersonalizzazioneCustom Helpers
+
+        protected async Task<PersonalizzazioneCustom> CreateTestPersonalizzazioneCustomAsync(
+    string nome = "Test Personalizzazione",
+    byte gradoDolcezza = 2,
+    int dimensioneBicchiereId = 1,
+    DateTime? dataCreazione = null,
+    DateTime? dataAggiornamento = null,
+    int? persCustomId = null)
+        {
+            // ✅ Assicurati che la dimensione bicchiere esista
+            await EnsureDimensioneBicchiereExistsAsync(dimensioneBicchiereId);
+
+            var now = DateTime.UtcNow;
+
+            // Se non viene specificato un ID, generane uno alto (>= 1000) per evitare conflitti col seed
+            if (!persCustomId.HasValue)
+            {
+                // Trova il massimo ID esistente
+                var maxId = await _context.PersonalizzazioneCustom
+                    .Select(p => (int?)p.PersCustomId)
+                    .DefaultIfEmpty()
+                    .MaxAsync();
+
+                // ✅ Corretto: usa .GetValueOrDefault() invece di .Value per evitare warning
+                persCustomId = (maxId.GetValueOrDefault()) < 1000 ? 1000 : maxId.GetValueOrDefault() + 1;
+            }
+
+            var personalizzazione = new PersonalizzazioneCustom
+            {
+                PersCustomId = persCustomId.Value,
+                Nome = nome,
+                GradoDolcezza = gradoDolcezza,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                DataCreazione = dataCreazione ?? now,
+                DataAggiornamento = dataAggiornamento ?? now
+            };
+
+            _context.PersonalizzazioneCustom.Add(personalizzazione);
+            await _context.SaveChangesAsync();
+            return personalizzazione;
+        }
+
+        protected async Task<List<PersonalizzazioneCustom>> CreateMultiplePersonalizzazioneCustomAsync(int count = 3)
+        {
+            var personalizzazioni = new List<PersonalizzazioneCustom>();
+
+            // ✅ Usiamo le dimensioni bicchiere esistenti (dal seed)
+            var dimensioniBicchiere = await _context.DimensioneBicchiere
+                .Take(count)
+                .ToListAsync();
+
+            // ✅ Se non ci sono abbastanza dimensioni, creiamo quelle mancanti
+            for (int i = dimensioniBicchiere.Count; i < count; i++)
+            {
+                var nuovaDimensione = await CreateTestDimensioneBicchiereAsync(
+                    sigla: $"T{i}",
+                    descrizione: $"Bicchiere Test {i}",
+                    dimensioneBicchiereId: 100 + i
+                );
+                dimensioniBicchiere.Add(nuovaDimensione);
+            }
+
+            var now = DateTime.UtcNow;
+            for (int i = 0; i < count; i++)
+            {
+                var personalizzazione = new PersonalizzazioneCustom
+                {
+                    Nome = $"Personalizzazione Test {i + 1}",
+                    GradoDolcezza = (byte)((i % 3) + 1), // 1, 2, 3 ciclico
+                    DimensioneBicchiereId = dimensioniBicchiere[i].DimensioneBicchiereId,
+                    DataCreazione = now.AddMinutes(i),
+                    DataAggiornamento = now.AddMinutes(i)
+                };
+
+                personalizzazioni.Add(personalizzazione);
+            }
+
+            _context.PersonalizzazioneCustom.AddRange(personalizzazioni);
+            await _context.SaveChangesAsync();
+            return personalizzazioni;
+        }
+
+        protected async Task<PersonalizzazioneCustom> GetSeedPersonalizzazioneCustomAsync(int seedId = 1)
+        {
+            // ✅ Ritorna una personalizzazione dal seed (1: Classico, 2: Fruttato)
+            var personalizzazione = await _context.PersonalizzazioneCustom
+                .FirstOrDefaultAsync(p => p.PersCustomId == seedId);
+
+            return personalizzazione ?? throw new InvalidOperationException(
+                    $"PersonalizzazioneCustom con ID {seedId} non trovata nel seed. " +
+                    "Assicurati che il seed sia stato eseguito prima dei test.");
+        }
+
+        protected async Task EnsurePersonalizzazioneCustomExistsAsync(int persCustomId)
+        {
+            var existing = await _context.PersonalizzazioneCustom
+                .AnyAsync(p => p.PersCustomId == persCustomId);
+
+            if (!existing)
+            {
+                await CreateTestPersonalizzazioneCustomAsync(persCustomId: persCustomId);
+            }
+        }
+
+        // ✅ Assert con tolleranza per date (evita warning compilazione)
+        protected void AssertPersonalizzazioneCustomEqual(PersonalizzazioneCustom expected, PersonalizzazioneCustom actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.PersCustomId, actual.PersCustomId);
+            }
+
+            Assert.Equal(expected.Nome, actual.Nome);
+            Assert.Equal(expected.GradoDolcezza, actual.GradoDolcezza);
+            Assert.Equal(expected.DimensioneBicchiereId, actual.DimensioneBicchiereId);
+
+            // ✅ Confronto date con tolleranza (1 secondo) per evitare warning
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Assert per DTO con tolleranza date
+        protected void AssertPersonalizzazioneCustomDTOEqual(PersonalizzazioneCustomDTO expected, PersonalizzazioneCustomDTO actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.PersCustomId, actual.PersCustomId);
+            }
+
+            Assert.Equal(expected.Nome, actual.Nome);
+            Assert.Equal(expected.GradoDolcezza, actual.GradoDolcezza);
+            Assert.Equal(expected.DimensioneBicchiereId, actual.DimensioneBicchiereId);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Crea DTO di test senza dipendenze InMemory
+        protected PersonalizzazioneCustomDTO CreateTestPersonalizzazioneCustomDTO(
+            string nome = "Test Personalizzazione DTO",
+            byte gradoDolcezza = 2,
+            int dimensioneBicchiereId = 1)
+        {
+            var now = DateTime.UtcNow;
+            return new PersonalizzazioneCustomDTO
+            {
+                Nome = nome,
+                GradoDolcezza = gradoDolcezza,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                DataCreazione = now,
+                DataAggiornamento = now
+            };
+        }
+
+        // ✅ Crea DTO con DescrizioneBicchiere (utile per test di query join)
+        protected PersonalizzazioneCustomDTO CreateTestPersonalizzazioneCustomDTOWithDescrizione(
+            string nome = "Test Personalizzazione DTO",
+            byte gradoDolcezza = 2,
+            int dimensioneBicchiereId = 1,
+            string descrizioneBicchiere = "Medium")
+        {
+            var now = DateTime.UtcNow;
+            return new PersonalizzazioneCustomDTO
+            {
+                Nome = nome,
+                GradoDolcezza = gradoDolcezza,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                DescrizioneBicchiere = descrizioneBicchiere,
+                DataCreazione = now,
+                DataAggiornamento = now
+            };
+        }
+
+        // ✅ Pulizia completa per test PersonalizzazioneCustom
+        protected async Task CleanAllTestPersonalizzazioneCustomAsync()
+        {
+            // Identifica le personalizzazioni di test (ID alti o con dimensioni bicchiere di test)
+            var testPersonalizzazioni = await _context.PersonalizzazioneCustom
+                .Where(p => p.PersCustomId >= 1000 ||
+                           (p.DimensioneBicchiereId >= 1000 && p.DimensioneBicchiereId < 2000))
+                .ToListAsync();
+
+            if (testPersonalizzazioni.Count != 0)
+            {
+                // Pulisci prima le dipendenze
+                await CleanPersonalizzazioneCustomDependenciesAsync(testPersonalizzazioni);
+
+                // Pulisci le personalizzazioni stesse
+                _context.PersonalizzazioneCustom.RemoveRange(testPersonalizzazioni);
+                await _context.SaveChangesAsync();
+            }
+
+            // Pulisci dimensioni bicchiere di test (create appositamente per test)
+            var dimensioniBicchiereTest = await _context.DimensioneBicchiere
+                .Where(db => db.DimensioneBicchiereId >= 1000 && db.DimensioneBicchiereId < 2000)
+                .ToListAsync();
+
+            if (dimensioniBicchiereTest.Count != 0)
+            {
+                _context.DimensioneBicchiere.RemoveRange(dimensioniBicchiereTest);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // ✅ Verifica se una PersonalizzazioneCustom ha dipendenze nel database di test
+        protected async Task<bool> HasDependenciesForPersonalizzazioneCustomAsync(int persCustomId)
+        {
+            bool hasBevandaCustom = await _context.BevandaCustom
+                .AnyAsync(bc => bc.PersCustomId == persCustomId);
+
+            bool hasIngredientiPersonalizzazione = await _context.IngredientiPersonalizzazione
+                .AnyAsync(ip => ip.PersCustomId == persCustomId);
+
+            return hasBevandaCustom || hasIngredientiPersonalizzazione;
+        }
+
+        // ✅ Helper per creare dipendenze (BevandaCustom e IngredientiPersonalizzazione) per test di HasDependencies
+        protected async Task CreateDependenciesForPersonalizzazioneCustomAsync(int persCustomId)
+        {
+            // ✅ Crea un ingrediente temporaneo per il test (ID alto per non confliggere)
+            var ingredienteTest = new Ingrediente
+            {
+                IngredienteId = persCustomId + 1000, // ID unico per test
+                Ingrediente1 = $"Ingrediente Test {persCustomId}",
+                CategoriaId = 1, // tea dal seed
+                PrezzoAggiunto = 1.00m,
+                Disponibile = true,
+                DataInserimento = DateTime.UtcNow,
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            _context.Ingrediente.Add(ingredienteTest);
+            await _context.SaveChangesAsync();
+
+            // ✅ Usa Articolo dal seed (ID 1) o creane uno se non esiste (ma nel seed c'è)
+            var articolo = await _context.Articolo.FindAsync(1);
+            if (articolo == null)
+            {
+                articolo = new Articolo
+                {
+                    ArticoloId = persCustomId + 2000, // ID alto per test
+                    Tipo = "BC",
+                    DataCreazione = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow
+                };
+                _context.Articolo.Add(articolo);
+                await _context.SaveChangesAsync();
+            }
+
+            // ✅ Crea una BevandaCustom collegata
+            var bevandaCustom = new BevandaCustom
+            {
+                ArticoloId = articolo.ArticoloId,
+                PersCustomId = persCustomId,
+                Prezzo = 5.00m,
+                DataCreazione = DateTime.UtcNow,
+                DataAggiornamento = DateTime.UtcNow
+            };
+
+            // ✅ Crea un IngredientiPersonalizzazione collegato
+            var ingredientePersonalizzazione = new IngredientiPersonalizzazione
+            {
+                PersCustomId = persCustomId,
+                IngredienteId = ingredienteTest.IngredienteId,
+                DataCreazione = DateTime.UtcNow
+            };
+
+            _context.BevandaCustom.Add(bevandaCustom);
+            _context.IngredientiPersonalizzazione.Add(ingredientePersonalizzazione);
+            await _context.SaveChangesAsync();
+        }
+
+        // ✅ Pulizia delle dipendenze di PersonalizzazioneCustom
+        protected async Task CleanPersonalizzazioneCustomDependenciesAsync(List<PersonalizzazioneCustom> personalizzazioni)
+        {
+            if (personalizzazioni.Count == 0) return;
+
+            var persCustomIds = personalizzazioni.Select(p => p.PersCustomId).ToList();
+
+            // ✅ BevandaCustom - rimuove quelle collegate alle personalizzazioni
+            var bevandeCustom = await _context.BevandaCustom
+                .Where(bc => persCustomIds.Contains(bc.PersCustomId))
+                .ToListAsync();
+
+            if (bevandeCustom.Count != 0)
+            {
+                _context.BevandaCustom.RemoveRange(bevandeCustom);
+                await _context.SaveChangesAsync();
+            }
+
+            // ✅ IngredientiPersonalizzazione - rimuove quelle collegate
+            var ingredientiPersonalizzazione = await _context.IngredientiPersonalizzazione
+                .Where(ip => persCustomIds.Contains(ip.PersCustomId))
+                .ToListAsync();
+
+            if (ingredientiPersonalizzazione.Count != 0)
+            {
+                _context.IngredientiPersonalizzazione.RemoveRange(ingredientiPersonalizzazione);
+                await _context.SaveChangesAsync();
+            }
+
+            // ✅ NON puliamo Articoli e Ingredienti del seed, solo quelli di test (ID alti)
+            var articoliTestIds = personalizzazioni.Select(p => 1000 + p.PersCustomId).ToList();
+            var ingredientiTestIds = personalizzazioni.Select(p => 2000 + p.PersCustomId).ToList();
+
+            // Rimuovi articoli di test
+            var articoliTest = await _context.Articolo
+                .Where(a => articoliTestIds.Contains(a.ArticoloId))
+                .ToListAsync();
+
+            if (articoliTest.Count != 0)
+            {
+                _context.Articolo.RemoveRange(articoliTest);
+                await _context.SaveChangesAsync();
+            }
+
+            // Rimuovi ingredienti di test
+            var ingredientiTest = await _context.Ingrediente
+                .Where(i => ingredientiTestIds.Contains(i.IngredienteId))
+                .ToListAsync();
+
+            if (ingredientiTest.Count != 0)
+            {
+                _context.Ingrediente.RemoveRange(ingredientiTest);
                 await _context.SaveChangesAsync();
             }
         }

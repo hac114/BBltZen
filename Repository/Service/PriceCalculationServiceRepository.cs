@@ -93,16 +93,18 @@ namespace Repository.Service
             try
             {
                 // 1. Recupera la personalizzazione custom
-                var personalizzazione = await _personalizzazioneCustomRepo.GetByIdAsync(personalizzazioneCustomId);
-                if (personalizzazione == null)
+                var personalizzazioneResponse = await _personalizzazioneCustomRepo.GetByIdAsync(personalizzazioneCustomId);
+                if (personalizzazioneResponse == null || !personalizzazioneResponse.Success || personalizzazioneResponse.Data == null)
                     throw new ArgumentException($"Personalizzazione custom non trovata: {personalizzazioneCustomId}");
 
+                var personalizzazione = personalizzazioneResponse.Data;
+
                 // 2. Recupera la dimensione del bicchiere
-                var dimensioneResponse = await _dimensioneBicchiereRepo.GetByIdAsync(personalizzazione.DimensioneBicchiereId);
+                var dimensioneResponse = await _dimensioneBicchiereRepo.GetByIdAsync(personalizzazione.DimensioneBicchiereId); // Ora funziona!
 
                 // ✅ CORREZIONE: Controlla se la risposta è successo e i dati esistono
                 if (!dimensioneResponse.Success || dimensioneResponse.Data == null)
-                    throw new ArgumentException($"Dimensione bicchiere non trovata: {personalizzazione.DimensioneBicchiereId}");
+                    throw new ArgumentException($"Dimensione bicchiere non trovata: {personalizzazione.DimensioneBicchiereId}"); // Ora funziona!
 
                 var dimensione = dimensioneResponse.Data;
 

@@ -86,7 +86,7 @@ namespace RepositoryTest
                 new BevandaStandardRepository(context),
                 new BevandaCustomRepository(context),
                 new DolceRepository(context),
-                new PersonalizzazioneCustomRepository(context),
+                new PersonalizzazioneCustomRepository(_context, NullLogger<PersonalizzazioneCustomRepository>.Instance),
                 new IngredienteRepository(context, NullLogger<IngredienteRepository>.Instance),
                 new IngredientiPersonalizzazioneRepository(context),
                 new DimensioneBicchiereRepository(context, NullLogger<DimensioneBicchiereRepository>.Instance), // ✅ Aggiungi questo                
