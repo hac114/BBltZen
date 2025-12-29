@@ -1,322 +1,215 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using DTO;
-using Repository.Interface;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using BBltZen;
+using Repository.Interface;
+using DTO;
 
 namespace BBltZen.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [AllowAnonymous] // ✅ OVERRIDE DELL'[Authorize] DEL BASE CONTROLLER
-    public class IngredientiPersonalizzazioneController : SecureBaseController
+    // [Authorize] // ✅ Commentato per test Swagger
+    public class IngredientiPersonalizzazioneController(
+        IIngredientiPersonalizzazioneRepository repository,
+        ILogger<IngredientiPersonalizzazioneController> logger) : ControllerBase
     {
-        private readonly IIngredientiPersonalizzazioneRepository _repository;
-        private readonly BubbleTeaContext _context;
+        private readonly IIngredientiPersonalizzazioneRepository _repository = repository;
+        private readonly ILogger<IngredientiPersonalizzazioneController> _logger = logger;
 
-        public IngredientiPersonalizzazioneController(
-            IIngredientiPersonalizzazioneRepository repository,
-            BubbleTeaContext context,
-            IWebHostEnvironment environment,
-            ILogger<IngredientiPersonalizzazioneController> logger)
-            : base(environment, logger)
-        {
-            _repository = repository;
-            _context = context;
-        }
-
-        /// <summary>
-        /// Ottiene tutti gli ingredienti personalizzazione
-        /// </summary>
-        [HttpGet]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IEnumerable<IngredientiPersonalizzazioneDTO>>> GetAll()
+        // GET: api/ingredienti-personalizzazione
+        [HttpGet("")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredientiPersonalizzazioneDTO>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var result = await _repository.GetAllAsync();
+                var result = await _repository.GetAllAsync(page, pageSize);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero di tutti gli ingredienti personalizzazione");
-                return SafeInternalError<IEnumerable<IngredientiPersonalizzazioneDTO>>("Errore durante il recupero degli ingredienti personalizzazione");
+                _logger.LogError(ex, "GetAll ingredienti personalizzazione errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        /// <summary>
-        /// Ottiene un ingrediente personalizzazione specifico tramite ID
-        /// </summary>
-        [HttpGet("{ingredientePersId}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IngredientiPersonalizzazioneDTO>> GetById(int ingredientePersId)
+        // GET: api/ingredienti-personalizzazione/{id}
+        [HttpGet("{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<IngredientiPersonalizzazioneDTO>>> GetById(int id)
         {
             try
             {
-                if (ingredientePersId <= 0)
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("ID ingrediente personalizzazione non valido");
-
-                var result = await _repository.GetByIdAsync(ingredientePersId);
-
-                if (result == null)
-                    return SafeNotFound<IngredientiPersonalizzazioneDTO>("Ingrediente personalizzazione");
-
-                return Ok(result);
-            }
-            catch (System.Exception ex)
-            {
-                _logger.LogError(ex, "Errore durante il recupero dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante il recupero dell'ingrediente personalizzazione");
-            }
-        }
-
-        /// <summary>
-        /// Ottiene gli ingredienti per personalizzazione custom
-        /// </summary>
-        [HttpGet("personalizzazione-custom/{persCustomId}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IEnumerable<IngredientiPersonalizzazioneDTO>>> GetByPersCustomId(int persCustomId)
-        {
-            try
-            {
-                if (persCustomId <= 0)
-                    return SafeBadRequest<IEnumerable<IngredientiPersonalizzazioneDTO>>("ID personalizzazione custom non valido");
-
-                // ✅ Verifica se la personalizzazione custom esiste
-                var persCustomEsiste = await _context.PersonalizzazioneCustom.AnyAsync(p => p.PersCustomId == persCustomId);
-                if (!persCustomEsiste)
-                    return SafeNotFound<IEnumerable<IngredientiPersonalizzazioneDTO>>("Personalizzazione custom");
-
-                var result = await _repository.GetByPersCustomIdAsync(persCustomId);
+                var result = await _repository.GetByIdAsync(id);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero degli ingredienti per personalizzazione custom {PersCustomId}", persCustomId);
-                return SafeInternalError<IEnumerable<IngredientiPersonalizzazioneDTO>>("Errore durante il recupero degli ingredienti per personalizzazione custom");
+                _logger.LogError(ex, "GetById ingredienti personalizzazione errore ID: {Id}", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        /// <summary>
-        /// Ottiene le personalizzazioni per ingrediente
-        /// </summary>
-        [HttpGet("ingrediente/{ingredienteId}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IEnumerable<IngredientiPersonalizzazioneDTO>>> GetByIngredienteId(int ingredienteId)
+        // GET: api/ingredienti-personalizzazione/personalizzazione/{persCustomId}
+        [HttpGet("personalizzazione/{persCustomId:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredientiPersonalizzazioneDTO>>> GetByPersCustomId(int persCustomId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (ingredienteId <= 0)
-                    return SafeBadRequest<IEnumerable<IngredientiPersonalizzazioneDTO>>("ID ingrediente non valido");
-
-                // ✅ Verifica se l'ingrediente esiste
-                var ingredienteEsiste = await _context.Ingrediente.AnyAsync(i => i.IngredienteId == ingredienteId);
-                if (!ingredienteEsiste)
-                    return SafeNotFound<IEnumerable<IngredientiPersonalizzazioneDTO>>("Ingrediente");
-
-                var result = await _repository.GetByIngredienteIdAsync(ingredienteId);
+                var result = await _repository.GetByPersCustomIdAsync(persCustomId, page, pageSize);
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero delle personalizzazioni per ingrediente {IngredienteId}", ingredienteId);
-                return SafeInternalError<IEnumerable<IngredientiPersonalizzazioneDTO>>("Errore durante il recupero delle personalizzazioni per ingrediente");
+                _logger.LogError(ex, "GetByPersCustomId errore persCustomId: {PersCustomId}", persCustomId);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        /// <summary>
-        /// Ottiene un ingrediente personalizzazione per combinazione
-        /// </summary>
-        [HttpGet("combinazione/{persCustomId}/{ingredienteId}")]
-        [AllowAnonymous] // ✅ ESPLICITO PER ENDPOINT GET
-        public async Task<ActionResult<IngredientiPersonalizzazioneDTO>> GetByCombinazione(int persCustomId, int ingredienteId)
+        // GET: api/ingredienti-personalizzazione/ingrediente/{ingredienteId}
+        [HttpGet("ingrediente/{ingredienteId:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PaginatedResponseDTO<IngredientiPersonalizzazioneDTO>>> GetByIngredienteId(int ingredienteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (persCustomId <= 0)
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("ID personalizzazione custom non valido");
+                var result = await _repository.GetByIngredienteIdAsync(ingredienteId, page, pageSize);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetByIngredienteId errore ingredienteId: {IngredienteId}", ingredienteId);
+                return StatusCode(500, "Errore server");
+            }
+        }
 
-                if (ingredienteId <= 0)
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("ID ingrediente non valido");
-
+        // GET: api/ingredienti-personalizzazione/combinazione
+        [HttpGet("combinazione")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<IngredientiPersonalizzazioneDTO>>> GetByCombinazione([FromQuery] int persCustomId, [FromQuery] int ingredienteId)
+        {
+            try
+            {
                 var result = await _repository.GetByCombinazioneAsync(persCustomId, ingredienteId);
-
-                if (result == null)
-                    return SafeNotFound<IngredientiPersonalizzazioneDTO>("Ingrediente personalizzazione per combinazione");
-
                 return Ok(result);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante il recupero dell'ingrediente personalizzazione per combinazione {PersCustomId}/{IngredienteId}", persCustomId, ingredienteId);
-                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante il recupero dell'ingrediente personalizzazione per combinazione");
+                _logger.LogError(ex, "GetByCombinazione errore persCustomId: {PersCustomId}, ingredienteId: {IngredienteId}",
+                    persCustomId, ingredienteId);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        /// <summary>
-        /// Crea un nuovo ingrediente personalizzazione
-        /// </summary>
+        // POST: api/ingredienti-personalizzazione
         [HttpPost]
-        //[Authorize(Roles = "admin,barista")] // ✅ Solo admin e barista possono creare
-        [AllowAnonymous]
-        public async Task<ActionResult<IngredientiPersonalizzazioneDTO>> Create([FromBody] IngredientiPersonalizzazioneDTO ingredientiPersDto)
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<IngredientiPersonalizzazioneDTO>>> Create([FromBody] IngredientiPersonalizzazioneDTO ingredientiPersonalizzazioneDto)
         {
             try
             {
-                if (!IsModelValid(ingredientiPersDto))
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("Dati ingrediente personalizzazione non validi");
+                if (ingredientiPersonalizzazioneDto == null)
+                    return BadRequest();
 
-                // ✅ Verifica se la personalizzazione custom esiste
-                var persCustomEsiste = await _context.PersonalizzazioneCustom.AnyAsync(p => p.PersCustomId == ingredientiPersDto.PersCustomId);
-                if (!persCustomEsiste)
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("Personalizzazione custom non trovata");
-
-                // ✅ Verifica se l'ingrediente esiste
-                var ingredienteEsiste = await _context.Ingrediente.AnyAsync(i => i.IngredienteId == ingredientiPersDto.IngredienteId);
-                if (!ingredienteEsiste)
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("Ingrediente non trovato");
-
-                // ✅ Verifica se esiste già la stessa combinazione
-                if (await _repository.ExistsByCombinazioneAsync(ingredientiPersDto.PersCustomId, ingredientiPersDto.IngredienteId))
-                    return SafeBadRequest<IngredientiPersonalizzazioneDTO>("Esiste già un ingrediente personalizzazione con la stessa combinazione");
-
-                // ✅ CORREZIONE: USA IL RISULTATO DI AddAsync (PATTERN STANDARD)
-                var result = await _repository.AddAsync(ingredientiPersDto);
-
-                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
-                LogAuditTrail("CREATE", "IngredientiPersonalizzazione", result.IngredientePersId.ToString());
-                LogSecurityEvent("IngredientiPersonalizzazioneCreated", new
-                {
-                    result.IngredientePersId,
-                    result.PersCustomId,
-                    result.IngredienteId,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return CreatedAtAction(nameof(GetById), new { ingredientePersId = result.IngredientePersId }, result);
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest<IngredientiPersonalizzazioneDTO>(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante la creazione dell'ingrediente personalizzazione");
-                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante il salvataggio");
+                var result = await _repository.AddAsync(ingredientiPersonalizzazioneDto);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante la creazione dell'ingrediente personalizzazione");
-                return SafeInternalError<IngredientiPersonalizzazioneDTO>("Errore durante la creazione");
+                _logger.LogError(ex, "Create ingredienti personalizzazione errore");
+                return StatusCode(500, "Errore server");
             }
         }
 
-        /// <summary>
-        /// Aggiorna un ingrediente personalizzazione esistente
-        /// </summary>
-        [HttpPut("{ingredientePersId}")]
-        //[Authorize(Roles = "admin,barista")] // ✅ Solo admin e barista possono modificare
-        [AllowAnonymous]
-        public async Task<ActionResult> Update(int ingredientePersId, [FromBody] IngredientiPersonalizzazioneDTO ingredientiPersDto)
+        // PUT: api/ingredienti-personalizzazione/{id}
+        [HttpPut("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Update(int id, [FromBody] IngredientiPersonalizzazioneDTO ingredientiPersonalizzazioneDto)
         {
             try
             {
-                if (ingredientePersId <= 0)
-                    return SafeBadRequest("ID ingrediente personalizzazione non valido");
+                if (ingredientiPersonalizzazioneDto == null)
+                    return BadRequest();
 
-                if (ingredientePersId != ingredientiPersDto.IngredientePersId)
-                    return SafeBadRequest("ID ingrediente personalizzazione non corrispondente");
+                if (id != ingredientiPersonalizzazioneDto.IngredientePersId)
+                    return BadRequest();
 
-                if (!IsModelValid(ingredientiPersDto))
-                    return SafeBadRequest("Dati ingrediente personalizzazione non validi");
-
-                // ✅ VERIFICA ESISTENZA
-                if (!await _repository.ExistsAsync(ingredientePersId))
-                    return SafeNotFound("Ingrediente personalizzazione");
-
-                // ✅ Verifica se la personalizzazione custom esiste
-                var persCustomEsiste = await _context.PersonalizzazioneCustom.AnyAsync(p => p.PersCustomId == ingredientiPersDto.PersCustomId);
-                if (!persCustomEsiste)
-                    return SafeBadRequest("Personalizzazione custom non trovata");
-
-                // ✅ Verifica se l'ingrediente esiste
-                var ingredienteEsiste = await _context.Ingrediente.AnyAsync(i => i.IngredienteId == ingredientiPersDto.IngredienteId);
-                if (!ingredienteEsiste)
-                    return SafeBadRequest("Ingrediente non trovato");
-
-                await _repository.UpdateAsync(ingredientiPersDto);
-
-                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
-                LogAuditTrail("UPDATE", "IngredientiPersonalizzazione", ingredientiPersDto.IngredientePersId.ToString());
-                LogSecurityEvent("IngredientiPersonalizzazioneUpdated", new
-                {
-                    ingredientiPersDto.IngredientePersId,
-                    ingredientiPersDto.PersCustomId,
-                    ingredientiPersDto.IngredienteId,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return NoContent();
-            }
-            catch (ArgumentException argEx)
-            {
-                return SafeBadRequest(argEx.Message);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'aggiornamento dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                var result = await _repository.UpdateAsync(ingredientiPersonalizzazioneDto);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'aggiornamento dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'aggiornamento");
+                _logger.LogError(ex, "Update ingredienti personalizzazione {Id} errore", id);
+                return StatusCode(500, "Errore server");
             }
         }
 
-        /// <summary>
-        /// Elimina un ingrediente personalizzazione
-        /// </summary>
-        [HttpDelete("{ingredientePersId}")]
-        //[Authorize(Roles = "admin")] // ✅ Solo admin può eliminare
-        [AllowAnonymous]
-        public async Task<ActionResult> Delete(int ingredientePersId)
+        // DELETE: api/ingredienti-personalizzazione/{id}
+        [HttpDelete("{id:int}")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Delete(int id)
         {
             try
             {
-                if (ingredientePersId <= 0)
-                    return SafeBadRequest("ID ingrediente personalizzazione non valido");
-
-                var existing = await _repository.GetByIdAsync(ingredientePersId);
-                if (existing == null)
-                    return SafeNotFound("Ingrediente personalizzazione");
-
-                await _repository.DeleteAsync(ingredientePersId);
-
-                // ✅ AUDIT & SECURITY OTTIMIZZATO PER VS
-                LogAuditTrail("DELETE", "IngredientiPersonalizzazione", ingredientePersId.ToString());
-                LogSecurityEvent("IngredientiPersonalizzazioneDeleted", new
-                {
-                    IngredientePersId = ingredientePersId,
-                    PersCustomId = existing.PersCustomId,
-                    IngredienteId = existing.IngredienteId,
-                    UserId = GetCurrentUserIdOrDefault()
-                });
-
-                return NoContent();
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Errore database durante l'eliminazione dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'eliminazione");
+                var result = await _repository.DeleteAsync(id);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore durante l'eliminazione dell'ingrediente personalizzazione {IngredientePersId}", ingredientePersId);
-                return SafeInternalError("Errore durante l'eliminazione");
+                _logger.LogError(ex, "Delete ingredienti personalizzazione {Id} errore", id);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/ingredienti-personalizzazione/exists/{id}
+        [HttpGet("exists/{id:int}")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> Exists(int id)
+        {
+            try
+            {
+                var result = await _repository.ExistsAsync(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exists {Id} errore", id);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/ingredienti-personalizzazione/exists/combinazione
+        [HttpGet("exists/combinazione")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> ExistsByCombinazione([FromQuery] int persCustomId, [FromQuery] int ingredienteId)
+        {
+            try
+            {
+                var result = await _repository.ExistsByCombinazioneAsync(persCustomId, ingredienteId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ExistsByCombinazione errore persCustomId: {PersCustomId}, ingredienteId: {IngredienteId}",
+                    persCustomId, ingredienteId);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // GET: api/ingredienti-personalizzazione/count
+        [HttpGet("count")]
+        [AllowAnonymous]
+        public async Task<ActionResult<SingleResponseDTO<int>>> Count()
+        {
+            try
+            {
+                var result = await _repository.CountAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Count ingredienti personalizzazione errore");
+                return StatusCode(500, "Errore server");
             }
         }
     }

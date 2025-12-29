@@ -513,7 +513,9 @@ namespace RepositoryTest
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<IngredientiPersonalizzazione>();
             await CleanTableAsync<PersonalizzazioneCustom>();
+            await CleanTableAsync<DimensioneQuantitaIngredienti>();
             await CleanTableAsync<PersonalizzazioneIngrediente>();
             await CleanTableAsync<Personalizzazione>();
             await CleanTableAsync<Articolo>();
@@ -1616,6 +1618,30 @@ namespace RepositoryTest
             };
         }
 
+        // Metodo per garantire che un Ingrediente esista
+        protected async Task EnsureIngredienteExistsAsync(int ingredienteId)
+        {
+            var existing = await _context.Ingrediente
+                .AnyAsync(i => i.IngredienteId == ingredienteId);
+
+            if (!existing)
+            {
+                // Crea un ingrediente con l'ID specificato
+                var ingrediente = new Ingrediente
+                {
+                    IngredienteId = ingredienteId,
+                    Ingrediente1 = $"Ingrediente Test {ingredienteId}",
+                    CategoriaId = 1, // default
+                    PrezzoAggiunto = 1.00m,
+                    Disponibile = true,
+                    DataInserimento = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow
+                };
+                _context.Ingrediente.Add(ingrediente);
+                await _context.SaveChangesAsync();
+            }
+        }
+
         #endregion
 
         #region Articolo Helpers
@@ -2641,6 +2667,192 @@ namespace RepositoryTest
                 _context.Ingrediente.RemoveRange(ingredientiTest);
                 await _context.SaveChangesAsync();
             }
+        }
+
+        #endregion
+
+        #region IngredientiPersonalizzazione Helpers        
+
+        protected async Task<IngredientiPersonalizzazione> CreateTestIngredientiPersonalizzazioneAsync(
+            int persCustomId = 1,
+            int ingredienteId = 1,
+            DateTime? dataCreazione = null,
+            int? ingredientePersId = null)
+        {
+            // ✅ Usa i metodi esistenti per garantire che le entità parent esistano
+            await EnsurePersonalizzazioneCustomExistsAsync(persCustomId);
+            await EnsureIngredienteExistsAsync(ingredienteId);
+
+            // Se non viene specificato un ID, generane uno alto (>= 1000) per evitare conflitti col seed
+            if (!ingredientePersId.HasValue)
+            {
+                var maxId = await _context.IngredientiPersonalizzazione
+                    .Select(ip => (int?)ip.IngredientePersId)
+                    .DefaultIfEmpty()
+                    .MaxAsync();
+
+                ingredientePersId = (maxId.GetValueOrDefault()) < 1000 ? 1000 : maxId.GetValueOrDefault() + 1;
+            }
+
+            var ingredientePers = new IngredientiPersonalizzazione
+            {
+                IngredientePersId = ingredientePersId.Value,
+                PersCustomId = persCustomId,
+                IngredienteId = ingredienteId,
+                DataCreazione = dataCreazione ?? DateTime.UtcNow
+            };
+
+            _context.IngredientiPersonalizzazione.Add(ingredientePers);
+            await _context.SaveChangesAsync();
+            return ingredientePers;
+        }
+
+        protected async Task<List<IngredientiPersonalizzazione>> CreateMultipleIngredientiPersonalizzazioneAsync(int count = 3)
+        {
+            var ingredientiPersonalizzazioni = new List<IngredientiPersonalizzazione>();
+
+            // ✅ Usa personalizzazioni esistenti dal seed
+            var personalizzazioni = await _context.PersonalizzazioneCustom
+                .Take(count)
+                .ToListAsync();
+
+            // Se non ci sono abbastanza personalizzazioni, usa il seed
+            for (int i = personalizzazioni.Count; i < count; i++)
+            {
+                // Usa il metodo esistente CreateTestPersonalizzazioneCustomAsync
+                var nuovaPersonalizzazione = await CreateTestPersonalizzazioneCustomAsync(
+                    nome: $"Test Personalizzazione {i}",
+                    persCustomId: 1000 + i
+                );
+                personalizzazioni.Add(nuovaPersonalizzazione);
+            }
+
+            // ✅ Usa ingredienti esistenti dal seed
+            var ingredienti = await _context.Ingrediente
+                .Take(count)
+                .ToListAsync();
+
+            // Se non ci sono abbastanza ingredienti, usa il seed o creane di nuovi
+            for (int i = ingredienti.Count; i < count; i++)
+            {
+                // Usa il metodo esistente CreateTestIngredienteAsync (senza parametri o con quelli di default)
+                var nuovoIngrediente = new Ingrediente
+                {
+                    IngredienteId = 1000 + i,
+                    Ingrediente1 = $"Ingrediente Test {i}",
+                    CategoriaId = 1, // Usa una categoria esistente dal seed
+                    PrezzoAggiunto = 1.00m,
+                    Disponibile = true,
+                    DataInserimento = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow
+                };
+                _context.Ingrediente.Add(nuovoIngrediente);
+                await _context.SaveChangesAsync();
+                ingredienti.Add(nuovoIngrediente);
+            }
+
+            var now = DateTime.UtcNow;
+            for (int i = 0; i < count; i++)
+            {
+                var ingredientePers = new IngredientiPersonalizzazione
+                {
+                    PersCustomId = personalizzazioni[i].PersCustomId,
+                    IngredienteId = ingredienti[i].IngredienteId,
+                    DataCreazione = now.AddMinutes(i)
+                };
+
+                ingredientiPersonalizzazioni.Add(ingredientePers);
+            }
+
+            _context.IngredientiPersonalizzazione.AddRange(ingredientiPersonalizzazioni);
+            await _context.SaveChangesAsync();
+            return ingredientiPersonalizzazioni;
+        }
+
+        protected async Task<IngredientiPersonalizzazione> GetSeedIngredientiPersonalizzazioneAsync()
+        {
+            // ✅ Ritorna un IngredientiPersonalizzazione dal seed (se esiste)
+            var ingredientePers = await _context.IngredientiPersonalizzazione
+                .FirstOrDefaultAsync();
+
+            return ingredientePers ?? throw new InvalidOperationException(
+                    "Nessuna IngredientiPersonalizzazione trovata nel seed. " +
+                    "Assicurati che il seed sia stato eseguito prima dei test.");
+        }
+
+        protected async Task EnsureIngredientiPersonalizzazioneExistsAsync(int ingredientePersId)
+        {
+            var existing = await _context.IngredientiPersonalizzazione
+                .AnyAsync(ip => ip.IngredientePersId == ingredientePersId);
+
+            if (!existing)
+            {
+                await CreateTestIngredientiPersonalizzazioneAsync(ingredientePersId: ingredientePersId);
+            }
+        }
+
+        // ✅ Assert con tolleranza per date
+        protected void AssertIngredientiPersonalizzazioneEqual(IngredientiPersonalizzazione expected, IngredientiPersonalizzazione actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.IngredientePersId, actual.IngredientePersId);
+            }
+
+            Assert.Equal(expected.PersCustomId, actual.PersCustomId);
+            Assert.Equal(expected.IngredienteId, actual.IngredienteId);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Assert per DTO con tolleranza date
+        protected void AssertIngredientiPersonalizzazioneDTOEqual(IngredientiPersonalizzazioneDTO expected, IngredientiPersonalizzazioneDTO actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.IngredientePersId, actual.IngredientePersId);
+            }
+
+            Assert.Equal(expected.PersCustomId, actual.PersCustomId);
+            Assert.Equal(expected.IngredienteId, actual.IngredienteId);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+
+            if (expected.NomePersonalizzazione != null)
+                Assert.Equal(expected.NomePersonalizzazione, actual.NomePersonalizzazione);
+
+            if (expected.NomeIngrediente != null)
+                Assert.Equal(expected.NomeIngrediente, actual.NomeIngrediente);
+        }
+
+        // ✅ Crea DTO di test senza dipendenze InMemory
+        protected IngredientiPersonalizzazioneDTO CreateTestIngredientiPersonalizzazioneDTO(
+            int persCustomId = 1,
+            int ingredienteId = 1)
+        {
+            var now = DateTime.UtcNow;
+            return new IngredientiPersonalizzazioneDTO
+            {
+                PersCustomId = persCustomId,
+                IngredienteId = ingredienteId,
+                DataCreazione = now
+            };
+        }
+
+        // ✅ Crea DTO con nomi personalizzazione e ingrediente
+        protected IngredientiPersonalizzazioneDTO CreateTestIngredientiPersonalizzazioneDTOWithNames(
+            int persCustomId = 1,
+            string nomePersonalizzazione = "Test Personalizzazione",
+            int ingredienteId = 1,
+            string nomeIngrediente = "Test Ingrediente")
+        {
+            var now = DateTime.UtcNow;
+            return new IngredientiPersonalizzazioneDTO
+            {
+                PersCustomId = persCustomId,
+                NomePersonalizzazione = nomePersonalizzazione,
+                IngredienteId = ingredienteId,
+                NomeIngrediente = nomeIngrediente,
+                DataCreazione = now
+            };
         }
 
         #endregion

@@ -447,8 +447,6 @@ public partial class BubbleTeaContext : DbContext
 
             entity.HasIndex(e => new { e.PersCustomId, e.IngredienteId }, "UC_INGREDIENTE_PERSONALIZZAZIONE").IsUnique();
 
-            entity.HasIndex(e => new { e.PersCustomId, e.IngredienteId }, "UQ_Ingredienti_Personalizzazione").IsUnique();
-
             entity.Property(e => e.IngredientePersId).HasColumnName("ingrediente_pers_id");
             entity.Property(e => e.DataCreazione)
                 .HasDefaultValueSql("(getdate())")

@@ -88,7 +88,7 @@ namespace RepositoryTest
                 new DolceRepository(context),
                 new PersonalizzazioneCustomRepository(_context, NullLogger<PersonalizzazioneCustomRepository>.Instance),
                 new IngredienteRepository(context, NullLogger<IngredienteRepository>.Instance),
-                new IngredientiPersonalizzazioneRepository(context),
+                new IngredientiPersonalizzazioneRepository(_context, NullLogger<IngredientiPersonalizzazioneRepository>.Instance),
                 new DimensioneBicchiereRepository(context, NullLogger<DimensioneBicchiereRepository>.Instance), // ✅ Aggiungi questo                
                 new TaxRatesRepository(context, NullLogger<TaxRatesRepository>.Instance)
             );

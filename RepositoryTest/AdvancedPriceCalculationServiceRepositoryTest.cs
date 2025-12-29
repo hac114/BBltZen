@@ -40,7 +40,7 @@ namespace RepositoryTest
                 new DolceRepository(_context),
                 new PersonalizzazioneCustomRepository(_context,NullLogger<PersonalizzazioneCustomRepository>.Instance),
                 new IngredienteRepository(_context, NullLogger<IngredienteRepository>.Instance),  // ✅ Aggiunto logger
-                new IngredientiPersonalizzazioneRepository(_context),
+                new IngredientiPersonalizzazioneRepository(_context, NullLogger<IngredientiPersonalizzazioneRepository>.Instance),
                 new DimensioneBicchiereRepository(_context, NullLogger<DimensioneBicchiereRepository>.Instance),
                 new TaxRatesRepository(_context, NullLogger<TaxRatesRepository>.Instance)
             );

@@ -10,48 +10,34 @@ using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class PriceCalculationServiceRepository : IPriceCalculationServiceRepository
+    public class PriceCalculationServiceRepository(
+        IMemoryCache cache,
+        ILogger<PriceCalculationServiceRepository> logger,
+        IBevandaStandardRepository bevandaStandardRepo,
+        IBevandaCustomRepository bevandaCustomRepo,
+        IDolceRepository dolceRepo,
+        IPersonalizzazioneCustomRepository personalizzazioneCustomRepo,
+        IIngredienteRepository ingredienteRepo,
+        IIngredientiPersonalizzazioneRepository ingredientiPersonalizzazioneRepo,
+        IDimensioneBicchiereRepository dimensioneBicchiereRepo,
+        ITaxRatesRepository taxRatesRepo) : IPriceCalculationServiceRepository
     {
-        private readonly IMemoryCache _cache;
-        private readonly ILogger<PriceCalculationServiceRepository> _logger;
-        private readonly IBevandaStandardRepository _bevandaStandardRepo;
-        private readonly IBevandaCustomRepository _bevandaCustomRepo;
-        private readonly IDolceRepository _dolceRepo;
-        private readonly IPersonalizzazioneCustomRepository _personalizzazioneCustomRepo;
-        private readonly IIngredienteRepository _ingredienteRepo;
-        private readonly IIngredientiPersonalizzazioneRepository _ingredientiPersonalizzazioneRepo;
-        private readonly IDimensioneBicchiereRepository _dimensioneBicchiereRepo;
-        private readonly ITaxRatesRepository _taxRatesRepo;
+        private readonly IMemoryCache _cache = cache;
+        private readonly ILogger<PriceCalculationServiceRepository> _logger = logger;
+        private readonly IBevandaStandardRepository _bevandaStandardRepo = bevandaStandardRepo;
+        private readonly IBevandaCustomRepository _bevandaCustomRepo = bevandaCustomRepo;
+        private readonly IDolceRepository _dolceRepo = dolceRepo;
+        private readonly IPersonalizzazioneCustomRepository _personalizzazioneCustomRepo = personalizzazioneCustomRepo;
+        private readonly IIngredienteRepository _ingredienteRepo = ingredienteRepo;
+        private readonly IIngredientiPersonalizzazioneRepository _ingredientiPersonalizzazioneRepo = ingredientiPersonalizzazioneRepo;
+        private readonly IDimensioneBicchiereRepository _dimensioneBicchiereRepo = dimensioneBicchiereRepo;
+        private readonly ITaxRatesRepository _taxRatesRepo = taxRatesRepo;
 
         private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(30);
         private const string CACHE_KEY_TAX_RATES = "TaxRates_All";
         private const string CACHE_KEY_DIMENSIONI = "Dimensioni_All";
         private const string CACHE_KEY_PREZZO_BEVANDA_STD = "PrezzoBevandaStd_{0}";
         private const string CACHE_KEY_PREZZO_BEVANDA_CUSTOM = "PrezzoBevandaCustom_{0}";
-
-        public PriceCalculationServiceRepository(
-            IMemoryCache cache,
-            ILogger<PriceCalculationServiceRepository> logger,
-            IBevandaStandardRepository bevandaStandardRepo,
-            IBevandaCustomRepository bevandaCustomRepo,
-            IDolceRepository dolceRepo,
-            IPersonalizzazioneCustomRepository personalizzazioneCustomRepo,
-            IIngredienteRepository ingredienteRepo,
-            IIngredientiPersonalizzazioneRepository ingredientiPersonalizzazioneRepo,
-            IDimensioneBicchiereRepository dimensioneBicchiereRepo,
-            ITaxRatesRepository taxRatesRepo)
-        {
-            _cache = cache;
-            _logger = logger;
-            _bevandaStandardRepo = bevandaStandardRepo;
-            _bevandaCustomRepo = bevandaCustomRepo;
-            _dolceRepo = dolceRepo;
-            _personalizzazioneCustomRepo = personalizzazioneCustomRepo;
-            _ingredienteRepo = ingredienteRepo;
-            _ingredientiPersonalizzazioneRepo = ingredientiPersonalizzazioneRepo;
-            _dimensioneBicchiereRepo = dimensioneBicchiereRepo;
-            _taxRatesRepo = taxRatesRepo;
-        }
 
         public async Task<decimal> CalculateBevandaStandardPrice(int articoloId)
         {
@@ -100,11 +86,10 @@ namespace Repository.Service
                 var personalizzazione = personalizzazioneResponse.Data;
 
                 // 2. Recupera la dimensione del bicchiere
-                var dimensioneResponse = await _dimensioneBicchiereRepo.GetByIdAsync(personalizzazione.DimensioneBicchiereId); // Ora funziona!
+                var dimensioneResponse = await _dimensioneBicchiereRepo.GetByIdAsync(personalizzazione.DimensioneBicchiereId);
 
-                // ✅ CORREZIONE: Controlla se la risposta è successo e i dati esistono
                 if (!dimensioneResponse.Success || dimensioneResponse.Data == null)
-                    throw new ArgumentException($"Dimensione bicchiere non trovata: {personalizzazione.DimensioneBicchiereId}"); // Ora funziona!
+                    throw new ArgumentException($"Dimensione bicchiere non trovata: {personalizzazione.DimensioneBicchiereId}");
 
                 var dimensione = dimensioneResponse.Data;
 
@@ -113,20 +98,19 @@ namespace Repository.Service
 
                 // 4. Calcola somma ingredienti con moltiplicatore dimensione
                 decimal prezzoIngredienti = 0;
-                var ingredientiPersonalizzazione = await _ingredientiPersonalizzazioneRepo.GetByPersCustomIdAsync(personalizzazioneCustomId);
 
-                foreach (var ingredientePers in ingredientiPersonalizzazione)
+                // ✅ CORREZIONE: Accesso alla proprietà Data del PaginatedResponseDTO
+                var ingredientiResponse = await _ingredientiPersonalizzazioneRepo.GetByPersCustomIdAsync(personalizzazioneCustomId);
+
+                foreach (var ingredientePers in ingredientiResponse.Data) // ✅ Ora funziona: Data è IEnumerable<IngredientiPersonalizzazioneDTO>
                 {
-                    // ✅ CORREZIONE: Ora gestiamo correttamente il SingleResponseDTO
                     var ingredienteResponse = await _ingredienteRepo.GetByIdAsync(ingredientePers.IngredienteId);
 
-                    // Controlla: 1) che la risposta non sia null, 2) che sia successo, 3) che i dati esistano
                     if (ingredienteResponse != null &&
                         ingredienteResponse.Success &&
                         ingredienteResponse.Data != null &&
-                        ingredienteResponse.Data.Disponibile)  // ✅ Ora funziona!
+                        ingredienteResponse.Data.Disponibile)
                     {
-                        // ✅ CORREZIONE: Accesso corretto tramite .Data
                         prezzoIngredienti += ingredienteResponse.Data.PrezzoAggiunto * dimensione.Moltiplicatore;
                     }
                 }
@@ -136,7 +120,6 @@ namespace Repository.Service
 
                 _cache.Set(cacheKey, prezzoFinale, _cacheDuration);
 
-                // ✅ CORREZIONE: Accesso corretto alla descrizione
                 _logger.LogInformation(
                     "Calcolato prezzo bevanda custom {PersCustomId}: Base={Base}, Ingredienti={Ingredienti}, Finale={Finale}, Dimensione={Dimensione}",
                     personalizzazioneCustomId, prezzoBase, prezzoIngredienti, prezzoFinale, dimensione.Descrizione);

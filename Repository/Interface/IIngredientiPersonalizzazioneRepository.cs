@@ -1,26 +1,22 @@
 ﻿using DTO;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Repository.Interface
 {
     public interface IIngredientiPersonalizzazioneRepository
     {
-        // ✅ CORRETTO: AddAsync deve ritornare DTO
-        Task<IngredientiPersonalizzazioneDTO> AddAsync(IngredientiPersonalizzazioneDTO ingredientiPersDto);
+        Task<PaginatedResponseDTO<IngredientiPersonalizzazioneDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<IngredientiPersonalizzazioneDTO>> GetByIdAsync(int ingredientePersId);
+        Task<PaginatedResponseDTO<IngredientiPersonalizzazioneDTO>> GetByPersCustomIdAsync(int persCustomId, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<IngredientiPersonalizzazioneDTO>> GetByIngredienteIdAsync(int ingredienteId, int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<IngredientiPersonalizzazioneDTO>> GetByCombinazioneAsync(int persCustomId, int ingredienteId);
 
-        Task UpdateAsync(IngredientiPersonalizzazioneDTO ingredientiPersDto);
-        Task DeleteAsync(int ingredientePersId);
-        Task<bool> ExistsAsync(int ingredientePersId);
+        Task<SingleResponseDTO<IngredientiPersonalizzazioneDTO>> AddAsync(IngredientiPersonalizzazioneDTO ingredientiPersDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(IngredientiPersonalizzazioneDTO ingredientiPersDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int ingredientePersId);
 
-        // ✅ CORRETTO: GetAll con IEnumerable
-        Task<IEnumerable<IngredientiPersonalizzazioneDTO>> GetAllAsync();
-        Task<IngredientiPersonalizzazioneDTO?> GetByIdAsync(int ingredientePersId);
+        Task<SingleResponseDTO<bool>> ExistsAsync(int ingredientePersId);        
+        Task<SingleResponseDTO<bool>> ExistsByCombinazioneAsync(int persCustomId, int ingredienteId);
 
-        // ✅ METODI BUSINESS SPECIFICI
-        Task<IEnumerable<IngredientiPersonalizzazioneDTO>> GetByPersCustomIdAsync(int persCustomId);
-        Task<IEnumerable<IngredientiPersonalizzazioneDTO>> GetByIngredienteIdAsync(int ingredienteId);
-        Task<IngredientiPersonalizzazioneDTO?> GetByCombinazioneAsync(int persCustomId, int ingredienteId);
-        Task<bool> ExistsByCombinazioneAsync(int persCustomId, int ingredienteId);
+        Task<SingleResponseDTO<int>> CountAsync();        
     }
 }
