@@ -13,11 +13,7 @@ namespace BBltZen.Controllers
         ILogger<ArticoloController> logger) : ControllerBase
     {
         private readonly IArticoloRepository _repository = repository;
-        private readonly ILogger<ArticoloController> _logger = logger;
-
-        // ============================================
-        // METODI GET (LETTURA)
-        // ============================================
+        private readonly ILogger<ArticoloController> _logger = logger;        
 
         // GET: api/articolo
         [HttpGet("")]

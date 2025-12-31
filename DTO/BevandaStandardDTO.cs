@@ -13,7 +13,7 @@ namespace DTO
         public int PersonalizzazioneId { get; set; }
         public int DimensioneBicchiereId { get; set; }
 
-        [Range(0.01, 100, ErrorMessage = "Il prezzo deve essere tra 0.01 e 100")]
+        [Range(0.01, 99.99, ErrorMessage = "Il prezzo deve essere tra 0.01 e 99.99")]
         public decimal Prezzo { get; set; }
 
         [StringLength(500, ErrorMessage = "L'URL immagine non può superare 500 caratteri")]

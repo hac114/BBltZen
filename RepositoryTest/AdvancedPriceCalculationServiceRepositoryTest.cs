@@ -35,7 +35,7 @@ namespace RepositoryTest
             _basicPriceService = new PriceCalculationServiceRepository(
                 _memoryCache,
                 Mock.Of<ILogger<PriceCalculationServiceRepository>>(),
-                new BevandaStandardRepository(_context),
+                new BevandaStandardRepository(_context, NullLogger<BevandaStandardRepository>.Instance),
                 new BevandaCustomRepository(_context),
                 new DolceRepository(_context),
                 new PersonalizzazioneCustomRepository(_context,NullLogger<PersonalizzazioneCustomRepository>.Instance),

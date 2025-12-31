@@ -1,7 +1,4 @@
-﻿// DTO/BevandaStandardCardDTO.cs
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace DTO
 {
@@ -23,10 +20,10 @@ namespace DTO
         public int Priorita { get; set; }
 
         // ✅ NUOVO: Prezzi calcolati per ogni dimensione
-        public List<PrezzoDimensioneDTO> PrezziPerDimensioni { get; set; } = new();
+        public List<PrezzoDimensioneDTO> PrezziPerDimensioni { get; set; } = [];
 
         // ✅ NUOVO: Lista ingredienti per la descrizione
-        public List<string> Ingredienti { get; set; } = new();
+        public List<string> Ingredienti { get; set; } = [];
     }
 
     public class PrezzoDimensioneDTO

@@ -127,7 +127,7 @@ public partial class BubbleTeaContext : DbContext
     {
         modelBuilder.Entity<Articolo>(entity =>
         {
-            //HO AGGIUNTO QUESTA RIGA PER GESTIRE CONFIGURAZIONE UTENTI
+            //HO AGGIUNTO QUESTA RIGA PER INCLUDERE LE CONFIGURAZIONI
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(BubbleTeaContext).Assembly);
 
             entity.HasKey(e => e.ArticoloId).HasName("PK__ARTICOLO__2902CE994A30025C");
@@ -191,6 +191,10 @@ public partial class BubbleTeaContext : DbContext
             entity.HasKey(e => e.ArticoloId).HasName("PK_BevandaStandard_ARTICOLO");
 
             entity.ToTable("BEVANDA_STANDARD");
+
+            entity.HasIndex(e => new { e.SempreDisponibile, e.Priorita, e.Disponibile }, "IX_BevandaStandard_Completo");
+
+            entity.HasIndex(e => new { e.PersonalizzazioneId, e.DimensioneBicchiereId }, "UQ_BevandaStandard_Personalizzazione_Dimensione").IsUnique();
 
             entity.Property(e => e.ArticoloId)
                 .ValueGeneratedNever()
@@ -1352,7 +1356,7 @@ public partial class BubbleTeaContext : DbContext
                 .HasMaxLength(500)
                 .HasColumnName("immagine_url");
             entity.Property(e => e.IvaPercentuale)
-                .HasColumnType("decimal(5, 2)")
+                .HasColumnType("numeric(4, 2)")
                 .HasColumnName("iva_percentuale");
             entity.Property(e => e.NomeBevanda)
                 .HasMaxLength(100)

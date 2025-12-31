@@ -51,11 +51,15 @@ namespace Repository.Service
                 if (articoloId <= 0)
                     throw new ArgumentException("ID articolo non valido", nameof(articoloId));
 
-                var bevanda = await _bevandaStandardRepo.GetByIdAsync(articoloId);
-                if (bevanda == null)
-                    throw new ArgumentException($"Bevanda standard non trovata per articolo: {articoloId}");
+                // ✅ MODIFICA: GetByIdAsync ora restituisce SingleResponseDTO<BevandaStandardDTO>
+                var bevandaResponse = await _bevandaStandardRepo.GetByIdAsync(articoloId);
 
-                var prezzo = bevanda.Prezzo;
+                // ✅ Verifica se la risposta ha avuto successo
+                if (!bevandaResponse.Success || bevandaResponse.Data == null)
+                    throw new ArgumentException(
+                        $"Bevanda standard non trovata per articolo: {articoloId}. Errore: {bevandaResponse.Message}");
+
+                var prezzo = bevandaResponse.Data.Prezzo; // ✅ Ora accedi a Data.Prezzo
 
                 _cache.Set(cacheKey, prezzo, _cacheDuration);
                 _logger.LogInformation("Calcolato prezzo bevanda standard {ArticoloId}: {Prezzo}", articoloId, prezzo);

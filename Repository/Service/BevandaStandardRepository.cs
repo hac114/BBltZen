@@ -1,117 +1,109 @@
 ﻿using BBltZen;
 using DTO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Repository.Helper;
 using Repository.Interface;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Repository.Service
 {
-    public class BevandaStandardRepository : IBevandaStandardRepository
+    public class BevandaStandardRepository(BubbleTeaContext context, ILogger<BevandaStandardRepository> logger) : IBevandaStandardRepository
     {
-        private readonly BubbleTeaContext _context;
+        private readonly BubbleTeaContext _context = context;
+        private readonly ILogger<BevandaStandardRepository> _logger = logger;
 
-        public BevandaStandardRepository(BubbleTeaContext context)
+        // METODI PRIVATI DI SUPPORTO        
+        private static bool IsUniqueConstraintViolation(DbUpdateException dbEx)
         {
-            _context = context;
+            var sqlException = dbEx.InnerException as Microsoft.Data.SqlClient.SqlException
+                                ?? dbEx.InnerException?.InnerException as Microsoft.Data.SqlClient.SqlException;
+
+            if (sqlException != null)
+            {
+                // 2627: Violazione vincolo UNIQUE KEY
+                // 2601: Violazione indice univoco
+                return sqlException.Number == 2627 || sqlException.Number == 2601;
+            }
+
+            return false;
         }
-
-        public async Task<IEnumerable<BevandaStandardDTO>> GetAllAsync()
+        private async Task<List<string>> GetIngredientiByPersonalizzazioneAsync(int personalizzazioneId)
         {
-            var bevandeStandard = await _context.BevandaStandard
+            var ingredienti = await _context.PersonalizzazioneIngrediente
                 .AsNoTracking()
+                .Where(pi => pi.PersonalizzazioneId == personalizzazioneId)
+                .Join(_context.Ingrediente,
+                    pi => pi.IngredienteId,
+                    i => i.IngredienteId,
+                    (pi, i) => i.Ingrediente1)
+                .Where(nome => !string.IsNullOrEmpty(nome))
+                .Distinct()
                 .ToListAsync();
 
-            var articoli = await _context.Articolo
-                .Where(a => bevandeStandard.Select(bs => bs.ArticoloId).Contains(a.ArticoloId))
-                .ToDictionaryAsync(a => a.ArticoloId);
+            return ingredienti;
+        }
 
-            var personalizzazioni = await _context.Personalizzazione
-                .Where(p => bevandeStandard.Select(bs => bs.PersonalizzazioneId).Contains(p.PersonalizzazioneId))
-                .ToDictionaryAsync(p => p.PersonalizzazioneId);
+        private async Task<List<PrezzoDimensioneDTO>> CalcolaPrezziPerDimensioniAsync(BevandaStandard bevandaStandard)
+        {
+            // ✅ Recupera TUTTE le dimensioni per questa combinazione Articolo+Personalizzazione
+            var tutteBevandeStandard = await _context.BevandaStandard
+                .AsNoTracking()
+                .Where(bs => bs.ArticoloId == bevandaStandard.ArticoloId &&
+                           bs.PersonalizzazioneId == bevandaStandard.PersonalizzazioneId &&
+                           bs.SempreDisponibile) // Solo quelle sempre disponibili
+                .ToListAsync();
 
-            var dimensioniBicchieri = await _context.DimensioneBicchiere
-                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+            var dimensioneIds = tutteBevandeStandard.Select(bs => bs.DimensioneBicchiereId).Distinct().ToList();
+            var dimensioni = await _context.DimensioneBicchiere
+                .Where(d => dimensioneIds.Contains(d.DimensioneBicchiereId))
                 .ToDictionaryAsync(d => d.DimensioneBicchiereId);
 
-            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            var result = new List<PrezzoDimensioneDTO>();
+
+            foreach (var bs in tutteBevandeStandard)
             {
-                ArticoloId = bs.ArticoloId,
-                PersonalizzazioneId = bs.PersonalizzazioneId,
-                DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                Prezzo = bs.Prezzo,
-                ImmagineUrl = bs.ImmagineUrl,
-                Disponibile = bs.Disponibile,
-                SempreDisponibile = bs.SempreDisponibile,
-                Priorita = bs.Priorita,
-                DataCreazione = bs.DataCreazione,
-                DataAggiornamento = bs.DataAggiornamento,
-                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
-                    ? new DimensioneBicchiereDTO
+                if (dimensioni.TryGetValue(bs.DimensioneBicchiereId, out var dimensione))
+                {
+                    var taxRateId = 1; // IVA standard
+                    var aliquotaIva = await GetAliquotaIvaAsync(taxRateId);
+                    var prezzoBase = bs.Prezzo * dimensione.Moltiplicatore;
+                    var prezzoIva = CalcolaIva(prezzoBase, aliquotaIva);
+                    var prezzoTotale = prezzoBase + prezzoIva;
+
+                    result.Add(new PrezzoDimensioneDTO
                     {
                         DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
                         Sigla = dimensione.Sigla,
-                        Descrizione = dimensione.Descrizione,
-                        Capienza = dimensione.Capienza,
-                        UnitaMisuraId = dimensione.UnitaMisuraId,
-                        PrezzoBase = dimensione.PrezzoBase,
-                        Moltiplicatore = dimensione.Moltiplicatore
-                    }
-                    : null
-            }).ToList();
+                        Descrizione = $"{dimensione.Descrizione} {dimensione.Capienza}ml",
+                        PrezzoNetto = Math.Round(prezzoBase, 2),
+                        PrezzoIva = Math.Round(prezzoIva, 2),
+                        PrezzoTotale = Math.Round(prezzoTotale, 2),
+                        AliquotaIva = aliquotaIva
+                    });
+                }
+            }
+
+            // ✅ Ordina per DimensioneBicchiereId
+            return result.OrderBy(p => p.DimensioneBicchiereId).ToList();
         }
 
-        public async Task<IEnumerable<BevandaStandardDTO>> GetDisponibiliAsync()
+        private async Task<decimal> GetAliquotaIvaAsync(int taxRateId)
         {
-            var bevandeStandard = await _context.BevandaStandard
+            var taxRate = await _context.TaxRates
                 .AsNoTracking()
-                .Where(bs => bs.SempreDisponibile)
-                .ToListAsync();
+                .FirstOrDefaultAsync(tr => tr.TaxRateId == taxRateId);
 
-            var dimensioniBicchieri = await _context.DimensioneBicchiere
-                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
-                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
-
-            return bevandeStandard.Select(bs => new BevandaStandardDTO
-            {
-                ArticoloId = bs.ArticoloId,
-                PersonalizzazioneId = bs.PersonalizzazioneId,
-                DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                Prezzo = bs.Prezzo,
-                ImmagineUrl = bs.ImmagineUrl,
-                Disponibile = bs.Disponibile,
-                SempreDisponibile = bs.SempreDisponibile,
-                Priorita = bs.Priorita,
-                DataCreazione = bs.DataCreazione,
-                DataAggiornamento = bs.DataAggiornamento,
-                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
-                    ? new DimensioneBicchiereDTO
-                    {
-                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
-                        Sigla = dimensione.Sigla,
-                        Descrizione = dimensione.Descrizione,
-                        Capienza = dimensione.Capienza,
-                        UnitaMisuraId = dimensione.UnitaMisuraId,
-                        PrezzoBase = dimensione.PrezzoBase,
-                        Moltiplicatore = dimensione.Moltiplicatore
-                    }
-                    : null
-            })
-            .OrderBy(bs => bs.Priorita)
-            .ToList();
+            return taxRate?.Aliquota ?? 22.00m;
         }
 
-        public async Task<BevandaStandardDTO?> GetByIdAsync(int articoloId)
+        private static decimal CalcolaIva(decimal prezzoNetto, decimal aliquotaIva)
         {
-            var bevandaStandard = await _context.BevandaStandard
-                .AsNoTracking()
-                .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId);
+            return prezzoNetto * (aliquotaIva / 100);
+        }
 
-            if (bevandaStandard == null) return null;
-
-            var dimensioneBicchiere = await _context.DimensioneBicchiere
+        private async Task<BevandaStandardDTO> MapToDTO(BevandaStandard bevandaStandard)
+        {
+            var dimensione = await _context.DimensioneBicchiere
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == bevandaStandard.DimensioneBicchiereId);
 
@@ -127,50 +119,7 @@ namespace Repository.Service
                 Priorita = bevandaStandard.Priorita,
                 DataCreazione = bevandaStandard.DataCreazione,
                 DataAggiornamento = bevandaStandard.DataAggiornamento,
-                DimensioneBicchiere = dimensioneBicchiere != null
-                    ? new DimensioneBicchiereDTO
-                    {
-                        DimensioneBicchiereId = dimensioneBicchiere.DimensioneBicchiereId,
-                        Sigla = dimensioneBicchiere.Sigla,
-                        Descrizione = dimensioneBicchiere.Descrizione,
-                        Capienza = dimensioneBicchiere.Capienza,
-                        UnitaMisuraId = dimensioneBicchiere.UnitaMisuraId,
-                        PrezzoBase = dimensioneBicchiere.PrezzoBase,
-                        Moltiplicatore = dimensioneBicchiere.Moltiplicatore
-                    }
-                    : null
-            };
-        }
-
-        public async Task<BevandaStandardDTO?> GetByArticoloIdAsync(int articoloId)
-        {
-            return await GetByIdAsync(articoloId);
-        }
-
-        public async Task<IEnumerable<BevandaStandardDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId)
-        {
-            var bevandeStandard = await _context.BevandaStandard
-                .AsNoTracking()
-                .Where(bs => bs.DimensioneBicchiereId == dimensioneBicchiereId && bs.SempreDisponibile)
-                .ToListAsync();
-
-            var dimensioniBicchieri = await _context.DimensioneBicchiere
-                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
-                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
-
-            return bevandeStandard.Select(bs => new BevandaStandardDTO
-            {
-                ArticoloId = bs.ArticoloId,
-                PersonalizzazioneId = bs.PersonalizzazioneId,
-                DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                Prezzo = bs.Prezzo,
-                ImmagineUrl = bs.ImmagineUrl,
-                Disponibile = bs.Disponibile,
-                SempreDisponibile = bs.SempreDisponibile,
-                Priorita = bs.Priorita,
-                DataCreazione = bs.DataCreazione,
-                DataAggiornamento = bs.DataAggiornamento,
-                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
+                DimensioneBicchiere = dimensione != null
                     ? new DimensioneBicchiereDTO
                     {
                         DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
@@ -182,400 +131,1305 @@ namespace Repository.Service
                         Moltiplicatore = dimensione.Moltiplicatore
                     }
                     : null
-            })
-            .OrderBy(bs => bs.Priorita)
-            .ToList();
+            };
         }
 
-        public async Task<IEnumerable<BevandaStandardDTO>> GetByPersonalizzazioneAsync(int personalizzazioneId)
+        private async Task<List<BevandaStandardDTO>> MapToDTOList(List<BevandaStandard> bevandeStandard)
         {
-            var bevandeStandard = await _context.BevandaStandard
-                .AsNoTracking()
-                .Where(bs => bs.PersonalizzazioneId == personalizzazioneId && bs.SempreDisponibile)
-                .ToListAsync();
-
-            var dimensioniBicchieri = await _context.DimensioneBicchiere
-                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
+            var dimensioneIds = bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Distinct().ToList();
+            var dimensioni = await _context.DimensioneBicchiere
+                .Where(d => dimensioneIds.Contains(d.DimensioneBicchiereId))
                 .ToDictionaryAsync(d => d.DimensioneBicchiereId);
 
-            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            var result = new List<BevandaStandardDTO>();
+
+            foreach (var bs in bevandeStandard)
             {
-                ArticoloId = bs.ArticoloId,
-                PersonalizzazioneId = bs.PersonalizzazioneId,
-                DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                Prezzo = bs.Prezzo,
-                ImmagineUrl = bs.ImmagineUrl,
-                Disponibile = bs.Disponibile,
-                SempreDisponibile = bs.SempreDisponibile,
-                Priorita = bs.Priorita,
-                DataCreazione = bs.DataCreazione,
-                DataAggiornamento = bs.DataAggiornamento,
-                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
-                    ? new DimensioneBicchiereDTO
-                    {
-                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
-                        Sigla = dimensione.Sigla,
-                        Descrizione = dimensione.Descrizione,
-                        Capienza = dimensione.Capienza,
-                        UnitaMisuraId = dimensione.UnitaMisuraId,
-                        PrezzoBase = dimensione.PrezzoBase,
-                        Moltiplicatore = dimensione.Moltiplicatore
-                    }
-                    : null
-            })
-            .OrderBy(bs => bs.Priorita)
-            .ToList();
-        }
+                dimensioni.TryGetValue(bs.DimensioneBicchiereId, out var dimensione);
 
-        public async Task<BevandaStandardDTO> AddAsync(BevandaStandardDTO bevandaStandardDto) // ✅ CORREGGI: ritorna DTO
-        {
-            if (bevandaStandardDto == null)
-                throw new ArgumentNullException(nameof(bevandaStandardDto));
-
-            // ✅ CORREZIONE: Prima crea il record in ARTICOLO
-            var articolo = new Articolo
-            {
-                Tipo = "BEVANDA_STANDARD",
-                DataCreazione = DateTime.Now,
-                DataAggiornamento = DateTime.Now
-            };
-
-            _context.Articolo.Add(articolo);
-            await _context.SaveChangesAsync(); // Salva per ottenere l'ID generato
-
-            // ✅ CORREZIONE: Poi crea la bevanda standard con l'ArticoloId generato
-            var bevandaStandard = new BevandaStandard
-            {
-                ArticoloId = articolo.ArticoloId, // ✅ USA ArticoloId generato automaticamente
-                PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId,
-                DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId,
-                Prezzo = bevandaStandardDto.Prezzo,
-                ImmagineUrl = bevandaStandardDto.ImmagineUrl,
-                Disponibile = bevandaStandardDto.Disponibile,
-                SempreDisponibile = bevandaStandardDto.SempreDisponibile,
-                Priorita = bevandaStandardDto.Priorita, // ✅ NOT NULL - valore dal DTO
-                DataCreazione = DateTime.Now, // ✅ NOT NULL - valore default
-                DataAggiornamento = DateTime.Now // ✅ NOT NULL - valore default
-            };
-
-            _context.BevandaStandard.Add(bevandaStandard);
-            await _context.SaveChangesAsync();
-
-            // Aggiorna il DTO con i valori del database
-            bevandaStandardDto.ArticoloId = bevandaStandard.ArticoloId;
-            bevandaStandardDto.DataCreazione = bevandaStandard.DataCreazione;
-            bevandaStandardDto.DataAggiornamento = bevandaStandard.DataAggiornamento;
-
-            return bevandaStandardDto; // ✅ AGGIUNGI return
-        }
-
-        public async Task UpdateAsync(BevandaStandardDTO bevandaStandardDto)
-        {
-            if (bevandaStandardDto == null) // ✅ AGGIUNGI validazione
-                throw new ArgumentNullException(nameof(bevandaStandardDto));
-
-            var bevandaStandard = await _context.BevandaStandard
-                .FirstOrDefaultAsync(bs => bs.ArticoloId == bevandaStandardDto.ArticoloId);
-
-            if (bevandaStandard == null)
-                throw new ArgumentException($"BevandaStandard con ArticoloId {bevandaStandardDto.ArticoloId} non trovata");
-
-            bevandaStandard.PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId;
-            bevandaStandard.DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId;
-            bevandaStandard.Prezzo = bevandaStandardDto.Prezzo;
-            bevandaStandard.ImmagineUrl = bevandaStandardDto.ImmagineUrl;
-            bevandaStandard.Disponibile = bevandaStandardDto.Disponibile;
-            bevandaStandard.SempreDisponibile = bevandaStandardDto.SempreDisponibile;
-            bevandaStandard.Priorita = bevandaStandardDto.Priorita; // ✅ NOT NULL - valore dal DTO
-            bevandaStandard.DataAggiornamento = DateTime.Now; // ✅ NOT NULL - aggiornamento automatico
-
-            await _context.SaveChangesAsync();
-
-            bevandaStandardDto.DataAggiornamento = bevandaStandard.DataAggiornamento;
-        }
-
-        public async Task DeleteAsync(int articoloId)
-        {
-            var bevandaStandard = await _context.BevandaStandard
-                .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId);
-
-            if (bevandaStandard != null)
-            {
-                _context.BevandaStandard.Remove(bevandaStandard);
-                await _context.SaveChangesAsync();
-            }
-        }
-
-        public async Task<bool> ExistsAsync(int articoloId)
-        {
-            return await _context.BevandaStandard
-                .AnyAsync(bs => bs.ArticoloId == articoloId);
-        }
-
-        public async Task<bool> ExistsByCombinazioneAsync(int personalizzazioneId, int dimensioneBicchiereId)
-        {
-            return await _context.BevandaStandard
-                .AnyAsync(bs => bs.PersonalizzazioneId == personalizzazioneId &&
-                              bs.DimensioneBicchiereId == dimensioneBicchiereId);
-        }
-
-        // ✅ METODI PER CARD PRODOTTO
-        public async Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiAsync()
-        {
-            // 1. Recupera solo bevande SEMPRE disponibili
-            var bevandeStandard = await _context.BevandaStandard
-                .AsNoTracking()
-                .Where(bs => bs.SempreDisponibile)
-                .ToListAsync();
-
-            var risultati = new List<BevandaStandardCardDTO>();
-
-            foreach (var bevanda in bevandeStandard)
-            {
-                // 2. Carica dati correlati SEPARATAMENTE (senza Include)
-                var personalizzazione = await _context.Personalizzazione
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevanda.PersonalizzazioneId);
-
-                // 3. Carica ingredienti della personalizzazione
-                var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bevanda.PersonalizzazioneId);
-
-                // 4. Calcola prezzi per dimensioni
-                var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bevanda);
-
-                var cardDto = new BevandaStandardCardDTO
+                result.Add(new BevandaStandardDTO
                 {
-                    ArticoloId = bevanda.ArticoloId,
-                    Nome = personalizzazione?.Nome ?? "Bevanda Standard",
-                    Descrizione = personalizzazione?.Descrizione,
-                    ImmagineUrl = bevanda.ImmagineUrl,
-                    Disponibile = bevanda.Disponibile,
-                    SempreDisponibile = bevanda.SempreDisponibile,
-                    Priorita = bevanda.Priorita,
-                    PrezziPerDimensioni = prezziPerDimensioni,
-                    Ingredienti = ingredienti
-                };
-
-                risultati.Add(cardDto);
+                    ArticoloId = bs.ArticoloId,
+                    PersonalizzazioneId = bs.PersonalizzazioneId,
+                    DimensioneBicchiereId = bs.DimensioneBicchiereId,
+                    Prezzo = bs.Prezzo,
+                    ImmagineUrl = bs.ImmagineUrl,
+                    Disponibile = bs.Disponibile,
+                    SempreDisponibile = bs.SempreDisponibile,
+                    Priorita = bs.Priorita,
+                    DataCreazione = bs.DataCreazione,
+                    DataAggiornamento = bs.DataAggiornamento,
+                    DimensioneBicchiere = dimensione != null
+                        ? new DimensioneBicchiereDTO
+                        {
+                            DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
+                            Sigla = dimensione.Sigla,
+                            Descrizione = dimensione.Descrizione,
+                            Capienza = dimensione.Capienza,
+                            UnitaMisuraId = dimensione.UnitaMisuraId,
+                            PrezzoBase = dimensione.PrezzoBase,
+                            Moltiplicatore = dimensione.Moltiplicatore
+                        }
+                        : null
+                });
             }
 
-            return risultati.OrderByDescending(b => b.Priorita).ThenBy(b => b.Nome);
+            return result;
         }
 
-        public async Task<BevandaStandardCardDTO?> GetCardProdottoByIdAsync(int articoloId)
+        private async Task<BevandaStandardCardDTO> MapToCardDTO(BevandaStandard bevandaStandard)
         {
-            // 1. Recupera bevanda (solo se SEMPRE disponibile)
-            var bevanda = await _context.BevandaStandard
-                .AsNoTracking()
-                .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId && bs.SempreDisponibile);
-
-            if (bevanda == null) return null;
-
-            // 2. Carica dati correlati SEPARATAMENTE
             var personalizzazione = await _context.Personalizzazione
                 .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevanda.PersonalizzazioneId);
+                .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevandaStandard.PersonalizzazioneId);
 
-            // 3. Carica ingredienti
-            var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bevanda.PersonalizzazioneId);
-
-            // 4. Calcola prezzi
-            var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bevanda);
+            var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bevandaStandard.PersonalizzazioneId);
+            var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bevandaStandard);
 
             return new BevandaStandardCardDTO
             {
-                ArticoloId = bevanda.ArticoloId,
+                ArticoloId = bevandaStandard.ArticoloId,
                 Nome = personalizzazione?.Nome ?? "Bevanda Standard",
                 Descrizione = personalizzazione?.Descrizione,
-                ImmagineUrl = bevanda.ImmagineUrl,
-                Disponibile = bevanda.Disponibile,
-                SempreDisponibile = bevanda.SempreDisponibile,
-                Priorita = bevanda.Priorita,
+                ImmagineUrl = bevandaStandard.ImmagineUrl,
+                Disponibile = bevandaStandard.Disponibile,
+                SempreDisponibile = bevandaStandard.SempreDisponibile,
+                Priorita = bevandaStandard.Priorita,
                 PrezziPerDimensioni = prezziPerDimensioni,
                 Ingredienti = ingredienti
             };
         }
 
-        // ✅ METODI PRIVATI DI SUPPORTO
-        private async Task<List<string>> GetIngredientiByPersonalizzazioneAsync(int personalizzazioneId)
+        private async Task<List<BevandaStandardCardDTO>> MapToCardDTOList(List<BevandaStandard> bevandeStandard)
         {
-            var ingredienti = await _context.PersonalizzazioneIngrediente
-                .AsNoTracking()
-                .Where(pi => pi.PersonalizzazioneId == personalizzazioneId)
-                .Join(_context.Ingrediente,
-                    pi => pi.IngredienteId,
-                    i => i.IngredienteId,
-                    (pi, i) => i.Ingrediente1)
-                .Where(nome => !string.IsNullOrEmpty(nome))
-                .ToListAsync();
+            var personalizzazioneIds = bevandeStandard.Select(bs => bs.PersonalizzazioneId).Distinct().ToList();
 
-            return ingredienti;
-        }
+            var personalizzazioni = await _context.Personalizzazione
+                .Where(p => personalizzazioneIds.Contains(p.PersonalizzazioneId))
+                .ToDictionaryAsync(p => p.PersonalizzazioneId);
 
-        private async Task<List<PrezzoDimensioneDTO>> CalcolaPrezziPerDimensioniAsync(BevandaStandard bevanda)
-        {
-            var dimensione = await _context.DimensioneBicchiere
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == bevanda.DimensioneBicchiereId);
+            var result = new List<BevandaStandardCardDTO>();
 
-            if (dimensione == null)
-                return new List<PrezzoDimensioneDTO>();
-
-            var taxRateId = 1; // IVA standard
-            var aliquotaIva = await GetAliquotaIvaAsync(taxRateId);
-
-            // Calcola prezzo con moltiplicatore dimensione
-            var prezzoBase = bevanda.Prezzo * dimensione.Moltiplicatore;
-            var prezzoIva = CalcolaIva(prezzoBase, aliquotaIva);
-            var prezzoTotale = prezzoBase + prezzoIva;
-
-            return new List<PrezzoDimensioneDTO>
+            foreach (var bs in bevandeStandard)
             {
-                new PrezzoDimensioneDTO
+                personalizzazioni.TryGetValue(bs.PersonalizzazioneId, out var personalizzazione);
+
+                var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bs.PersonalizzazioneId);
+                var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bs);
+
+                result.Add(new BevandaStandardCardDTO
                 {
-                    DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
-                    Sigla = dimensione.Sigla,
-                    Descrizione = $"{dimensione.Descrizione} {dimensione.Capienza}ml",
-                    PrezzoNetto = Math.Round(prezzoBase, 2),
-                    PrezzoIva = Math.Round(prezzoIva, 2),
-                    PrezzoTotale = Math.Round(prezzoTotale, 2),
-                    AliquotaIva = aliquotaIva
-                }
-            };
-        }
-
-        private async Task<decimal> GetAliquotaIvaAsync(int taxRateId)
-        {
-            var taxRate = await _context.TaxRates
-                .AsNoTracking()
-                .FirstOrDefaultAsync(tr => tr.TaxRateId == taxRateId);
-
-            return taxRate?.Aliquota ?? 22.00m;
-        }
-
-        private decimal CalcolaIva(decimal prezzoNetto, decimal aliquotaIva)
-        {
-            return prezzoNetto * (aliquotaIva / 100);
-        }
-
-        public async Task<IEnumerable<BevandaStandardDTO>> GetPrimoPianoAsync()
-        {
-            var bevandeStandard = await _context.BevandaStandard
-                .AsNoTracking()
-                .Where(bs => bs.Disponibile && bs.SempreDisponibile)
-                .OrderByDescending(bs => bs.Priorita) // ORDINA PRIMA del ToListAsync!
-                .ThenBy(bs => bs.ArticoloId) // Ordinamento secondario per stabilità
-                .ToListAsync();
-
-            var dimensioniBicchieri = await _context.DimensioneBicchiere
-                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
-                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
-
-            // RIMUOVI l'OrderByDescending qui sotto, è già stato applicato sopra
-            return bevandeStandard.Select(bs => new BevandaStandardDTO
-            {
-                ArticoloId = bs.ArticoloId,
-                PersonalizzazioneId = bs.PersonalizzazioneId,
-                DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                Prezzo = bs.Prezzo,
-                ImmagineUrl = bs.ImmagineUrl,
-                Disponibile = bs.Disponibile,
-                SempreDisponibile = bs.SempreDisponibile,
-                Priorita = bs.Priorita,
-                DataCreazione = bs.DataCreazione,
-                DataAggiornamento = bs.DataAggiornamento,
-                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
-                    ? new DimensioneBicchiereDTO
-                    {
-                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
-                        Sigla = dimensione.Sigla,
-                        Descrizione = dimensione.Descrizione,
-                        Capienza = dimensione.Capienza,
-                        UnitaMisuraId = dimensione.UnitaMisuraId,
-                        PrezzoBase = dimensione.PrezzoBase,
-                        Moltiplicatore = dimensione.Moltiplicatore
-                    }
-                    : null
-            })
-            .ToList(); // Solo ToList, niente OrderBy qui
-        }
-
-        public async Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync()
-        {
-            var bevandeStandard = await _context.BevandaStandard
-                .AsNoTracking()
-                .Where(bs => bs.Disponibile && bs.SempreDisponibile) // Primo piano + visibili
-                .ToListAsync();
-
-            var risultati = new List<BevandaStandardCardDTO>();
-
-            foreach (var bevanda in bevandeStandard)
-            {
-                var personalizzazione = await _context.Personalizzazione
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevanda.PersonalizzazioneId);
-
-                var ingredienti = await GetIngredientiByPersonalizzazioneAsync(bevanda.PersonalizzazioneId);
-                var prezziPerDimensioni = await CalcolaPrezziPerDimensioniAsync(bevanda);
-
-                var cardDto = new BevandaStandardCardDTO
-                {
-                    ArticoloId = bevanda.ArticoloId,
+                    ArticoloId = bs.ArticoloId,
                     Nome = personalizzazione?.Nome ?? "Bevanda Standard",
                     Descrizione = personalizzazione?.Descrizione,
-                    ImmagineUrl = bevanda.ImmagineUrl,
-                    Disponibile = bevanda.Disponibile,
-                    SempreDisponibile = bevanda.SempreDisponibile,
-                    Priorita = bevanda.Priorita,
+                    ImmagineUrl = bs.ImmagineUrl,
+                    Disponibile = bs.Disponibile,
+                    SempreDisponibile = bs.SempreDisponibile,
+                    Priorita = bs.Priorita,
                     PrezziPerDimensioni = prezziPerDimensioni,
                     Ingredienti = ingredienti
-                };
-
-                risultati.Add(cardDto);
+                });
             }
 
-            return risultati.OrderByDescending(b => b.Priorita).ThenBy(b => b.Nome);
+            return result;
         }
 
-        public async Task<IEnumerable<BevandaStandardDTO>> GetSecondoPianoAsync()
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetAllAsync(int page = 1, int pageSize = 10)
         {
-            var bevandeStandard = await _context.BevandaStandard
-                .AsNoTracking()
-                .Where(bs => !bs.Disponibile && bs.SempreDisponibile) // Disponibile = false (secondo piano)
-                .OrderByDescending(bs => bs.Priorita) // Stesso ordinamento del primo piano
-                .ThenBy(bs => bs.ArticoloId) // Ordinamento secondario per stabilità
-                .ToListAsync();
-
-            var dimensioniBicchieri = await _context.DimensioneBicchiere
-                .Where(d => bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Contains(d.DimensioneBicchiereId))
-                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
-
-            return bevandeStandard.Select(bs => new BevandaStandardDTO
+            try
             {
-                ArticoloId = bs.ArticoloId,
-                PersonalizzazioneId = bs.PersonalizzazioneId,
-                DimensioneBicchiereId = bs.DimensioneBicchiereId,
-                Prezzo = bs.Prezzo,
-                ImmagineUrl = bs.ImmagineUrl,
-                Disponibile = bs.Disponibile,
-                SempreDisponibile = bs.SempreDisponibile,
-                Priorita = bs.Priorita,
-                DataCreazione = bs.DataCreazione,
-                DataAggiornamento = bs.DataAggiornamento,
-                DimensioneBicchiere = dimensioniBicchieri.TryGetValue(bs.DimensioneBicchiereId, out var dimensione)
-                    ? new DimensioneBicchiereDTO
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .OrderByDescending(bs => bs.DataCreazione);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = totalCount switch
                     {
-                        DimensioneBicchiereId = dimensione.DimensioneBicchiereId,
-                        Sigla = dimensione.Sigla,
-                        Descrizione = dimensione.Descrizione,
-                        Capienza = dimensione.Capienza,
-                        UnitaMisuraId = dimensione.UnitaMisuraId,
-                        PrezzoBase = dimensione.PrezzoBase,
-                        Moltiplicatore = dimensione.Moltiplicatore
+                        0 => "Nessuna bevanda standard trovata",
+                        1 => "Trovata 1 bevanda standard",
+                        _ => $"Trovate {totalCount} bevande standard"
                     }
-                    : null
-            })
-            .ToList(); // Solo ToList, niente OrderBy qui (già applicato sopra)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetAllAsync");
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande standard"
+                };
+            }
+        }
+
+        public async Task<SingleResponseDTO<BevandaStandardDTO>> GetByIdAsync(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse("ID articolo non valido");
+
+                var bevandaStandard = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId);
+
+                if (bevandaStandard == null)
+                    return SingleResponseDTO<BevandaStandardDTO>.NotFoundResponse($"Bevanda standard con ArticoloId {articoloId} non trovata");
+
+                var dto = await MapToDTO(bevandaStandard);
+
+                return SingleResponseDTO<BevandaStandardDTO>.SuccessResponse(
+                    dto,
+                    $"Bevanda standard con ArticoloId {articoloId} trovata");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByIdAsync per ArticoloId: {ArticoloId}", articoloId);
+                return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse("Errore interno nel recupero della bevanda standard");
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetDisponibiliAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile)
+                    .OrderByDescending(bs => bs.Priorita)
+                    .ThenBy(bs => bs.ArticoloId);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda standard disponibile trovata",
+                    1 => "Trovata 1 bevanda standard disponibile",
+                    _ => $"Trovate {totalCount} bevande standard disponibili"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetDisponibiliAsync");
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande standard disponibili"
+                };
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetAllOrderedByDimensioneAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile)
+                    .OrderBy(bs => bs.DimensioneBicchiereId)
+                    .ThenByDescending(bs => bs.Priorita);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda standard trovata per dimensione bicchiere",
+                    1 => "Trovata 1 bevanda standard per dimensione bicchiere",
+                    _ => $"Trovate {totalCount} bevande standard per dimensione bicchiere"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByDimensioneBicchiereAsync");
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande standard per dimensione bicchiere"
+                };
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetAllOrderedByPersonalizzazioneAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile)
+                    .OrderBy(bs => bs.PersonalizzazioneId)
+                    .ThenByDescending(bs => bs.Priorita);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda standard trovata per personalizzazione",
+                    1 => "Trovata 1 bevanda standard per personalizzazione",
+                    _ => $"Trovate {totalCount} bevande standard per personalizzazione"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByPersonalizzazioneAsync");
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande standard per personalizzazione"
+                };
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId, int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                if (dimensioneBicchiereId <= 0)
+                    return new PaginatedResponseDTO<BevandaStandardDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "ID dimensione bicchiere non valido"
+                    };
+
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.DimensioneBicchiereId == dimensioneBicchiereId && bs.SempreDisponibile)
+                    .OrderByDescending(bs => bs.Priorita);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => $"Nessuna bevanda standard trovata per dimensione bicchiere ID: {dimensioneBicchiereId}",
+                    1 => $"Trovata 1 bevanda standard per dimensione bicchiere ID: {dimensioneBicchiereId}",
+                    _ => $"Trovate {totalCount} bevande standard per dimensione bicchiere ID: {dimensioneBicchiereId}"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByDimensioneBicchiereAsync per DimensioneBicchiereId: {DimensioneBicchiereId}",
+                    dimensioneBicchiereId);
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande standard per dimensione bicchiere"
+                };
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetByPersonalizzazioneAsync(int personalizzazioneId, int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                if (personalizzazioneId <= 0)
+                    return new PaginatedResponseDTO<BevandaStandardDTO>
+                    {
+                        Data = [],
+                        Page = 1,
+                        PageSize = pageSize,
+                        TotalCount = 0,
+                        Message = "ID personalizzazione non valido"
+                    };
+
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.PersonalizzazioneId == personalizzazioneId && bs.SempreDisponibile)
+                    .OrderByDescending(bs => bs.Priorita);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => $"Nessuna bevanda standard trovata per personalizzazione ID: {personalizzazioneId}",
+                    1 => $"Trovata 1 bevanda standard per personalizzazione ID: {personalizzazioneId}",
+                    _ => $"Trovate {totalCount} bevande standard per personalizzazione ID: {personalizzazioneId}"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetByPersonalizzazioneAsync per PersonalizzazioneId: {PersonalizzazioneId}", personalizzazioneId);
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande standard per personalizzazione"
+                };
+            }
+        }
+
+        private async Task<bool> ExistsByCombinazioneInternalAsync(int personalizzazioneId, int dimensioneBicchiereId)
+        {
+            return await _context.BevandaStandard
+                .AsNoTracking()
+                .AnyAsync(bs => bs.PersonalizzazioneId == personalizzazioneId &&
+                                bs.DimensioneBicchiereId == dimensioneBicchiereId);
+        }
+
+        public async Task<SingleResponseDTO<BevandaStandardDTO>> AddAsync(BevandaStandardDTO bevandaStandardDto)
+        {
+            try
+            {
+                ArgumentNullException.ThrowIfNull(bevandaStandardDto);
+
+                // ✅ Validazione vincoli configurazione
+                if (bevandaStandardDto.PersonalizzazioneId <= 0)
+                    return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse("Il parametro PersonalizzazioneId è obbligatorio");
+
+                if (bevandaStandardDto.DimensioneBicchiereId <= 0)
+                    return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse("Il parametro DimensioneBicchiereId è obbligatorio");
+
+                // ✅ Validazione prezzo decimal(4,2)
+                if (bevandaStandardDto.Prezzo < 0 || bevandaStandardDto.Prezzo > 99.99m)
+                    return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse("Il prezzo deve essere tra 0.00 e 99.99");
+
+                // ✅ Validazione priorità 1-10
+                if (bevandaStandardDto.Priorita < 1 || bevandaStandardDto.Priorita > 10)
+                    return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse("La priorità deve essere tra 1 e 10");
+
+                // ✅ Vincolo di coerenza: (!SempreDisponibile && !Disponibile) || (SempreDisponibile)
+                if (!bevandaStandardDto.SempreDisponibile && bevandaStandardDto.Disponibile)
+                {
+                    // Se SempreDisponibile=false, allora Disponibile DEVE essere false
+                    bevandaStandardDto.Disponibile = false;
+                    _logger.LogWarning("Vincolo di coerenza: Disponibile forzato a false perché SempreDisponibile è false");
+                }
+
+                // ✅ Controllo esistenza combinazione (PersonalizzazioneId + DimensioneBicchiereId)
+                if (await ExistsByCombinazioneInternalAsync(bevandaStandardDto.PersonalizzazioneId, bevandaStandardDto.DimensioneBicchiereId))
+                    return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse(
+                        $"Esiste già una bevanda standard con PersonalizzazioneId: {bevandaStandardDto.PersonalizzazioneId} e DimensioneBicchiereId: {bevandaStandardDto.DimensioneBicchiereId}");
+
+                // ✅ Creazione Articolo (obbligatorio per FK)
+                var articolo = new Articolo
+                {
+                    Tipo = "BEVANDA_STANDARD",
+                    DataCreazione = DateTime.Now,
+                    DataAggiornamento = DateTime.Now
+                };
+
+                _context.Articolo.Add(articolo);
+                await _context.SaveChangesAsync();
+
+                // ✅ Creazione BevandaStandard con ArticoloId generato
+                var bevandaStandard = new BevandaStandard
+                {
+                    ArticoloId = articolo.ArticoloId,
+                    PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId,
+                    DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId,
+                    Prezzo = Math.Round(bevandaStandardDto.Prezzo, 2), // ✅ Arrotondamento a 2 decimali
+                    ImmagineUrl = StringHelper.IsValidUrlInput(bevandaStandardDto.ImmagineUrl)
+                        ? bevandaStandardDto.ImmagineUrl
+                        : null,
+                    Disponibile = bevandaStandardDto.Disponibile,
+                    SempreDisponibile = bevandaStandardDto.SempreDisponibile,
+                    Priorita = bevandaStandardDto.Priorita,
+                    DataCreazione = DateTime.Now,
+                    DataAggiornamento = DateTime.Now
+                };
+
+                _context.BevandaStandard.Add(bevandaStandard);
+                await _context.SaveChangesAsync();
+
+                // ✅ Aggiorna DTO con valori DB
+                bevandaStandardDto.ArticoloId = bevandaStandard.ArticoloId;
+                bevandaStandardDto.DataCreazione = bevandaStandard.DataCreazione;
+                bevandaStandardDto.DataAggiornamento = bevandaStandard.DataAggiornamento;
+
+                return SingleResponseDTO<BevandaStandardDTO>.SuccessResponse(
+                    bevandaStandardDto,
+                    $"Bevanda standard creata con successo (ArticoloId: {bevandaStandardDto.ArticoloId})");
+            }
+            catch (DbUpdateException dbEx) when (IsUniqueConstraintViolation(dbEx))
+            {
+                // ✅ NUOVO: Gestione specifica per violazione vincolo UNIQUE
+                _logger.LogError(dbEx, "Violazione vincolo UNIQUE in AddAsync");
+                return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse(
+                    $"Esiste già una bevanda standard con PersonalizzazioneId: {bevandaStandardDto.PersonalizzazioneId} e DimensioneBicchiereId: {bevandaStandardDto.DimensioneBicchiereId}");
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore DB in AddAsync - Vincoli violati");
+                return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse(
+                    "Errore di validazione del database. Verifica i vincoli (prezzo, priorità, coerenza disponibilità)");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in AddAsync");
+                return SingleResponseDTO<BevandaStandardDTO>.ErrorResponse(
+                    "Errore interno durante la creazione della bevanda standard");
+            }
+        }
+
+        private async Task<bool> ExistsByCombinazioneInternalAsync(int personalizzazioneId, int dimensioneBicchiereId, int excludeArticoloId)
+        {
+            return await _context.BevandaStandard
+                .AsNoTracking()
+                .AnyAsync(bs => bs.PersonalizzazioneId == personalizzazioneId &&
+                               bs.DimensioneBicchiereId == dimensioneBicchiereId &&
+                               bs.ArticoloId != excludeArticoloId);
+        }
+
+        public async Task<SingleResponseDTO<bool>> UpdateAsync(BevandaStandardDTO bevandaStandardDto)
+        {
+            try
+            {
+                ArgumentNullException.ThrowIfNull(bevandaStandardDto);
+
+                if (bevandaStandardDto.ArticoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID bevanda standard obbligatorio");
+
+                // ✅ Validazione vincoli configurazione
+                if (bevandaStandardDto.Prezzo < 0 || bevandaStandardDto.Prezzo > 99.99m)
+                    return SingleResponseDTO<bool>.ErrorResponse("Il prezzo deve essere tra 0.00 e 99.99");
+
+                if (bevandaStandardDto.Priorita < 1 || bevandaStandardDto.Priorita > 10)
+                    return SingleResponseDTO<bool>.ErrorResponse("La priorità deve essere tra 1 e 10");
+
+                // ✅ Vincolo di coerenza: (!SempreDisponibile && !Disponibile) || (SempreDisponibile)
+                if (!bevandaStandardDto.SempreDisponibile && bevandaStandardDto.Disponibile)
+                {
+                    bevandaStandardDto.Disponibile = false;
+                    _logger.LogWarning("Vincolo di coerenza in aggiornamento: Disponibile forzato a false");
+                }
+
+                var bevandaStandard = await _context.BevandaStandard
+                    .FirstOrDefaultAsync(bs => bs.ArticoloId == bevandaStandardDto.ArticoloId);
+
+                if (bevandaStandard == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Bevanda standard con ArticoloId {bevandaStandardDto.ArticoloId} non trovata");
+
+                // ✅ CRITICO: Controllo duplicati per combinazione se stiamo cambiando PersonalizzazioneId o DimensioneBicchiereId
+                bool cambiaPersonalizzazione = bevandaStandard.PersonalizzazioneId != bevandaStandardDto.PersonalizzazioneId;
+                bool cambiaDimensione = bevandaStandard.DimensioneBicchiereId != bevandaStandardDto.DimensioneBicchiereId;
+
+                if ((cambiaPersonalizzazione || cambiaDimensione) &&
+                    await ExistsByCombinazioneInternalAsync(bevandaStandardDto.PersonalizzazioneId, bevandaStandardDto.DimensioneBicchiereId, bevandaStandardDto.ArticoloId))
+                {
+                    return SingleResponseDTO<bool>.ErrorResponse(
+                        $"Esiste già un'altra bevanda standard con PersonalizzazioneId: {bevandaStandardDto.PersonalizzazioneId} e DimensioneBicchiereId: {bevandaStandardDto.DimensioneBicchiereId}");
+                }
+
+                bool hasChanges = false;
+
+                // ✅ Controllo cambiamenti con validazione
+                if (cambiaPersonalizzazione)
+                {
+                    bevandaStandard.PersonalizzazioneId = bevandaStandardDto.PersonalizzazioneId;
+                    hasChanges = true;
+                }
+
+                if (cambiaDimensione)
+                {
+                    bevandaStandard.DimensioneBicchiereId = bevandaStandardDto.DimensioneBicchiereId;
+                    hasChanges = true;
+                }
+
+                var prezzoArrotondato = Math.Round(bevandaStandardDto.Prezzo, 2);
+                if (bevandaStandard.Prezzo != prezzoArrotondato)
+                {
+                    bevandaStandard.Prezzo = prezzoArrotondato;
+                    hasChanges = true;
+                }
+
+                var immagineUrlValidata = StringHelper.IsValidUrlInput(bevandaStandardDto.ImmagineUrl)
+                    ? bevandaStandardDto.ImmagineUrl
+                    : null;
+                if (bevandaStandard.ImmagineUrl != immagineUrlValidata)
+                {
+                    bevandaStandard.ImmagineUrl = immagineUrlValidata;
+                    hasChanges = true;
+                }
+
+                if (bevandaStandard.Disponibile != bevandaStandardDto.Disponibile)
+                {
+                    bevandaStandard.Disponibile = bevandaStandardDto.Disponibile;
+                    hasChanges = true;
+                }
+
+                if (bevandaStandard.SempreDisponibile != bevandaStandardDto.SempreDisponibile)
+                {
+                    bevandaStandard.SempreDisponibile = bevandaStandardDto.SempreDisponibile;
+                    hasChanges = true;
+                }
+
+                if (bevandaStandard.Priorita != bevandaStandardDto.Priorita)
+                {
+                    bevandaStandard.Priorita = bevandaStandardDto.Priorita;
+                    hasChanges = true;
+                }
+
+                if (hasChanges)
+                {
+                    bevandaStandard.DataAggiornamento = DateTime.Now;
+                    await _context.SaveChangesAsync();
+                    return SingleResponseDTO<bool>.SuccessResponse(true,
+                        $"Bevanda standard con ArticoloId: {bevandaStandard.ArticoloId} aggiornata con successo");
+                }
+                else
+                {
+                    return SingleResponseDTO<bool>.SuccessResponse(false,
+                        $"Nessuna modifica necessaria per bevanda standard con ArticoloId: {bevandaStandard.ArticoloId}");
+                }
+            }
+            catch (DbUpdateException dbEx) when (IsUniqueConstraintViolation(dbEx))
+            {
+                // ✅ NUOVO: Gestione specifica per violazione vincolo UNIQUE
+                _logger.LogError(dbEx, "Violazione vincolo UNIQUE in UpdateAsync per ArticoloId: {ArticoloId}",
+                    bevandaStandardDto?.ArticoloId);
+                return SingleResponseDTO<bool>.ErrorResponse(
+                    $"Esiste già un'altra bevanda standard con PersonalizzazioneId: {bevandaStandardDto?.PersonalizzazioneId} e DimensioneBicchiereId: {bevandaStandardDto?.DimensioneBicchiereId}");
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore DB in UpdateAsync per ArticoloId: {ArticoloId}", bevandaStandardDto?.ArticoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore di validazione del database durante l'aggiornamento");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in UpdateAsync per ArticoloId: {ArticoloId}", bevandaStandardDto?.ArticoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante l'aggiornamento della bevanda standard");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> DeleteAsync(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID articolo non valido");
+
+                var bevandaStandard = await _context.BevandaStandard
+                    .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId);
+
+                if (bevandaStandard == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse(
+                        $"Bevanda standard con ArticoloId: {articoloId} non trovata");
+
+                // ✅ DeleteBehavior.NoAction → dobbiamo eliminare manualmente in ordine inverso
+                _context.BevandaStandard.Remove(bevandaStandard);
+
+                // ✅ Elimina anche l'Articolo associato (orphan removal)
+                var articolo = await _context.Articolo
+                    .FirstOrDefaultAsync(a => a.ArticoloId == articoloId);
+
+                if (articolo != null)
+                    _context.Articolo.Remove(articolo);
+
+                await _context.SaveChangesAsync();
+
+                return SingleResponseDTO<bool>.SuccessResponse(true,
+                    $"Bevanda standard con ArticoloId: {articoloId} eliminata con successo");
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Errore DB in DeleteAsync per ArticoloId: {ArticoloId}", articoloId);
+                return SingleResponseDTO<bool>.ErrorResponse(
+                    "Impossibile eliminare a causa di vincoli referenziali. Assicurati che non ci siano dipendenze");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in DeleteAsync per ArticoloId: {ArticoloId}", articoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante l'eliminazione della bevanda standard");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsAsync(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID non valido");
+
+                var exists = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .AnyAsync(bs => bs.ArticoloId == articoloId);
+
+                string message = exists
+                    ? $"Bevanda standard con ArticoloId {articoloId} esiste"
+                    : $"Bevanda standard con ArticoloId {articoloId} non trovata";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsAsync per ArticoloId: {ArticoloId}", articoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza della bevanda standard");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsByCombinazioneAsync(int personalizzazioneId, int dimensioneBicchiereId)
+        {
+            try
+            {
+                if (personalizzazioneId <= 0 || dimensioneBicchiereId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID non validi");
+
+                var exists = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .AnyAsync(bs => bs.PersonalizzazioneId == personalizzazioneId &&
+                                   bs.DimensioneBicchiereId == dimensioneBicchiereId);
+
+                string message = exists
+                    ? $"Bevanda standard con PersonalizzazioneId: {personalizzazioneId} e DimensioneBicchiereId: {dimensioneBicchiereId} esiste"
+                    : $"Bevanda standard con PersonalizzazioneId: {personalizzazioneId} e DimensioneBicchiereId: {dimensioneBicchiereId} non trovata";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsByCombinazioneAsync per PersonalizzazioneId: {PersonalizzazioneId} e DimensioneBicchiereId: {DimensioneBicchiereId}",
+                    personalizzazioneId, dimensioneBicchiereId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza della bevanda standard per combinazione");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ExistsByCombinazioneAsync(string personalizzazione, string descrizioneBicchiere)
+        {
+            try
+            {
+                if (!SecurityHelper.IsValidInput(personalizzazione) || !SecurityHelper.IsValidInput(descrizioneBicchiere))
+                    return SingleResponseDTO<bool>.ErrorResponse("Parametri di ricerca non validi");
+
+                var personalizzazioneNormalizzata = StringHelper.NormalizeSearchTerm(personalizzazione);
+                var descrizioneNormalizzata = StringHelper.NormalizeSearchTerm(descrizioneBicchiere);
+
+                var exists = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .Join(_context.Personalizzazione,
+                        bs => bs.PersonalizzazioneId,
+                        p => p.PersonalizzazioneId,
+                        (bs, p) => new { BevandaStandard = bs, Personalizzazione = p })
+                    .Join(_context.DimensioneBicchiere,
+                        bp => bp.BevandaStandard.DimensioneBicchiereId,
+                        d => d.DimensioneBicchiereId,
+                        (bp, d) => new { bp.BevandaStandard, bp.Personalizzazione, Dimensione = d })
+                    .AnyAsync(x =>
+                        (x.Personalizzazione.Nome != null &&
+                         StringHelper.ContainsCaseInsensitive(x.Personalizzazione.Nome, personalizzazioneNormalizzata)) &&
+                        (x.Dimensione.Descrizione != null &&
+                         StringHelper.ContainsCaseInsensitive(x.Dimensione.Descrizione, descrizioneNormalizzata)));
+
+                string message = exists
+                    ? $"Bevanda standard con personalizzazione: '{personalizzazione}' e descrizione bicchiere: '{descrizioneBicchiere}' esiste"
+                    : $"Bevanda standard con personalizzazione: '{personalizzazione}' e descrizione bicchiere: '{descrizioneBicchiere}' non trovata";
+
+                return SingleResponseDTO<bool>.SuccessResponse(exists, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ExistsByCombinazioneAsync per personalizzazione: {Personalizzazione} e descrizioneBicchiere: {DescrizioneBicchiere}",
+                    personalizzazione, descrizioneBicchiere);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza della bevanda standard per combinazione stringa");
+            }
+        }
+
+        //public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiAsync(int page = 1, int pageSize = 10)
+        //{
+        //    try
+        //    {
+        //        var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+        //        var skip = (safePage - 1) * safePageSize;
+
+        //        // ✅ Raggruppa per combinazione unica (ArticoloId, PersonalizzazioneId)
+        //        var query = _context.BevandaStandard
+        //            .AsNoTracking()
+        //            .Where(bs => bs.SempreDisponibile)
+        //            .GroupBy(bs => new { bs.ArticoloId, bs.PersonalizzazioneId })
+        //            .Select(g => g.First());
+
+        //        var totalCount = await query.CountAsync();
+
+        //        var bevandeStandard = await query
+        //            .OrderByDescending(bs => bs.Priorita)
+        //            .ThenBy(bs => bs.ArticoloId)
+        //            .Skip(skip)
+        //            .Take(safePageSize)
+        //            .ToListAsync();
+
+        //        var result = await MapToCardDTOList(bevandeStandard);
+
+        //        string message = totalCount switch
+        //        {
+        //            0 => "Nessuna card prodotto trovata",
+        //            1 => "Trovata 1 card prodotto",
+        //            _ => $"Trovate {totalCount} card prodotti"
+        //        };
+
+        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
+        //        {
+        //            Data = result,
+        //            Page = safePage,
+        //            PageSize = safePageSize,
+        //            TotalCount = totalCount,
+        //            Message = message
+        //        };
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Errore in GetCardProdottiAsync");
+        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
+        //        {
+        //            Data = [],
+        //            Page = 1,
+        //            PageSize = pageSize,
+        //            TotalCount = 0,
+        //            Message = "Errore nel recupero delle card prodotti"
+        //        };
+        //    }
+        //}
+
+        public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                // ✅ Rimosso GroupBy non necessario perché ArticoloId è univoco
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile)
+                    .OrderByDescending(bs => bs.Priorita)
+                    .ThenBy(bs => bs.ArticoloId);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToCardDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna card prodotto trovata",
+                    1 => "Trovata 1 card prodotto",
+                    _ => $"Trovate {totalCount} card prodotti"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardCardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetCardProdottiAsync");
+                return new PaginatedResponseDTO<BevandaStandardCardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle card prodotti"
+                };
+            }
+        }
+
+        public async Task<SingleResponseDTO<BevandaStandardCardDTO>> GetCardProdottoByIdAsync(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SingleResponseDTO<BevandaStandardCardDTO>.ErrorResponse("ID articolo non valido");
+
+                var bevanda = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.ArticoloId == articoloId && bs.SempreDisponibile)
+                    .FirstOrDefaultAsync();
+
+                if (bevanda == null)
+                    return SingleResponseDTO<BevandaStandardCardDTO>.NotFoundResponse(
+                        $"Card prodotto con ArticoloId {articoloId} non trovata o non disponibile");
+
+                var cardDto = await MapToCardDTO(bevanda);
+
+                return SingleResponseDTO<BevandaStandardCardDTO>.SuccessResponse(
+                    cardDto,
+                    $"Card prodotto con ArticoloId {articoloId} trovata");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetCardProdottoByIdAsync per ArticoloId: {ArticoloId}", articoloId);
+                return SingleResponseDTO<BevandaStandardCardDTO>.ErrorResponse(
+                    "Errore interno nel recupero della card prodotto");
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetPrimoPianoAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                // ✅ Vincolo: (!SempreDisponibile && !Disponibile) || (SempreDisponibile)
+                // Primo piano: SempreDisponibile=true E Disponibile=true
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile && bs.Disponibile)
+                    .OrderByDescending(bs => bs.Priorita)
+                    .ThenBy(bs => bs.ArticoloId);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda in primo piano trovata",
+                    1 => "Trovata 1 bevanda in primo piano",
+                    _ => $"Trovate {totalCount} bevande in primo piano"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetPrimoPianoAsync");
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande in primo piano"
+                };
+            }
+        }
+
+        public async Task<PaginatedResponseDTO<BevandaStandardDTO>> GetSecondoPianoAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                // ✅ Secondo piano: SempreDisponibile=true E Disponibile=false
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile && !bs.Disponibile)
+                    .OrderByDescending(bs => bs.Priorita)
+                    .ThenBy(bs => bs.ArticoloId);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda in secondo piano trovata",
+                    1 => "Trovata 1 bevanda in secondo piano",
+                    _ => $"Trovate {totalCount} bevande in secondo piano"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetSecondoPianoAsync");
+                return new PaginatedResponseDTO<BevandaStandardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle bevande in secondo piano"
+                };
+            }
+        }
+
+        //public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync(int page = 1, int pageSize = 10)
+        //{
+        //    try
+        //    {
+        //        var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+        //        var skip = (safePage - 1) * safePageSize;
+
+        //        // ✅ Card primo piano: raggruppate e SempreDisponibile=true E Disponibile=true
+        //        var query = _context.BevandaStandard
+        //            .AsNoTracking()
+        //            .Where(bs => bs.SempreDisponibile && bs.Disponibile)
+        //            .GroupBy(bs => new { bs.ArticoloId, bs.PersonalizzazioneId })
+        //            .Select(g => g.First());
+
+        //        var totalCount = await query.CountAsync();
+
+        //        var bevandeStandard = await query
+        //            .OrderByDescending(bs => bs.Priorita)
+        //            .ThenBy(bs => bs.ArticoloId)
+        //            .Skip(skip)
+        //            .Take(safePageSize)
+        //            .ToListAsync();
+
+        //        var result = await MapToCardDTOList(bevandeStandard);
+
+        //        string message = totalCount switch
+        //        {
+        //            0 => "Nessuna card prodotto in primo piano trovata",
+        //            1 => "Trovata 1 card prodotto in primo piano",
+        //            _ => $"Trovate {totalCount} card prodotti in primo piano"
+        //        };
+
+        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
+        //        {
+        //            Data = result,
+        //            Page = safePage,
+        //            PageSize = safePageSize,
+        //            TotalCount = totalCount,
+        //            Message = message
+        //        };
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Errore in GetCardProdottiPrimoPianoAsync");
+        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
+        //        {
+        //            Data = [],
+        //            Page = 1,
+        //            PageSize = pageSize,
+        //            TotalCount = 0,
+        //            Message = "Errore nel recupero delle card prodotti in primo piano"
+        //        };
+        //    }
+        //}
+
+        public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync(int page = 1, int pageSize = 10)
+        {
+            try
+            {
+                var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
+                var skip = (safePage - 1) * safePageSize;
+
+                // ✅ Rimosso GroupBy non necessario
+                var query = _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile && bs.Disponibile)
+                    .OrderByDescending(bs => bs.Priorita)
+                    .ThenBy(bs => bs.ArticoloId);
+
+                var totalCount = await query.CountAsync();
+
+                var bevandeStandard = await query
+                    .Skip(skip)
+                    .Take(safePageSize)
+                    .ToListAsync();
+
+                var result = await MapToCardDTOList(bevandeStandard);
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna card prodotto in primo piano trovata",
+                    1 => "Trovata 1 card prodotto in primo piano",
+                    _ => $"Trovate {totalCount} card prodotti in primo piano"
+                };
+
+                return new PaginatedResponseDTO<BevandaStandardCardDTO>
+                {
+                    Data = result,
+                    Page = safePage,
+                    PageSize = safePageSize,
+                    TotalCount = totalCount,
+                    Message = message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in GetCardProdottiPrimoPianoAsync");
+                return new PaginatedResponseDTO<BevandaStandardCardDTO>
+                {
+                    Data = [],
+                    Page = 1,
+                    PageSize = pageSize,
+                    TotalCount = 0,
+                    Message = "Errore nel recupero delle card prodotti in primo piano"
+                };
+            }
+        }
+
+        public async Task<SingleResponseDTO<int>> CountAsync()
+        {
+            try
+            {
+                var totalCount = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .CountAsync();
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda standard presente",
+                    1 => "C'è 1 bevanda standard in totale",
+                    _ => $"Ci sono {totalCount} bevande standard in totale"
+                };                    
+
+                return SingleResponseDTO<int>.SuccessResponse(totalCount, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio delle bevande standard");
+            }
+        }
+
+        public async Task<SingleResponseDTO<int>> CountPrimoPianoAsync()
+        {
+            try
+            {
+                var totalCount = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile && bs.Disponibile)
+                    .CountAsync();
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda standard presente in primo piano",
+                    1 => "C'è 1 bevanda standard presente in primo piano",
+                    _ => $"Ci sono {totalCount} bevande standard presenti in primo piano"
+                };
+
+                return SingleResponseDTO<int>.SuccessResponse(totalCount, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountPrimoPianoAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio delle bevande standard in primo piano");
+            }
+        }
+
+        public async Task<SingleResponseDTO<int>> CountSecondoPianoAsync()
+        {
+            try
+            {
+                var totalCount = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile && !bs.Disponibile)
+                    .CountAsync();
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda standard presente in secondo piano",
+                    1 => "C'è 1 bevanda standard presente in secondo piano",
+                    _ => $"Ci sono {totalCount} bevande standard presenti in secondo piano"
+                };
+
+                return SingleResponseDTO<int>.SuccessResponse(totalCount, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountSecondoPianoAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio delle bevande standard in secondo piano");
+            }
+        }
+
+        public async Task<SingleResponseDTO<int>> CountDisponibiliAsync()
+        {
+            try
+            {
+                var totalCount = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => bs.SempreDisponibile)
+                    .CountAsync();
+
+                string message = totalCount switch
+                {
+                    0 => "Nessuna bevanda standard è sempre disponibile",
+                    1 => "C'è 1 bevanda standard sempre disponibile",
+                    _ => $"Ci sono {totalCount} bevande standard sempre disponibili"
+                };
+
+                return SingleResponseDTO<int>.SuccessResponse(totalCount, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountDisponibiliAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio delle bevande standard sempre disponibili");
+            }
+        }
+
+        public async Task<SingleResponseDTO<int>> CountNonDisponibiliAsync()
+        {
+            try
+            {
+                var totalCount = await _context.BevandaStandard
+                    .AsNoTracking()
+                    .Where(bs => !bs.SempreDisponibile)
+                    .CountAsync();
+
+                string message = totalCount switch
+                {
+                    0 => "Tutte le bevande standard sono sempre disponibili",
+                    1 => "C'è 1 bevanda standard non sempre disponibile",
+                    _ => $"Ci sono {totalCount} bevande standard non sempre disponibili"
+                };
+
+                return SingleResponseDTO<int>.SuccessResponse(totalCount, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in CountNonDisponibiliAsync");
+                return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio delle bevande standard non sempre disponibili");
+            }
         }
     }
 }

@@ -1,26 +1,35 @@
 ﻿using DTO;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Repository.Interface
 {
     public interface IBevandaStandardRepository
     {
-        Task<IEnumerable<BevandaStandardDTO>> GetAllAsync();
-        Task<IEnumerable<BevandaStandardDTO>> GetDisponibiliAsync();
-        Task<BevandaStandardDTO?> GetByIdAsync(int articoloId);
-        Task<BevandaStandardDTO?> GetByArticoloIdAsync(int articoloId);
-        Task<IEnumerable<BevandaStandardDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId);
-        Task<IEnumerable<BevandaStandardDTO>> GetByPersonalizzazioneAsync(int personalizzazioneId);
-        Task<BevandaStandardDTO> AddAsync(BevandaStandardDTO bevandaStandardDto);
-        Task UpdateAsync(BevandaStandardDTO bevandaStandardDto);
-        Task DeleteAsync(int articoloId);
-        Task<bool> ExistsAsync(int articoloId);
-        Task<bool> ExistsByCombinazioneAsync(int personalizzazioneId, int dimensioneBicchiereId);
-        Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiAsync();
-        Task<BevandaStandardCardDTO?> GetCardProdottoByIdAsync(int articoloId);
-        Task<IEnumerable<BevandaStandardDTO>> GetPrimoPianoAsync();
-        Task<IEnumerable<BevandaStandardDTO>> GetSecondoPianoAsync();
-        Task<IEnumerable<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync();
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<BevandaStandardDTO>> GetByIdAsync(int articoloId);
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetDisponibiliAsync(int page = 1, int pageSize = 10);        
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetAllOrderedByDimensioneAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetAllOrderedByPersonalizzazioneAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetByDimensioneBicchiereAsync(int dimensioneBicchiereId, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetByPersonalizzazioneAsync(int personalizzazioneId, int page = 1, int pageSize = 10);
+
+        Task<SingleResponseDTO<BevandaStandardDTO>> AddAsync(BevandaStandardDTO bevandaStandardDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(BevandaStandardDTO bevandaStandardDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int articoloId);
+        
+        Task<SingleResponseDTO<bool>> ExistsAsync(int articoloId);
+        Task<SingleResponseDTO<bool>> ExistsByCombinazioneAsync(int personalizzazioneId, int dimensioneBicchiereId);
+        Task<SingleResponseDTO<bool>> ExistsByCombinazioneAsync(string personalizzazione, string descrizioneBicchiere);
+
+        Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<BevandaStandardCardDTO>> GetCardProdottoByIdAsync(int articoloId);
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetPrimoPianoAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<BevandaStandardDTO>> GetSecondoPianoAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync(int page = 1, int pageSize = 10);
+
+        Task<SingleResponseDTO<int>> CountAsync();
+        Task<SingleResponseDTO<int>> CountPrimoPianoAsync();
+        Task<SingleResponseDTO<int>> CountSecondoPianoAsync();
+        Task<SingleResponseDTO<int>> CountDisponibiliAsync();
+        Task<SingleResponseDTO<int>> CountNonDisponibiliAsync();
     }
 }

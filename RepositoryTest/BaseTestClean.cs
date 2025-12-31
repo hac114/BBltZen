@@ -513,6 +513,7 @@ namespace RepositoryTest
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<BevandaStandard>();
             await CleanTableAsync<IngredientiPersonalizzazione>();
             await CleanTableAsync<PersonalizzazioneCustom>();
             await CleanTableAsync<DimensioneQuantitaIngredienti>();
@@ -534,6 +535,7 @@ namespace RepositoryTest
             SeedEssentialTables();
         }
 
+        #region UnitaDiMisura Helpers
         protected async Task CleanUnitaDiMisuraDependenciesAsync(List<UnitaDiMisura> unitaList)
         {
             if (unitaList.Count == 0) return;
@@ -663,6 +665,8 @@ namespace RepositoryTest
             await _context.SaveChangesAsync();
             return unita;
         }
+
+        #endregion
 
         #region CategoriaIngrediente Helpers
 
@@ -936,6 +940,29 @@ namespace RepositoryTest
                 unitaMisuraId: 1,  // ← int!
                 prezzoBase: 4.50m,
                 moltiplicatore: 1.30m);
+        }
+
+        protected async Task EnsureDimensioneBicchiereExistsAsync(int dimensioneBicchiereId)
+        {
+            var existing = await _context.DimensioneBicchiere
+                .AnyAsync(db => db.DimensioneBicchiereId == dimensioneBicchiereId);
+
+            if (!existing)
+            {
+                // Se l'ID è 1 o 2, usiamo i valori del seed
+                if (dimensioneBicchiereId == 1 || dimensioneBicchiereId == 2)
+                {
+                    await GetSeedDimensioneBicchiereAsync(dimensioneBicchiereId);
+                }
+                else
+                {
+                    await CreateTestDimensioneBicchiereAsync(
+                        dimensioneBicchiereId: dimensioneBicchiereId,
+                        sigla: $"T{dimensioneBicchiereId}",
+                        descrizione: $"Bicchiere Test {dimensioneBicchiereId}"
+                    );
+                }
+            }
         }
 
         #endregion
@@ -2242,30 +2269,7 @@ namespace RepositoryTest
             {
                 await CreateTestPersonalizzazioneIngredienteAsync(personalizzazioneIngredienteId: personalizzazioneIngredienteId);
             }
-        }
-
-        protected async Task EnsureDimensioneBicchiereExistsAsync(int dimensioneBicchiereId)
-        {
-            var existing = await _context.DimensioneBicchiere
-                .AnyAsync(db => db.DimensioneBicchiereId == dimensioneBicchiereId);
-
-            if (!existing)
-            {
-                // Se l'ID è 1 o 2, usiamo i valori del seed
-                if (dimensioneBicchiereId == 1 || dimensioneBicchiereId == 2)
-                {
-                    await GetSeedDimensioneBicchiereAsync(dimensioneBicchiereId);
-                }
-                else
-                {
-                    await CreateTestDimensioneBicchiereAsync(
-                        dimensioneBicchiereId: dimensioneBicchiereId,
-                        sigla: $"T{dimensioneBicchiereId}",
-                        descrizione: $"Bicchiere Test {dimensioneBicchiereId}"
-                    );
-                }
-            }
-        }
+        }        
 
         protected void AssertDimensioneQuantitaIngredientiEqual(DimensioneQuantitaIngredienti expected, DimensioneQuantitaIngredienti actual, bool ignoreId = false)
         {
@@ -2852,6 +2856,404 @@ namespace RepositoryTest
                 IngredienteId = ingredienteId,
                 NomeIngrediente = nomeIngrediente,
                 DataCreazione = now
+            };
+        }
+
+        #endregion
+        #region BevandaStandard Helpers
+
+        protected async Task<BevandaStandard> CreateTestBevandaStandardAsync(
+            int? articoloId = null,
+            int personalizzazioneId = 1,
+            int dimensioneBicchiereId = 1,
+            decimal prezzo = 4.50m,
+            string? immagineUrl = null,
+            bool disponibile = true,
+            bool sempreDisponibile = true,
+            int priorita = 5,
+            DateTime? dataCreazione = null,
+            DateTime? dataAggiornamento = null)
+        {
+            // ✅ Verifica/crea le entità correlate
+            await EnsureArticoloExistsAsync(articoloId);
+            await EnsurePersonalizzazioneExistsAsync(personalizzazioneId);
+            await EnsureDimensioneBicchiereExistsAsync(dimensioneBicchiereId);
+
+            // Se non viene specificato un ArticoloId, cercane uno disponibile
+            if (!articoloId.HasValue)
+            {
+                // Trova un Articolo di tipo BEVANDA_STANDARD non usato
+                var articoliUsati = await _context.BevandaStandard
+                    .Select(bs => bs.ArticoloId)
+                    .ToListAsync();
+
+                var articoloLibero = await _context.Articolo
+                    .Where(a => a.Tipo == "BEVANDA_STANDARD" && !articoliUsati.Contains(a.ArticoloId))
+                    .FirstOrDefaultAsync();
+
+                if (articoloLibero == null)
+                {
+                    // Crea un nuovo articolo
+                    var nuovoArticolo = new Articolo
+                    {
+                        Tipo = "BEVANDA_STANDARD",
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+
+                    _context.Articolo.Add(nuovoArticolo);
+                    await _context.SaveChangesAsync();
+                    articoloId = nuovoArticolo.ArticoloId;
+                }
+                else
+                {
+                    articoloId = articoloLibero.ArticoloId;
+                }
+            }
+
+            // ✅ Validazione vincoli database
+            prezzo = Math.Clamp(prezzo, 0m, 99.99m);
+            prezzo = Math.Round(prezzo, 2);
+            priorita = Math.Clamp(priorita, 1, 10);
+
+            // ✅ Vincolo di coerenza: (!SempreDisponibile && !Disponibile) || (SempreDisponibile)
+            if (!sempreDisponibile && disponibile)
+            {
+                disponibile = false; // Forza coerenza
+            }
+
+            // ✅ Controllo vincolo UNIQUE (PersonalizzazioneId + DimensioneBicchiereId)
+            var esisteCombinazione = await _context.BevandaStandard
+                .AnyAsync(bs => bs.PersonalizzazioneId == personalizzazioneId &&
+                               bs.DimensioneBicchiereId == dimensioneBicchiereId &&
+                               bs.ArticoloId != articoloId);
+
+            if (esisteCombinazione)
+            {
+                // Modifica per evitare violazione vincolo UNIQUE
+                personalizzazioneId += 1000; // Usa un ID diverso
+                await EnsurePersonalizzazioneExistsAsync(personalizzazioneId);
+            }
+
+            var bevandaStandard = new BevandaStandard
+            {
+                ArticoloId = articoloId.Value,
+                PersonalizzazioneId = personalizzazioneId,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                Prezzo = prezzo,
+                ImmagineUrl = immagineUrl,
+                Disponibile = disponibile,
+                SempreDisponibile = sempreDisponibile,
+                Priorita = priorita,
+                DataCreazione = dataCreazione ?? DateTime.UtcNow,
+                DataAggiornamento = dataAggiornamento ?? DateTime.UtcNow
+            };
+
+            _context.BevandaStandard.Add(bevandaStandard);
+            await _context.SaveChangesAsync();
+            return bevandaStandard;
+        }
+
+        protected async Task<List<BevandaStandard>> CreateMultipleBevandaStandardAsync(int count = 3)
+        {
+            var bevandeStandard = new List<BevandaStandard>();
+
+            // ✅ Usa personalizzazioni esistenti dal seed
+            var personalizzazioni = await _context.Personalizzazione
+                .Take(count)
+                .ToListAsync();
+
+            // ✅ Usa dimensioni bicchieri esistenti dal seed
+            var dimensioni = await _context.DimensioneBicchiere
+                .Take(count)
+                .ToListAsync();
+
+            // ✅ Crea articoli aggiuntivi se necessario
+            var articoliEsistenti = await _context.Articolo
+                .Where(a => a.Tipo == "BEVANDA_STANDARD")
+                .CountAsync();
+
+            var articoliNecessari = count;
+            for (int i = articoliEsistenti; i < articoliNecessari; i++)
+            {
+                var articolo = new Articolo
+                {
+                    Tipo = "BEVANDA_STANDARD",
+                    DataCreazione = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow
+                };
+                _context.Articolo.Add(articolo);
+            }
+            await _context.SaveChangesAsync();
+
+            // ✅ Recupera gli articoli disponibili
+            var articoli = await _context.Articolo
+                .Where(a => a.Tipo == "BEVANDA_STANDARD")
+                .Take(count)
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+            for (int i = 0; i < count; i++)
+            {
+                // ✅ Usa combinazioni uniche per evitare violazione vincolo UNIQUE
+                var personalizzazioneId = personalizzazioni[i % personalizzazioni.Count].PersonalizzazioneId;
+                var dimensioneId = dimensioni[i % dimensioni.Count].DimensioneBicchiereId;
+
+                // Controlla se la combinazione esiste già
+                var combinazioneEsiste = bevandeStandard.Any(bs =>
+                    bs.PersonalizzazioneId == personalizzazioneId &&
+                    bs.DimensioneBicchiereId == dimensioneId);
+
+                if (combinazioneEsiste)
+                {
+                    // Modifica per garantire unicità
+                    dimensioneId = dimensioni[(i + 1) % dimensioni.Count].DimensioneBicchiereId;
+                }
+
+                var bevandaStandard = new BevandaStandard
+                {
+                    ArticoloId = articoli[i].ArticoloId,
+                    PersonalizzazioneId = personalizzazioneId,
+                    DimensioneBicchiereId = dimensioneId,
+                    Prezzo = Math.Round(3.50m + (i * 0.50m), 2), // Prezzi progressivi
+                    ImmagineUrl = i % 2 == 0 ? $"https://example.com/bevanda{i}.jpg" : null,
+                    Disponibile = i % 2 == 0, // Alterna disponibilità
+                    SempreDisponibile = i < 2, // Prime due sempre disponibili
+                    Priorita = Math.Clamp(10 - i, 1, 10), // Priorità decrescenti
+                    DataCreazione = now.AddHours(-i),
+                    DataAggiornamento = now.AddHours(-i)
+                };
+
+                bevandeStandard.Add(bevandaStandard);
+            }
+
+            _context.BevandaStandard.AddRange(bevandeStandard);
+            await _context.SaveChangesAsync();
+            return bevandeStandard;
+        }
+
+        protected async Task<BevandaStandard> GetSeedBevandaStandardAsync()
+        {
+            // ✅ Cerca una BevandaStandard esistente
+            var bevandaStandard = await _context.BevandaStandard
+                .FirstOrDefaultAsync();
+
+            if (bevandaStandard != null)
+                return bevandaStandard;
+
+            // ✅ Se non esiste, creane una
+            return await CreateTestBevandaStandardAsync();
+        }
+
+        protected async Task EnsureBevandaStandardExistsAsync(int articoloId)
+        {
+            var existing = await _context.BevandaStandard
+                .AnyAsync(bs => bs.ArticoloId == articoloId);
+
+            if (!existing)
+            {
+                await CreateTestBevandaStandardAsync(articoloId: articoloId);
+            }
+        }
+
+        protected async Task EnsurePersonalizzazioneExistsAsync(int personalizzazioneId)
+        {
+            var existing = await _context.Personalizzazione
+                .AnyAsync(p => p.PersonalizzazioneId == personalizzazioneId);
+
+            if (!existing)
+            {
+                // Crea una personalizzazione di test
+                var personalizzazione = new Personalizzazione
+                {
+                    PersonalizzazioneId = personalizzazioneId,
+                    Nome = $"Test Personalizzazione {personalizzazioneId}",
+                    Descrizione = $"Descrizione test {personalizzazioneId}",
+                    DtCreazione = DateTime.UtcNow
+                };
+
+                _context.Personalizzazione.Add(personalizzazione);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        //protected async Task EnsureDimensioneBicchiereExistsAsync(int dimensioneBicchiereId)
+        //{
+        //    var existing = await _context.DimensioneBicchiere
+        //        .AnyAsync(d => d.DimensioneBicchiereId == dimensioneBicchiereId);
+
+        //    if (!existing)
+        //    {
+        //        // Crea una dimensione bicchiere di test
+        //        var dimensione = new DimensioneBicchiere
+        //        {
+        //            DimensioneBicchiereId = dimensioneBicchiereId,
+        //            Sigla = dimensioneBicchiereId == 1 ? "T" : "XL", // Test o Extra Large
+        //            Descrizione = $"Dimensione Test {dimensioneBicchiereId}",
+        //            Capienza = 400.00m + (dimensioneBicchiereId * 100),
+        //            UnitaMisuraId = 1,
+        //            PrezzoBase = 2.50m + (dimensioneBicchiereId * 0.50m),
+        //            Moltiplicatore = 1.00m + (dimensioneBicchiereId * 0.10m)
+        //        };
+
+        //        _context.DimensioneBicchiere.Add(dimensione);
+        //        await _context.SaveChangesAsync();
+        //    }
+        //}
+
+        protected async Task EnsureArticoloExistsAsync(int? articoloId = null)
+        {
+            if (articoloId.HasValue)
+            {
+                var existing = await _context.Articolo
+                    .AnyAsync(a => a.ArticoloId == articoloId.Value);
+
+                if (!existing)
+                {
+                    var articolo = new Articolo
+                    {
+                        ArticoloId = articoloId.Value,
+                        Tipo = "BEVANDA_STANDARD",
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+
+                    _context.Articolo.Add(articolo);
+                    await _context.SaveChangesAsync();
+                }
+            }
+        }
+
+        // ✅ Assert con tolleranza per date
+        protected void AssertBevandaStandardEqual(BevandaStandard expected, BevandaStandard actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.ArticoloId, actual.ArticoloId);
+            }
+
+            Assert.Equal(expected.PersonalizzazioneId, actual.PersonalizzazioneId);
+            Assert.Equal(expected.DimensioneBicchiereId, actual.DimensioneBicchiereId);
+            Assert.Equal(expected.Prezzo, actual.Prezzo);
+            Assert.Equal(expected.ImmagineUrl, actual.ImmagineUrl);
+            Assert.Equal(expected.Disponibile, actual.Disponibile);
+            Assert.Equal(expected.SempreDisponibile, actual.SempreDisponibile);
+            Assert.Equal(expected.Priorita, actual.Priorita);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Assert per DTO con tolleranza date
+        protected void AssertBevandaStandardDTOEqual(BevandaStandardDTO expected, BevandaStandardDTO actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.ArticoloId, actual.ArticoloId);
+            }
+
+            Assert.Equal(expected.PersonalizzazioneId, actual.PersonalizzazioneId);
+            Assert.Equal(expected.DimensioneBicchiereId, actual.DimensioneBicchiereId);
+            Assert.Equal(expected.Prezzo, actual.Prezzo);
+            Assert.Equal(expected.ImmagineUrl, actual.ImmagineUrl);
+            Assert.Equal(expected.Disponibile, actual.Disponibile);
+            Assert.Equal(expected.SempreDisponibile, actual.SempreDisponibile);
+            Assert.Equal(expected.Priorita, actual.Priorita);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+
+            // ✅ Assert per DimensioneBicchiereDTO se presente
+            if (expected.DimensioneBicchiere != null && actual.DimensioneBicchiere != null)
+            {
+                Assert.Equal(expected.DimensioneBicchiere.DimensioneBicchiereId, actual.DimensioneBicchiere.DimensioneBicchiereId);
+                Assert.Equal(expected.DimensioneBicchiere.Sigla, actual.DimensioneBicchiere.Sigla);
+                Assert.Equal(expected.DimensioneBicchiere.Descrizione, actual.DimensioneBicchiere.Descrizione);
+                Assert.Equal(expected.DimensioneBicchiere.Capienza, actual.DimensioneBicchiere.Capienza);
+                Assert.Equal(expected.DimensioneBicchiere.UnitaMisuraId, actual.DimensioneBicchiere.UnitaMisuraId);
+                Assert.Equal(expected.DimensioneBicchiere.PrezzoBase, actual.DimensioneBicchiere.PrezzoBase);
+                Assert.Equal(expected.DimensioneBicchiere.Moltiplicatore, actual.DimensioneBicchiere.Moltiplicatore);
+            }
+        }
+
+        // ✅ Crea DTO di test senza dipendenze InMemory
+        protected BevandaStandardDTO CreateTestBevandaStandardDTO(
+            int articoloId = 1,
+            int personalizzazioneId = 1,
+            int dimensioneBicchiereId = 1,
+            decimal prezzo = 4.50m,
+            string? immagineUrl = null,
+            bool disponibile = true,
+            bool sempreDisponibile = true,
+            int priorita = 5)
+        {
+            var now = DateTime.UtcNow;
+            return new BevandaStandardDTO
+            {
+                ArticoloId = articoloId,
+                PersonalizzazioneId = personalizzazioneId,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                Prezzo = prezzo,
+                ImmagineUrl = immagineUrl,
+                Disponibile = disponibile,
+                SempreDisponibile = sempreDisponibile,
+                Priorita = priorita,
+                DataCreazione = now,
+                DataAggiornamento = now
+            };
+        }
+
+        // ✅ Crea DTO per test di Card (BevandaStandardCardDTO)
+        protected BevandaStandardCardDTO CreateTestBevandaStandardCardDTO(
+            int articoloId = 1,
+            string nome = "Test Bevanda",
+            string descrizione = "Descrizione test",
+            string? immagineUrl = null,
+            bool disponibile = true,
+            bool sempreDisponibile = true,
+            int priorita = 5)
+        {
+            var prezziPerDimensioni = new List<PrezzoDimensioneDTO>
+            {
+                new PrezzoDimensioneDTO
+                {
+                    DimensioneBicchiereId = 1,
+                    Sigla = "M",
+                    Descrizione = "Medium 500ml",
+                    PrezzoNetto = 3.50m,
+                    PrezzoIva = 0.77m,
+                    PrezzoTotale = 4.27m,
+                    AliquotaIva = 22.00m
+                },
+                new PrezzoDimensioneDTO
+                {
+                    DimensioneBicchiereId = 2,
+                    Sigla = "L",
+                    Descrizione = "Large 700ml",
+                    PrezzoNetto = 4.50m,
+                    PrezzoIva = 0.99m,
+                    PrezzoTotale = 5.49m,
+                    AliquotaIva = 22.00m
+                }
+            };
+
+            var ingredienti = new List<string>
+            {
+                "Tè nero",
+                "Latte",
+                "Zucchero",
+                "Perle di tapioca"
+            };
+
+            return new BevandaStandardCardDTO
+            {
+                ArticoloId = articoloId,
+                Nome = nome,
+                Descrizione = descrizione,
+                ImmagineUrl = immagineUrl,
+                Disponibile = disponibile,
+                SempreDisponibile = sempreDisponibile,
+                Priorita = priorita,
+                PrezziPerDimensioni = prezziPerDimensioni,
+                Ingredienti = ingredienti
             };
         }
 

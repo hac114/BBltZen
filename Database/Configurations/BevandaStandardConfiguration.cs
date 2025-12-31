@@ -8,97 +8,82 @@ namespace Database.Configurations
     {
         public void Configure(EntityTypeBuilder<BevandaStandard> builder)
         {
-            // ✅ CHIAVE PRIMARIA E FOREIGN KEY
+            // ✅ CHIAVE PRIMARIA
             builder.HasKey(bs => bs.ArticoloId);
 
-            // ✅ PROPRIETÀ OBBLIGATORIE
-            builder.Property(bs => bs.PersonalizzazioneId)
-                .IsRequired();
+            // ✅ VINCOLO UNIQUE AGGIUNTO (colonne: PersonalizzazioneId, DimensioneBicchiereId)
+            builder.HasIndex(bs => new { bs.PersonalizzazioneId, bs.DimensioneBicchiereId })
+                   .IsUnique()
+                   .HasDatabaseName("UQ_BevandaStandard_Personalizzazione_Dimensione");
 
-            builder.Property(bs => bs.DimensioneBicchiereId)
-                .IsRequired();
-
+            // ✅ TIPO DECIMAL CORRETTO (4,2)
             builder.Property(bs => bs.Prezzo)
                 .IsRequired()
-                .HasColumnType("decimal(10,2)"); // ✅ Formato prezzo
+                .HasColumnType("decimal(4,2)");
 
+            // ✅ VALORI DEFAULT
             builder.Property(bs => bs.Disponibile)
                 .IsRequired()
-                .HasDefaultValue(true); // ✅ Default disponibile
+                .HasDefaultValue(true);
 
             builder.Property(bs => bs.SempreDisponibile)
                 .IsRequired()
-                .HasDefaultValue(false); // ✅ Default non sempre disponibile
+                .HasDefaultValue(false);
 
             builder.Property(bs => bs.Priorita)
                 .IsRequired()
-                .HasDefaultValue(1); // ✅ Priorità default
+                .HasDefaultValue(1);
 
             builder.Property(bs => bs.DataCreazione)
-                .IsRequired();
+                .IsRequired()
+                .HasDefaultValueSql("GETDATE()");
 
             builder.Property(bs => bs.DataAggiornamento)
-                .IsRequired();
+                .IsRequired()
+                .HasDefaultValueSql("GETDATE()");
 
-            // ✅ PROPRIETÀ OPZIONALI CON LUNGHEZZA
+            // ✅ IMMAGINE URL (opzionale, max 500)
             builder.Property(bs => bs.ImmagineUrl)
-                .HasMaxLength(500); // ✅ URL immagine opzionale
+                .HasMaxLength(500)
+                .IsRequired(false);
 
-            // ✅ VALORI DEFAULT
-            builder.Property(bs => bs.DataCreazione)
-                .HasDefaultValueSql("GETDATE()");
+            // ✅ INDICE COMPOSITO (quello che abbiamo creato)
+            builder.HasIndex(bs => new { bs.SempreDisponibile, bs.Priorita, bs.Disponibile })
+                   .HasDatabaseName("IX_BevandaStandard_Completo");
 
-            builder.Property(bs => bs.DataAggiornamento)
-                .HasDefaultValueSql("GETDATE()");
-
-            // ✅ INDICI PER PERFORMANCE
-            builder.HasIndex(bs => bs.PersonalizzazioneId);
-            builder.HasIndex(bs => bs.DimensioneBicchiereId);
-            builder.HasIndex(bs => bs.Disponibile);
-            builder.HasIndex(bs => bs.Priorita);
-            builder.HasIndex(bs => bs.Prezzo);
-            builder.HasIndex(bs => bs.DataCreazione);
-
-            // ✅ INDICE UNIVOCO PER EVITARE DUPLICATI
-            builder.HasIndex(bs => new { bs.ArticoloId, bs.PersonalizzazioneId, bs.DimensioneBicchiereId })
-                .IsUnique(); // ✅ Combinazione unica articolo + personalizzazione + dimensione
-
-            // ✅ RELAZIONE CON ARTICOLO (TPH - Table Per Hierarchy)
+            // ✅ RELAZIONI con comportamento NO_ACTION (come nel DB)
             builder.HasOne(bs => bs.Articolo)
-                .WithOne() // ✅ Relazione 1:1 con Articolo
+                .WithOne()
                 .HasForeignKey<BevandaStandard>(bs => bs.ArticoloId)
-                .OnDelete(DeleteBehavior.Cascade); // ✅ Elimina bevanda standard se articolo viene eliminato
+                .OnDelete(DeleteBehavior.NoAction);
 
-            // ✅ RELAZIONE CON PERSONALIZZAZIONE
             builder.HasOne(bs => bs.Personalizzazione)
-                .WithMany(p => p.BevandaStandard) // ✅ Personalizzazione ha molte BevandaStandard
+                .WithMany(p => p.BevandaStandard)
                 .HasForeignKey(bs => bs.PersonalizzazioneId)
-                .OnDelete(DeleteBehavior.Restrict); // ✅ Previene eliminazione personalizzazione con bevande standard
+                .OnDelete(DeleteBehavior.NoAction);
 
-            // ✅ RELAZIONE CON DIMENSIONE BICCHIERE
             builder.HasOne(bs => bs.DimensioneBicchiere)
-                .WithMany(db => db.BevandaStandard) // ✅ DimensioneBicchiere ha molte BevandaStandard
+                .WithMany(db => db.BevandaStandard)
                 .HasForeignKey(bs => bs.DimensioneBicchiereId)
-                .OnDelete(DeleteBehavior.Restrict); // ✅ Previene eliminazione dimensione con bevande standard
+                .OnDelete(DeleteBehavior.NoAction);
 
-            // ✅ CHECK CONSTRAINTS
+            // ✅ CHECK CONSTRAINTS (allineati al DB)
             builder.ToTable(tb =>
             {
-                tb.HasCheckConstraint("CK_BevandaStandard_Prezzo",
-                    "[Prezzo] >= 0 AND [Prezzo] <= 50"); // ✅ Prezzo tra 0 e 50 euro
+                // Prezzo >= 0
+                tb.HasCheckConstraint("CK_prezzo_positivo", "[Prezzo] >= 0");
 
-                tb.HasCheckConstraint("CK_BevandaStandard_Priorita",
-                    "[Priorita] BETWEEN 1 AND 10"); // ✅ Priorità tra 1 e 10
+                // Priorità 1-10
+                tb.HasCheckConstraint("CHK_BevandaStandard_Priorita_Range",
+                    "[Priorita] >= 1 AND [Priorita] <= 10");
 
-                tb.HasCheckConstraint("CK_BevandaStandard_DateConsistency",
-                    "[DataAggiornamento] >= [DataCreazione]"); // ✅ Consistenza temporale
+                // ✅ NUOVO: Vincolo di coerenza
+                tb.HasCheckConstraint("CHK_Disponibilita_Coerente",
+                    "([SempreDisponibile] = 0 AND [Disponibile] = 0) OR ([SempreDisponibile] = 1)");
             });
 
-            // ✅ CONFIGURAZIONE NOME TABELLA
-            builder.ToTable("BevandaStandard");
-
-            // ✅ COMMENTI PER DOCUMENTAZIONE (opzionale)
-            // builder.HasComment("Tabella per la gestione delle bevande standard del menu");
+            // ✅ NOME TABELLA IN MAIUSCOLO (come nel DB)
+            builder.ToTable("BEVANDA_STANDARD");
         }
     }
 }
