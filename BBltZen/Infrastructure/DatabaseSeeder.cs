@@ -118,16 +118,19 @@ namespace BBltZen.Infrastructure
             {
                 new UnitaDiMisura
                 {
+                    UnitaMisuraId = 1, // AGGIUNGI
                     Sigla = "ML",
                     Descrizione = "Millilitri"
                 },
                 new UnitaDiMisura
                 {
+                    UnitaMisuraId = 2, // AGGIUNGI
                     Sigla = "GR",
                     Descrizione = "Grammi"
                 },
                 new UnitaDiMisura
                 {
+                    UnitaMisuraId = 3, // AGGIUNGI
                     Sigla = "PZ",
                     Descrizione = "Pezzi"
                 }

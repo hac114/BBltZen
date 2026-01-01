@@ -84,7 +84,7 @@ namespace Repository.Service
             }
 
             // ✅ Ordina per DimensioneBicchiereId
-            return result.OrderBy(p => p.DimensioneBicchiereId).ToList();
+            return [.. result.OrderBy(p => p.DimensioneBicchiereId)];
         }
 
         private async Task<decimal> GetAliquotaIvaAsync(int taxRateId)
@@ -107,6 +107,23 @@ namespace Repository.Service
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.DimensioneBicchiereId == bevandaStandard.DimensioneBicchiereId);
 
+            UnitaDiMisuraDTO? unitaMisuraDto = null;
+            if (dimensione != null)
+            {
+                var unitaMisura = await _context.UnitaDiMisura
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.UnitaMisuraId == dimensione.UnitaMisuraId);
+                if (unitaMisura != null)
+                {
+                    unitaMisuraDto = new UnitaDiMisuraDTO
+                    {
+                        UnitaMisuraId = unitaMisura.UnitaMisuraId,
+                        Sigla = unitaMisura.Sigla,
+                        Descrizione = unitaMisura.Descrizione
+                    };
+                }
+            }
+
             return new BevandaStandardDTO
             {
                 ArticoloId = bevandaStandard.ArticoloId,
@@ -128,7 +145,8 @@ namespace Repository.Service
                         Capienza = dimensione.Capienza,
                         UnitaMisuraId = dimensione.UnitaMisuraId,
                         PrezzoBase = dimensione.PrezzoBase,
-                        Moltiplicatore = dimensione.Moltiplicatore
+                        Moltiplicatore = dimensione.Moltiplicatore,
+                        UnitaMisura = unitaMisuraDto   // Aggiunto
                     }
                     : null
             };
@@ -137,15 +155,34 @@ namespace Repository.Service
         private async Task<List<BevandaStandardDTO>> MapToDTOList(List<BevandaStandard> bevandeStandard)
         {
             var dimensioneIds = bevandeStandard.Select(bs => bs.DimensioneBicchiereId).Distinct().ToList();
+
+            // Carica tutte le dimensioni necessarie
             var dimensioni = await _context.DimensioneBicchiere
                 .Where(d => dimensioneIds.Contains(d.DimensioneBicchiereId))
-                .ToDictionaryAsync(d => d.DimensioneBicchiereId);
+                .ToListAsync();
+
+            // Carica tutte le unità di misura necessarie
+            var unitaMisuraIds = dimensioni.Select(d => d.UnitaMisuraId).Distinct().ToList();
+            var unitaMisuraDict = await _context.UnitaDiMisura
+                .Where(u => unitaMisuraIds.Contains(u.UnitaMisuraId))
+                .ToDictionaryAsync(u => u.UnitaMisuraId);
 
             var result = new List<BevandaStandardDTO>();
 
             foreach (var bs in bevandeStandard)
             {
-                dimensioni.TryGetValue(bs.DimensioneBicchiereId, out var dimensione);
+                var dimensione = dimensioni.FirstOrDefault(d => d.DimensioneBicchiereId == bs.DimensioneBicchiereId);
+
+                UnitaDiMisuraDTO? unitaMisuraDto = null;
+                if (dimensione != null && unitaMisuraDict.TryGetValue(dimensione.UnitaMisuraId, out var unitaMisura))
+                {
+                    unitaMisuraDto = new UnitaDiMisuraDTO
+                    {
+                        UnitaMisuraId = unitaMisura.UnitaMisuraId,
+                        Sigla = unitaMisura.Sigla,
+                        Descrizione = unitaMisura.Descrizione
+                    };
+                }
 
                 result.Add(new BevandaStandardDTO
                 {
@@ -168,7 +205,8 @@ namespace Repository.Service
                             Capienza = dimensione.Capienza,
                             UnitaMisuraId = dimensione.UnitaMisuraId,
                             PrezzoBase = dimensione.PrezzoBase,
-                            Moltiplicatore = dimensione.Moltiplicatore
+                            Moltiplicatore = dimensione.Moltiplicatore,
+                            UnitaMisura = unitaMisuraDto  // ✅ Aggiunto!
                         }
                         : null
                 });
