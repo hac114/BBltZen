@@ -746,7 +746,7 @@ namespace RepositoryTest
             Assert.NotNull(result);
             Assert.False(result.Success);
             Assert.False(result.Data);
-            Assert.Contains("Impossibile eliminare la personalizzazione custom perché ci sono dipendenze collegate", result.Message);
+            Assert.Contains("Impossibile eliminare la personalizzazione custom perché è associata a una bevanda custom o ha ingredienti collegati", result.Message);
         }
 
         #endregion

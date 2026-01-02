@@ -17,7 +17,7 @@ public partial class PersonalizzazioneCustom
 
     public DateTime DataAggiornamento { get; set; }
 
-    public virtual ICollection<BevandaCustom> BevandaCustom { get; set; } = new List<BevandaCustom>();
+    public virtual BevandaCustom? BevandaCustom { get; set; }
 
     public virtual DimensioneBicchiere DimensioneBicchiere { get; set; } = null!;
 

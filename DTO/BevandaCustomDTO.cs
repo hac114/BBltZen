@@ -17,7 +17,7 @@ namespace DTO
         public int PersCustomId { get; set; }
 
         [Required(ErrorMessage = "Il prezzo è obbligatorio")]
-        [Range(0.01, 100, ErrorMessage = "Il prezzo deve essere compreso tra 0.01 e 100")]
+        [Range(0.01, 99.99, ErrorMessage = "Il prezzo deve essere compreso tra 0.01 e 99.99")]
         public decimal Prezzo { get; set; }
 
         public DateTime DataCreazione { get; set; }

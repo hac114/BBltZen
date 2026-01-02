@@ -4,10 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Repository.Interface;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Repository.Service
 {
@@ -19,9 +15,9 @@ namespace Repository.Service
         private readonly IPriceCalculationServiceRepository _basicPriceService;
 
         // Cache keys
-        private const string TAX_RATES_CACHE_KEY = "TaxRates";
-        private const string DIMENSIONI_CACHE_KEY = "DimensioniBicchieri";
-        private const string INGREDIENTI_CACHE_KEY = "Ingredienti";
+        private const string ADVANCED_TAX_RATES_CACHE_KEY = "AdvancedPriceCalculation_TaxRates";
+        private const string ADVANCED_DIMENSIONI_CACHE_KEY = "AdvancedPriceCalculation_Dimensioni";
+        private const string ADVANCED_INGREDIENTI_CACHE_KEY = "AdvancedPriceCalculation_Ingredienti";
 
         public AdvancedPriceCalculationServiceRepository(
             BubbleTeaContext context,
@@ -146,8 +142,7 @@ namespace Repository.Service
             try
             {
                 // ✅ VALIDAZIONE INPUT CRITICA
-                if (request == null)
-                    throw new ArgumentNullException(nameof(request));
+                ArgumentNullException.ThrowIfNull(request);
 
                 if (request.ArticoloId <= 0)
                     throw new ArgumentException("ID articolo non valido", nameof(request.ArticoloId));
@@ -423,16 +418,17 @@ namespace Repository.Service
             }
         }
 
-        public async Task<decimal> ApplyDiscountAsync(decimal prezzo, decimal percentualeSconto)
+        // ✅ CORRETTO: Rimuovi async/await inappropriati
+        public Task<decimal> ApplyDiscountAsync(decimal prezzo, decimal percentualeSconto)
         {
             if (percentualeSconto < 0 || percentualeSconto > 100)
                 throw new ArgumentException("Percentuale sconto deve essere tra 0 e 100");
 
             var sconto = prezzo * (percentualeSconto / 100);
-            return await Task.FromResult(Math.Round(prezzo - sconto, 2)); // ✅ AWAIT CON TASK.FROMRESULT
+            return Task.FromResult(Math.Round(prezzo - sconto, 2));
         }
 
-        public async Task<decimal> CalculateShippingCostAsync(decimal subtotal, string metodoSpedizione)
+        public Task<decimal> CalculateShippingCostAsync(decimal subtotal, string metodoSpedizione)
         {
             var costo = metodoSpedizione?.ToLower() switch
             {
@@ -442,8 +438,8 @@ namespace Repository.Service
                 _ => 2.50m
             };
 
-            return await Task.FromResult(costo); // ✅ AWAIT CON TASK.FROMRESULT
-        }
+            return Task.FromResult(costo);
+        }        
 
         public async Task PreloadCalculationCacheAsync()
         {
@@ -478,20 +474,19 @@ namespace Repository.Service
 
         public async Task ClearCalculationCacheAsync()
         {
-            _memoryCache.Remove(TAX_RATES_CACHE_KEY);
-            _memoryCache.Remove(DIMENSIONI_CACHE_KEY);
-            _memoryCache.Remove(INGREDIENTI_CACHE_KEY);
+            _memoryCache.Remove(ADVANCED_TAX_RATES_CACHE_KEY);
+            _memoryCache.Remove(ADVANCED_DIMENSIONI_CACHE_KEY);
+            _memoryCache.Remove(ADVANCED_INGREDIENTI_CACHE_KEY);
 
-            _logger.LogInformation("Cache calcoli prezzi pulita");
-
+            _logger.LogInformation("Cache calcoli prezzi avanzati pulita");
             await Task.CompletedTask;
         }
 
-        public async Task<bool> IsCacheValidAsync()
+        public Task<bool> IsCacheValidAsync()
         {
-            return await Task.FromResult(
-                _memoryCache.TryGetValue(TAX_RATES_CACHE_KEY, out _) &&
-                _memoryCache.TryGetValue(DIMENSIONI_CACHE_KEY, out _)
+            return Task.FromResult(
+                _memoryCache.TryGetValue(ADVANCED_TAX_RATES_CACHE_KEY, out _) &&
+                _memoryCache.TryGetValue(ADVANCED_DIMENSIONI_CACHE_KEY, out _)
             );
         }
     }

@@ -159,6 +159,12 @@ public partial class BubbleTeaContext : DbContext
                     tb.HasTrigger("trg_BEVANDA_CUSTOM_UpdatePrice");
                 });
 
+            entity.HasIndex(e => e.DataCreazione, "IX_BEVANDA_CUSTOM_DATA_CREAZIONE");
+
+            entity.HasIndex(e => e.Prezzo, "IX_BEVANDA_CUSTOM_PREZZO");
+
+            entity.HasIndex(e => e.PersCustomId, "UQ_BEVANDA_CUSTOM_PERS_CUSTOM_ID").IsUnique();
+
             entity.Property(e => e.ArticoloId)
                 .ValueGeneratedNever()
                 .HasColumnName("articolo_id");
@@ -172,7 +178,7 @@ public partial class BubbleTeaContext : DbContext
                 .HasColumnName("data_creazione");
             entity.Property(e => e.PersCustomId).HasColumnName("pers_custom_id");
             entity.Property(e => e.Prezzo)
-                .HasColumnType("decimal(5, 2)")
+                .HasColumnType("decimal(4, 2)")
                 .HasColumnName("prezzo");
 
             entity.HasOne(d => d.Articolo).WithOne(p => p.BevandaCustom)
@@ -180,8 +186,8 @@ public partial class BubbleTeaContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_BEVANDA_CUSTOM_ARTICOLO");
 
-            entity.HasOne(d => d.PersCustom).WithMany(p => p.BevandaCustom)
-                .HasForeignKey(d => d.PersCustomId)
+            entity.HasOne(d => d.PersCustom).WithOne(p => p.BevandaCustom)
+                .HasForeignKey<BevandaCustom>(d => d.PersCustomId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_BEVANDA_CUSTOM_PERSONALIZZAZIONE");
         });

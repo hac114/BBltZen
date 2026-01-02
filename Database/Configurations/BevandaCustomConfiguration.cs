@@ -7,65 +7,88 @@ namespace Database.Configurations
     public class BevandaCustomConfiguration : IEntityTypeConfiguration<BevandaCustom>
     {
         public void Configure(EntityTypeBuilder<BevandaCustom> builder)
-        {
-            // ✅ CHIAVE PRIMARIA (ArticoloId come PK)
-            builder.HasKey(bc => bc.ArticoloId);
+        {            
+            // ✅ CHIAVE PRIMARIA & INDICE CLUSTERED            
+            builder.HasKey(bc => bc.ArticoloId)
+                   .HasName("PK_BevandaCustom_ARTICOLO");
 
-            // ✅ PROPRIETÀ OBBLIGATORIE
+            builder.HasIndex(bc => bc.ArticoloId)
+                   .IsClustered()
+                   .HasDatabaseName("PK_BevandaCustom_ARTICOLO");
+            
+            // ✅ PROPRIETÀ CONFIGURATION           
             builder.Property(bc => bc.ArticoloId)
-                .IsRequired();
+                   .IsRequired()
+                   .ValueGeneratedNever(); // Valore assegnato dalla tabella ARTICOLO
 
             builder.Property(bc => bc.PersCustomId)
-                .IsRequired();
+                   .IsRequired();
 
+            // Prezzo: decimal(4,2) con precisione/escala esatta
             builder.Property(bc => bc.Prezzo)
-                .IsRequired()
-                .HasColumnType("decimal(10,2)");
+                   .IsRequired()
+                   .HasPrecision(4, 2)
+                   .HasColumnType("decimal(4,2)");
 
             builder.Property(bc => bc.DataCreazione)
-                .IsRequired();
+                   .IsRequired();
 
             builder.Property(bc => bc.DataAggiornamento)
-                .IsRequired();
+                   .IsRequired();
 
-            // ✅ VALORI DEFAULT
+            // ✅ VALORI DEFAULT (GETDATE)           
             builder.Property(bc => bc.DataCreazione)
-                .HasDefaultValueSql("GETDATE()");
+                   .HasDefaultValueSql("GETDATE()")
+                   .ValueGeneratedOnAdd();
 
             builder.Property(bc => bc.DataAggiornamento)
-                .HasDefaultValueSql("GETDATE()");
+                   .HasDefaultValueSql("GETDATE()")
+                   .ValueGeneratedOnAddOrUpdate();
+            
+            // ✅ INDICI DI PERFORMANCE (ALLINEATI AL DB)            
+            // 1. Indice su DataCreazione
+            builder.HasIndex(bc => bc.DataCreazione)
+                   .HasDatabaseName("IX_BEVANDA_CUSTOM_DATA_CREAZIONE")
+                   .IsClustered(false);
 
-            // ✅ INDICI PER PERFORMANCE
-            builder.HasIndex(bc => bc.PersCustomId);
-            builder.HasIndex(bc => bc.DataCreazione);
-            builder.HasIndex(bc => bc.Prezzo);
+            // 2. Indice su Prezzo
+            builder.HasIndex(bc => bc.Prezzo)
+                   .HasDatabaseName("IX_BEVANDA_CUSTOM_PREZZO")
+                   .IsClustered(false);
 
-            // ✅ INDICE UNIVOCO
-            builder.HasIndex(bc => new { bc.ArticoloId, bc.PersCustomId })
-                .IsUnique();
+            // 3. UNIQUE CONSTRAINT su PersCustomId (già creato nel DB)
+            // NOTA: Questo crea un indice UNIQUE in EF Core, ma nel DB abbiamo già il constraint
+            builder.HasIndex(bc => bc.PersCustomId)
+                   .IsUnique()
+                   .HasDatabaseName("UQ_BEVANDA_CUSTOM_PERS_CUSTOM_ID");
 
-            // ✅ RELAZIONE 1:1 CON ARTICOLO
+            
+            // ✅ RELAZIONI E VINCOLI (AGGIORNATO)            
+            // Relazione 1:1 con ARTICOLO (NO_ACTION)
             builder.HasOne(bc => bc.Articolo)
-                .WithOne()
-                .HasForeignKey<BevandaCustom>(bc => bc.ArticoloId)
-                .OnDelete(DeleteBehavior.Cascade);
+                   .WithOne(a => a.BevandaCustom)
+                   .HasForeignKey<BevandaCustom>(bc => bc.ArticoloId)
+                   .HasConstraintName("FK_BEVANDA_CUSTOM_ARTICOLO")
+                   .OnDelete(DeleteBehavior.NoAction);
 
-            // ✅ RELAZIONE CON PERSONALIZZAZIONE CUSTOM
+            // ✅ CORREZIONE: Relazione 1:1 con PERSONALIZZAZIONE_CUSTOM (NO_ACTION)
+            // Con WithOne perché PersonalizzazioneCustom ha una singola BevandaCustom
             builder.HasOne(bc => bc.PersCustom)
-                .WithMany()
-                .HasForeignKey(bc => bc.PersCustomId)
-                .OnDelete(DeleteBehavior.Restrict);
+                   .WithOne(pc => pc.BevandaCustom) // Relazione 1:1 bidirezionale
+                   .HasForeignKey<BevandaCustom>(bc => bc.PersCustomId)
+                   .HasConstraintName("FK_BEVANDA_CUSTOM_PERSONALIZZAZIONE")
+                   .OnDelete(DeleteBehavior.NoAction);
 
-            // ✅ CHECK CONSTRAINTS
+            
+            // ✅ CHECK CONSTRAINTS (ESATTAMENTE come nel DB)           
             builder.ToTable(tb =>
             {
-                tb.HasCheckConstraint("CK_BevandaCustom_Prezzo",
-                    "[Prezzo] >= 0 AND [Prezzo] <= 50");
-                tb.HasCheckConstraint("CK_BevandaCustom_DateConsistency",
-                    "[DataAggiornamento] >= [DataCreazione]");
+                tb.HasCheckConstraint("CK_BC_PREZZO", "[Prezzo] >= (0)");
+                tb.HasCheckConstraint("CK_BC_DATA", "[DataAggiornamento] >= [DataCreazione]");
             });
-
-            builder.ToTable("BevandaCustom");
+            
+            // ✅ NOME TABELLA (CASE-SENSITIVE)            
+            builder.ToTable("BEVANDA_CUSTOM");            
         }
     }
 }

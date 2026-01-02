@@ -563,13 +563,13 @@ namespace Repository.Service
 
         private async Task<bool> HasDependenciesAsync(int persCustomId)
         {
-            bool hasIngredientiPersonalizzazione = await _context.IngredientiPersonalizzazione
-                .AnyAsync(i => i.PersCustomId == persCustomId);
-
             bool hasBevandaCustom = await _context.BevandaCustom
                 .AnyAsync(b => b.PersCustomId == persCustomId);
 
-            return hasIngredientiPersonalizzazione || hasBevandaCustom;
+            bool hasIngredientiPersonalizzazione = await _context.IngredientiPersonalizzazione
+                .AnyAsync(i => i.PersCustomId == persCustomId);            
+
+            return hasBevandaCustom || hasIngredientiPersonalizzazione;
         }
 
         public async Task<SingleResponseDTO<bool>> DeleteAsync(int persCustomId)
@@ -588,7 +588,7 @@ namespace Repository.Service
 
                 if (await HasDependenciesAsync(persCustomId))
                     return SingleResponseDTO<bool>.ErrorResponse(
-                        "Impossibile eliminare la personalizzazione custom perché ci sono dipendenze collegate");
+                        "Impossibile eliminare la personalizzazione custom perché è associata a una bevanda custom o ha ingredienti collegati");
 
                 _context.PersonalizzazioneCustom.Remove(personalizzazioneCustom);
                 await _context.SaveChangesAsync();
