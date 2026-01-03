@@ -83,8 +83,8 @@ namespace RepositoryTest
             return new PriceCalculationServiceRepository(
                 _memoryCache,
                 _mockLogger.Object,
-                new BevandaStandardRepository(_context, NullLogger<BevandaStandardRepository>.Instance),                
-                new BevandaCustomRepository(context),
+                new BevandaStandardRepository(_context, NullLogger<BevandaStandardRepository>.Instance),
+                new BevandaCustomRepository(_context, NullLogger<BevandaCustomRepository>.Instance),
                 new DolceRepository(context),
                 new PersonalizzazioneCustomRepository(_context, NullLogger<PersonalizzazioneCustomRepository>.Instance),
                 new IngredienteRepository(context, NullLogger<IngredienteRepository>.Instance),

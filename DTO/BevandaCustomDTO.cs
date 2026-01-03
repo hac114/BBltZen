@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
+
 
 namespace DTO
 {
@@ -23,5 +19,16 @@ namespace DTO
         public DateTime DataCreazione { get; set; }
 
         public DateTime DataAggiornamento { get; set; }
+    }
+
+    public class BevandaCustomCardDTO
+    {
+        public int ArticoloId { get; set; }
+        public int PersCustomId { get; set; }                     // Per riferimento/join
+
+        [StringLength(100)]
+        public string NomePersonalizzazione { get; set; } = null!;
+        public PrezzoDimensioneDTO PrezzoDimensione { get; set; } = null!; // ✅ RIUTILIZZATO
+        public List<string> Ingredienti { get; set; } = [];
     }
 }

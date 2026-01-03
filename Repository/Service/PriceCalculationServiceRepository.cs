@@ -179,7 +179,7 @@ namespace Repository.Service
                         prezzoBase = await CalculateBevandaStandardPrice(item.ArticoloId);
                         break;
                     case "BC": // Bevanda Custom
-                        var bevandaCustom = await _bevandaCustomRepo.GetByArticoloIdAsync(item.ArticoloId);
+                        var bevandaCustom = await _bevandaCustomRepo.GetByIdAsync(item.ArticoloId);
                         if (bevandaCustom != null)
                         {
                             prezzoBase = await CalculateBevandaCustomPrice(bevandaCustom.PersCustomId);

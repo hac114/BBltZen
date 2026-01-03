@@ -1,21 +1,30 @@
-﻿using Database;
-using DTO;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using DTO;
 
 namespace Repository.Interface
 {
     public interface IBevandaCustomRepository
     {
-        Task<IEnumerable<BevandaCustomDTO>> GetAllAsync();
-        Task<BevandaCustomDTO?> GetByIdAsync(int id);           // ✅ "id" generico = ArticoloId
-        Task<BevandaCustomDTO?> GetByArticoloIdAsync(int articoloId);
-        Task<IEnumerable<BevandaCustomDTO>> GetByPersCustomIdAsync(int persCustomId);
-        Task<BevandaCustomDTO> AddAsync(BevandaCustomDTO dto);
-        Task UpdateAsync(BevandaCustomDTO dto);
-        Task DeleteAsync(int id);                               // ✅ "id" generico = ArticoloId
-        Task<bool> ExistsAsync(int id);                         // ✅ "id" generico = ArticoloId
-        Task<bool> ExistsByArticoloIdAsync(int articoloId);
-        Task<bool> ExistsByPersCustomIdAsync(int persCustomId);
+        Task<PaginatedResponseDTO<BevandaCustomDTO>> GetAllAsync(int page = 1, int pageSize = 10);
+        Task<BevandaCustomDTO> GetByIdAsync(int articoloId);        
+        Task<SingleResponseDTO<BevandaCustomDTO>> GetByPersCustomIdAsync(int persCustomId);
+        Task<PaginatedResponseDTO<BevandaCustomDTO>> GetAllOrderedByDimensioneAsync(int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<BevandaCustomDTO>> GetAllOrderedByPersonalizzazioneAsync(int page = 1, int pageSize = 10);
+        
+
+        Task<SingleResponseDTO<BevandaCustomDTO>> AddAsync(BevandaCustomDTO bevandaCustomDto);
+        Task<SingleResponseDTO<bool>> UpdateAsync(BevandaCustomDTO bevandaCustomDto);
+        Task<SingleResponseDTO<bool>> DeleteAsync(int articoloId);
+
+        Task<SingleResponseDTO<bool>> ExistsAsync(int articoloId);        
+        Task<SingleResponseDTO<bool>> ExistsByPersCustomIdAsync(int persCustomId);
+
+        Task<PaginatedResponseDTO<BevandaCustomCardDTO>> GetCardProdottiAsync(int page = 1, int pageSize = 10);
+        Task<SingleResponseDTO<BevandaCustomCardDTO>> GetCardProdottoByIdAsync(int articoloId);
+        Task<PaginatedResponseDTO<BevandaCustomCardDTO>> GetCardPersonalizzazioneAsync(string nomePersonalizzazione, int page = 1, int pageSize = 10);
+        Task<PaginatedResponseDTO<BevandaCustomCardDTO>> GetCardDimensioneBicchiereAsync(string nomePersonalizzazione, int page = 1, int pageSize = 10);
+        
+        Task<SingleResponseDTO<int>> CountAsync();
+        Task<SingleResponseDTO<int>> CountDimensioneBicchiereAsync(string descrizionBicchiere);
+        Task<SingleResponseDTO<int>> CountPersonalizzazioneAsync(string nomePersonalizzazione);
     }
 }

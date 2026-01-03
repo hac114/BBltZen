@@ -991,62 +991,7 @@ namespace Repository.Service
                     personalizzazione, descrizioneBicchiere);
                 return SingleResponseDTO<bool>.ErrorResponse("Errore nella verifica dell'esistenza della bevanda standard per combinazione stringa");
             }
-        }
-
-        //public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiAsync(int page = 1, int pageSize = 10)
-        //{
-        //    try
-        //    {
-        //        var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-        //        var skip = (safePage - 1) * safePageSize;
-
-        //        // ✅ Raggruppa per combinazione unica (ArticoloId, PersonalizzazioneId)
-        //        var query = _context.BevandaStandard
-        //            .AsNoTracking()
-        //            .Where(bs => bs.SempreDisponibile)
-        //            .GroupBy(bs => new { bs.ArticoloId, bs.PersonalizzazioneId })
-        //            .Select(g => g.First());
-
-        //        var totalCount = await query.CountAsync();
-
-        //        var bevandeStandard = await query
-        //            .OrderByDescending(bs => bs.Priorita)
-        //            .ThenBy(bs => bs.ArticoloId)
-        //            .Skip(skip)
-        //            .Take(safePageSize)
-        //            .ToListAsync();
-
-        //        var result = await MapToCardDTOList(bevandeStandard);
-
-        //        string message = totalCount switch
-        //        {
-        //            0 => "Nessuna card prodotto trovata",
-        //            1 => "Trovata 1 card prodotto",
-        //            _ => $"Trovate {totalCount} card prodotti"
-        //        };
-
-        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
-        //        {
-        //            Data = result,
-        //            Page = safePage,
-        //            PageSize = safePageSize,
-        //            TotalCount = totalCount,
-        //            Message = message
-        //        };
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore in GetCardProdottiAsync");
-        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
-        //        {
-        //            Data = [],
-        //            Page = 1,
-        //            PageSize = pageSize,
-        //            TotalCount = 0,
-        //            Message = "Errore nel recupero delle card prodotti"
-        //        };
-        //    }
-        //}
+        }        
 
         public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiAsync(int page = 1, int pageSize = 10)
         {
@@ -1236,62 +1181,7 @@ namespace Repository.Service
                     Message = "Errore nel recupero delle bevande in secondo piano"
                 };
             }
-        }
-
-        //public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync(int page = 1, int pageSize = 10)
-        //{
-        //    try
-        //    {
-        //        var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
-        //        var skip = (safePage - 1) * safePageSize;
-
-        //        // ✅ Card primo piano: raggruppate e SempreDisponibile=true E Disponibile=true
-        //        var query = _context.BevandaStandard
-        //            .AsNoTracking()
-        //            .Where(bs => bs.SempreDisponibile && bs.Disponibile)
-        //            .GroupBy(bs => new { bs.ArticoloId, bs.PersonalizzazioneId })
-        //            .Select(g => g.First());
-
-        //        var totalCount = await query.CountAsync();
-
-        //        var bevandeStandard = await query
-        //            .OrderByDescending(bs => bs.Priorita)
-        //            .ThenBy(bs => bs.ArticoloId)
-        //            .Skip(skip)
-        //            .Take(safePageSize)
-        //            .ToListAsync();
-
-        //        var result = await MapToCardDTOList(bevandeStandard);
-
-        //        string message = totalCount switch
-        //        {
-        //            0 => "Nessuna card prodotto in primo piano trovata",
-        //            1 => "Trovata 1 card prodotto in primo piano",
-        //            _ => $"Trovate {totalCount} card prodotti in primo piano"
-        //        };
-
-        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
-        //        {
-        //            Data = result,
-        //            Page = safePage,
-        //            PageSize = safePageSize,
-        //            TotalCount = totalCount,
-        //            Message = message
-        //        };
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Errore in GetCardProdottiPrimoPianoAsync");
-        //        return new PaginatedResponseDTO<BevandaStandardCardDTO>
-        //        {
-        //            Data = [],
-        //            Page = 1,
-        //            PageSize = pageSize,
-        //            TotalCount = 0,
-        //            Message = "Errore nel recupero delle card prodotti in primo piano"
-        //        };
-        //    }
-        //}
+        }        
 
         public async Task<PaginatedResponseDTO<BevandaStandardCardDTO>> GetCardProdottiPrimoPianoAsync(int page = 1, int pageSize = 10)
         {

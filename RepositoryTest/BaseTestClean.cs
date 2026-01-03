@@ -513,6 +513,7 @@ namespace RepositoryTest
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<BevandaCustom>();
             await CleanTableAsync<BevandaStandard>();
             await CleanTableAsync<IngredientiPersonalizzazione>();
             await CleanTableAsync<PersonalizzazioneCustom>();
@@ -2860,6 +2861,7 @@ namespace RepositoryTest
         }
 
         #endregion
+
         #region BevandaStandard Helpers
 
         protected async Task<BevandaStandard> CreateTestBevandaStandardAsync(
@@ -3075,31 +3077,7 @@ namespace RepositoryTest
                 _context.Personalizzazione.Add(personalizzazione);
                 await _context.SaveChangesAsync();
             }
-        }
-
-        //protected async Task EnsureDimensioneBicchiereExistsAsync(int dimensioneBicchiereId)
-        //{
-        //    var existing = await _context.DimensioneBicchiere
-        //        .AnyAsync(d => d.DimensioneBicchiereId == dimensioneBicchiereId);
-
-        //    if (!existing)
-        //    {
-        //        // Crea una dimensione bicchiere di test
-        //        var dimensione = new DimensioneBicchiere
-        //        {
-        //            DimensioneBicchiereId = dimensioneBicchiereId,
-        //            Sigla = dimensioneBicchiereId == 1 ? "T" : "XL", // Test o Extra Large
-        //            Descrizione = $"Dimensione Test {dimensioneBicchiereId}",
-        //            Capienza = 400.00m + (dimensioneBicchiereId * 100),
-        //            UnitaMisuraId = 1,
-        //            PrezzoBase = 2.50m + (dimensioneBicchiereId * 0.50m),
-        //            Moltiplicatore = 1.00m + (dimensioneBicchiereId * 0.10m)
-        //        };
-
-        //        _context.DimensioneBicchiere.Add(dimensione);
-        //        await _context.SaveChangesAsync();
-        //    }
-        //}
+        }        
 
         protected async Task EnsureArticoloExistsAsync(int? articoloId = null)
         {
@@ -3255,6 +3233,378 @@ namespace RepositoryTest
                 PrezziPerDimensioni = prezziPerDimensioni,
                 Ingredienti = ingredienti
             };
+        }
+
+        #endregion
+
+        #region BevandaCustom Helpers
+
+        protected async Task<BevandaCustom> CreateTestBevandaCustomAsync(
+            int? articoloId = null,
+            int persCustomId = 1,
+            decimal prezzo = 5.50m,
+            DateTime? dataCreazione = null,
+            DateTime? dataAggiornamento = null)
+        {
+            // ✅ Verifica/crea le entità correlate
+            await EnsureArticoloExistsForBevandaCustomAsync(articoloId);
+            await EnsurePersonalizzazioneCustomExistsAsync(persCustomId);
+
+            // Se non viene specificato un ArticoloId, cercane uno disponibile di tipo "BC"
+            if (!articoloId.HasValue)
+            {
+                var articoliUsati = await _context.BevandaCustom
+                    .Select(bc => bc.ArticoloId)
+                    .ToListAsync();
+
+                var articoloLibero = await _context.Articolo
+                    .Where(a => a.Tipo == "BC" && !articoliUsati.Contains(a.ArticoloId))
+                    .FirstOrDefaultAsync();
+
+                if (articoloLibero == null)
+                {
+                    var nuovoArticolo = new Articolo
+                    {
+                        Tipo = "BC",
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+
+                    _context.Articolo.Add(nuovoArticolo);
+                    await _context.SaveChangesAsync();
+                    articoloId = nuovoArticolo.ArticoloId;
+                }
+                else
+                {
+                    articoloId = articoloLibero.ArticoloId;
+                }
+            }
+
+            // ✅ Validazione vincoli database
+            prezzo = Math.Clamp(prezzo, 0.01m, 99.99m);
+            prezzo = Math.Round(prezzo, 2);
+
+            // ✅ Controllo vincolo UNIQUE su PersCustomId
+            var esistePersCustomId = await _context.BevandaCustom
+                .AnyAsync(bc => bc.PersCustomId == persCustomId && bc.ArticoloId != articoloId);
+
+            if (esistePersCustomId)
+            {
+                // Modifica per evitare violazione vincolo UNIQUE
+                persCustomId += 1000;
+                await EnsurePersonalizzazioneCustomExistsAsync(persCustomId);
+            }
+
+            var bevandaCustom = new BevandaCustom
+            {
+                ArticoloId = articoloId.Value,
+                PersCustomId = persCustomId,
+                Prezzo = prezzo,
+                DataCreazione = dataCreazione ?? DateTime.UtcNow,
+                DataAggiornamento = dataAggiornamento ?? DateTime.UtcNow
+            };
+
+            _context.BevandaCustom.Add(bevandaCustom);
+            await _context.SaveChangesAsync();
+            return bevandaCustom;
+        }
+
+        protected async Task<List<BevandaCustom>> CreateMultipleBevandaCustomAsync(int count = 3)
+        {
+            var bevandeCustom = new List<BevandaCustom>();
+
+            // ✅ Crea personalizzazioni custom aggiuntive se necessario
+            var personalizzazioniEsistenti = await _context.PersonalizzazioneCustom.CountAsync();
+            var personalizzazioniNecessarie = count;
+
+            for (int i = personalizzazioniEsistenti; i < personalizzazioniNecessarie; i++)
+            {
+                var personalizzazioneCustom = new PersonalizzazioneCustom
+                {
+                    PersCustomId = i + 1,
+                    Nome = $"Bevanda Custom Test {i + 1}",
+                    GradoDolcezza = (byte)((i % 3) + 1),
+                    DimensioneBicchiereId = i % 2 == 0 ? 1 : 2,
+                    DataCreazione = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow
+                };
+                _context.PersonalizzazioneCustom.Add(personalizzazioneCustom);
+            }
+            await _context.SaveChangesAsync();
+
+            // ✅ Recupera le personalizzazioni custom
+            var personalizzazioni = await _context.PersonalizzazioneCustom
+                .Take(count)
+                .ToListAsync();
+
+            // ✅ Crea articoli aggiuntivi se necessario
+            var articoliEsistenti = await _context.Articolo
+                .Where(a => a.Tipo == "BC")
+                .CountAsync();
+
+            for (int i = articoliEsistenti; i < count; i++)
+            {
+                var articolo = new Articolo
+                {
+                    Tipo = "BC",
+                    DataCreazione = DateTime.UtcNow,
+                    DataAggiornamento = DateTime.UtcNow
+                };
+                _context.Articolo.Add(articolo);
+            }
+            await _context.SaveChangesAsync();
+
+            // ✅ Recupera gli articoli disponibili di tipo "BC"
+            var articoli = await _context.Articolo
+                .Where(a => a.Tipo == "BC")
+                .Take(count)
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+            for (int i = 0; i < count; i++)
+            {
+                var persCustomId = personalizzazioni[i].PersCustomId;
+
+                // Controlla se la personalizzazione custom è già usata
+                var persCustomIdUsato = bevandeCustom.Any(bc => bc.PersCustomId == persCustomId);
+                if (persCustomIdUsato)
+                {
+                    // Crea una nuova personalizzazione custom per questo test
+                    var nuovaPersCustomId = personalizzazioni.Max(pc => pc.PersCustomId) + 1;
+                    var nuovaPersonalizzazione = new PersonalizzazioneCustom
+                    {
+                        PersCustomId = nuovaPersCustomId,
+                        Nome = $"Bevanda Custom Test {nuovaPersCustomId}",
+                        GradoDolcezza = (byte)((i % 3) + 1),
+                        DimensioneBicchiereId = i % 2 == 0 ? 1 : 2,
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+                    _context.PersonalizzazioneCustom.Add(nuovaPersonalizzazione);
+                    await _context.SaveChangesAsync();
+                    persCustomId = nuovaPersCustomId;
+                }
+
+                var bevandaCustom = new BevandaCustom
+                {
+                    ArticoloId = articoli[i].ArticoloId,
+                    PersCustomId = persCustomId,
+                    Prezzo = Math.Round(4.50m + (i * 1.00m), 2),
+                    DataCreazione = now.AddHours(-i),
+                    DataAggiornamento = now.AddHours(-i)
+                };
+
+                bevandeCustom.Add(bevandaCustom);
+            }
+
+            _context.BevandaCustom.AddRange(bevandeCustom);
+            await _context.SaveChangesAsync();
+            return bevandeCustom;
+        }
+
+        protected async Task<BevandaCustom> GetSeedBevandaCustomAsync()
+        {
+            var bevandaCustom = await _context.BevandaCustom
+                .FirstOrDefaultAsync();
+
+            if (bevandaCustom != null)
+                return bevandaCustom;
+
+            return await CreateTestBevandaCustomAsync();
+        }
+
+        protected async Task EnsureBevandaCustomExistsAsync(int articoloId)
+        {
+            var existing = await _context.BevandaCustom
+                .AnyAsync(bc => bc.ArticoloId == articoloId);
+
+            if (!existing)
+            {
+                await CreateTestBevandaCustomAsync(articoloId: articoloId);
+            }
+        }        
+
+        protected async Task EnsureArticoloExistsForBevandaCustomAsync(int? articoloId = null)
+        {
+            if (articoloId.HasValue)
+            {
+                var existing = await _context.Articolo
+                    .AnyAsync(a => a.ArticoloId == articoloId.Value);
+
+                if (!existing)
+                {
+                    var articolo = new Articolo
+                    {
+                        ArticoloId = articoloId.Value,
+                        Tipo = "BC",
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+
+                    _context.Articolo.Add(articolo);
+                    await _context.SaveChangesAsync();
+                }
+            }
+        }               
+
+        // ✅ Assert con tolleranza per date
+        protected void AssertBevandaCustomEqual(BevandaCustom expected, BevandaCustom actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.ArticoloId, actual.ArticoloId);
+            }
+
+            Assert.Equal(expected.PersCustomId, actual.PersCustomId);
+            Assert.Equal(expected.Prezzo, actual.Prezzo);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Assert per DTO con tolleranza date
+        protected void AssertBevandaCustomDTOEqual(BevandaCustomDTO expected, BevandaCustomDTO actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.ArticoloId, actual.ArticoloId);
+            }
+
+            Assert.Equal(expected.PersCustomId, actual.PersCustomId);
+            Assert.Equal(expected.Prezzo, actual.Prezzo);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Crea DTO di test senza dipendenze InMemory
+        protected BevandaCustomDTO CreateTestBevandaCustomDTO(
+            int articoloId = 1,
+            int persCustomId = 1,
+            decimal prezzo = 5.50m)
+        {
+            var now = DateTime.UtcNow;
+            return new BevandaCustomDTO
+            {
+                ArticoloId = articoloId,
+                PersCustomId = persCustomId,
+                Prezzo = prezzo,
+                DataCreazione = now,
+                DataAggiornamento = now
+            };
+        }
+
+        // ✅ Crea DTO per test di Card (BevandaCustomCardDTO)
+        protected BevandaCustomCardDTO CreateTestBevandaCustomCardDTO(
+            int articoloId = 1,
+            int persCustomId = 1,
+            string nomePersonalizzazione = "Bubble Tea Classico",
+            decimal prezzoNetto = 4.50m,
+            decimal prezzoIva = 0.99m,
+            decimal prezzoTotale = 5.49m)
+        {
+            var prezzoDimensione = new PrezzoDimensioneDTO
+            {
+                DimensioneBicchiereId = 1,
+                Sigla = "M",
+                Descrizione = "Medium 500ml",
+                PrezzoNetto = prezzoNetto,
+                PrezzoIva = prezzoIva,
+                PrezzoTotale = prezzoTotale,
+                AliquotaIva = 22.00m
+            };
+
+            var ingredienti = new List<string>
+            {
+                "Tè nero",
+                "Latte",
+                "Zucchero",
+                "Perle di tapioca",
+                "Sciroppo di vaniglia"
+            };
+
+            return new BevandaCustomCardDTO
+            {
+                ArticoloId = articoloId,
+                PersCustomId = persCustomId,
+                NomePersonalizzazione = nomePersonalizzazione,
+                PrezzoDimensione = prezzoDimensione,
+                Ingredienti = ingredienti
+            };
+        }
+
+        // ✅ Crea IngredientiPersonalizzazione per test
+        protected async Task<IngredientiPersonalizzazione> CreateTestIngredientePersonalizzazioneAsync(
+            int persCustomId,
+            int ingredienteId)
+        {
+            await EnsurePersonalizzazioneCustomExistsAsync(persCustomId);
+            await EnsureIngredienteExistsAsync(ingredienteId);
+
+            var ingredientePersonalizzazione = new IngredientiPersonalizzazione
+            {
+                PersCustomId = persCustomId,
+                IngredienteId = ingredienteId,
+                DataCreazione = DateTime.UtcNow
+            };
+
+            _context.IngredientiPersonalizzazione.Add(ingredientePersonalizzazione);
+            await _context.SaveChangesAsync();
+            return ingredientePersonalizzazione;
+        }
+
+        // ✅ Crea dati completi per test di card (BevandaCustom + PersonalizzazioneCustom + Ingredienti)
+        protected async Task<BevandaCustom> CreateCompleteBevandaCustomCardDataAsync(
+            int? articoloId = null,
+            string nomePersonalizzazione = "Bubble Tea Personalizzato",
+            byte gradoDolcezza = 2,
+            int dimensioneBicchiereId = 1,
+            decimal prezzo = 5.50m,
+            List<int>? ingredientiIds = null)
+        {
+            // Crea o recupera PersonalizzazioneCustom
+            var maxPersCustomId = await _context.PersonalizzazioneCustom
+                .Select(pc => pc.PersCustomId)
+                .DefaultIfEmpty()
+                .MaxAsync();
+
+            var persCustomId = maxPersCustomId + 1;
+
+            await EnsureDimensioneBicchiereExistsAsync(dimensioneBicchiereId);
+
+            var personalizzazioneCustom = new PersonalizzazioneCustom
+            {
+                PersCustomId = persCustomId,
+                Nome = nomePersonalizzazione,
+                GradoDolcezza = gradoDolcezza,
+                DimensioneBicchiereId = dimensioneBicchiereId,
+                DataCreazione = DateTime.UtcNow,
+                DataAggiornamento = DateTime.UtcNow
+            };
+            _context.PersonalizzazioneCustom.Add(personalizzazioneCustom);
+
+            // Aggiungi ingredienti se specificati
+            if (ingredientiIds != null && ingredientiIds.Any())
+            {
+                foreach (var ingredienteId in ingredientiIds)
+                {
+                    await EnsureIngredienteExistsAsync(ingredienteId);
+
+                    var ingredientePersonalizzazione = new IngredientiPersonalizzazione
+                    {
+                        PersCustomId = persCustomId,
+                        IngredienteId = ingredienteId,
+                        DataCreazione = DateTime.UtcNow
+                    };
+                    _context.IngredientiPersonalizzazione.Add(ingredientePersonalizzazione);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Crea BevandaCustom
+            return await CreateTestBevandaCustomAsync(
+                articoloId: articoloId,
+                persCustomId: persCustomId,
+                prezzo: prezzo);
         }
 
         #endregion
