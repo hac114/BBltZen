@@ -33,22 +33,12 @@ namespace BBltZen.Controllers
         // GET: api/bevanda-custom/{id}
         [HttpGet("{id:int}")]
         [AllowAnonymous]
-        public async Task<ActionResult<BevandaCustomDTO>> GetById(int id)
+        public async Task<ActionResult<SingleResponseDTO<BevandaCustomCardDTO>>> GetById(int id)
         {
             try
             {
                 var result = await _repository.GetByIdAsync(id);
                 return Ok(result);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                _logger.LogWarning(ex, "GetById ID: {Id} non trovato", id);
-                return NotFound(ex.Message);
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "GetById ID: {Id} non valido", id);
-                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
@@ -77,7 +67,7 @@ namespace BBltZen.Controllers
         // GET: api/bevanda-custom/ordinate-per-dimensione
         [HttpGet("ordinate-per-dimensione")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<BevandaCustomDTO>>> GetAllOrderedByDimensione([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<BevandaCustomCardDTO>>> GetAllOrderedByDimensione([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -94,7 +84,7 @@ namespace BBltZen.Controllers
         // GET: api/bevanda-custom/ordinate-per-personalizzazione
         [HttpGet("ordinate-per-personalizzazione")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<BevandaCustomDTO>>> GetAllOrderedByPersonalizzazione([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<BevandaCustomCardDTO>>> GetAllOrderedByPersonalizzazione([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -259,19 +249,22 @@ namespace BBltZen.Controllers
         // GET: api/bevanda-custom/card/dimensione-bicchiere
         [HttpGet("card/dimensione-bicchiere")]
         [AllowAnonymous]
-        public async Task<ActionResult<PaginatedResponseDTO<BevandaCustomCardDTO>>> GetCardDimensioneBicchiere([FromQuery] string nomePersonalizzazione, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PaginatedResponseDTO<BevandaCustomCardDTO>>> GetCardDimensioneBicchiere(
+            [FromQuery] string descrizioneBicchiere, // ✅ Cambiato nome parametro
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(nomePersonalizzazione))
-                    return BadRequest("nomePersonalizzazione è obbligatorio");
+                if (string.IsNullOrWhiteSpace(descrizioneBicchiere))
+                    return BadRequest("descrizioneBicchiere è obbligatorio");
 
-                var result = await _repository.GetCardDimensioneBicchiereAsync(nomePersonalizzazione, page, pageSize);
+                var result = await _repository.GetCardDimensioneBicchiereAsync(descrizioneBicchiere, page, pageSize);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "GetCardDimensioneBicchiere errore nomePersonalizzazione: {NomePersonalizzazione}", nomePersonalizzazione);
+                _logger.LogError(ex, "GetCardDimensioneBicchiereAsync errore descrizioneBicchiere: {DescrizioneBicchiere}", descrizioneBicchiere);
                 return StatusCode(500, "Errore server");
             }
         }

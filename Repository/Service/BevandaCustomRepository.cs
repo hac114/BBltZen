@@ -211,26 +211,32 @@ namespace Repository.Service
             }
         }
 
-        public async Task<BevandaCustomDTO> GetByIdAsync(int articoloId)
+        public async Task<SingleResponseDTO<BevandaCustomCardDTO>> GetByIdAsync(int articoloId)
         {
             try
             {
                 if (articoloId <= 0)
-                    throw new ArgumentException("ID articolo non valido");
+                    return SingleResponseDTO<BevandaCustomCardDTO>.ErrorResponse("ID articolo non valido");
 
                 var bevandaCustom = await _context.BevandaCustom
                     .AsNoTracking()
                     .FirstOrDefaultAsync(bc => bc.ArticoloId == articoloId);
 
                 if (bevandaCustom == null)
-                    throw new KeyNotFoundException($"Bevanda custom con ArticoloId {articoloId} non trovata");
+                    return SingleResponseDTO<BevandaCustomCardDTO>.NotFoundResponse(
+                        $"Bevanda custom con ArticoloId {articoloId} non trovata");
 
-                return MapToDTO(bevandaCustom);
+                var cardDto = await MapToCardDTO(bevandaCustom);
+
+                return SingleResponseDTO<BevandaCustomCardDTO>.SuccessResponse(
+                    cardDto,
+                    $"Bevanda custom con ArticoloId {articoloId} trovata");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore in GetByIdAsync per ArticoloId: {ArticoloId}", articoloId);
-                throw;
+                return SingleResponseDTO<BevandaCustomCardDTO>.ErrorResponse(
+                    "Errore interno nel recupero della bevanda custom");
             }
         }
 
@@ -262,22 +268,17 @@ namespace Repository.Service
             }
         }
 
-        public async Task<PaginatedResponseDTO<BevandaCustomDTO>> GetAllOrderedByDimensioneAsync(int page = 1, int pageSize = 10)
+        public async Task<PaginatedResponseDTO<BevandaCustomCardDTO>> GetAllOrderedByDimensioneAsync(int page = 1, int pageSize = 10)
         {
             try
             {
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
+                // Usiamo BevandaCustomCardDTO per avere informazioni sulla dimensione
                 var query = _context.BevandaCustom
                     .AsNoTracking()
-                    .Join(_context.PersonalizzazioneCustom,
-                        bc => bc.PersCustomId,
-                        pc => pc.PersCustomId,
-                        (bc, pc) => new { BevandaCustom = bc, DimensioneId = pc.DimensioneBicchiereId })
-                    .OrderBy(x => x.DimensioneId)
-                    .ThenByDescending(x => x.BevandaCustom.DataCreazione)
-                    .Select(x => x.BevandaCustom);
+                    .OrderByDescending(bc => bc.DataCreazione); // Ordinamento temporaneo
 
                 var totalCount = await query.CountAsync();
 
@@ -286,7 +287,7 @@ namespace Repository.Service
                     .Take(safePageSize)
                     .ToListAsync();
 
-                var result = MapToDTOList(bevandeCustom);
+                var result = await MapToCardDTOList(bevandeCustom);
 
                 string message = totalCount switch
                 {
@@ -295,7 +296,7 @@ namespace Repository.Service
                     _ => $"Trovate {totalCount} bevande custom per dimensione bicchiere"
                 };
 
-                return new PaginatedResponseDTO<BevandaCustomDTO>
+                return new PaginatedResponseDTO<BevandaCustomCardDTO>
                 {
                     Data = result,
                     Page = safePage,
@@ -307,7 +308,7 @@ namespace Repository.Service
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore in GetAllOrderedByDimensioneAsync");
-                return new PaginatedResponseDTO<BevandaCustomDTO>
+                return new PaginatedResponseDTO<BevandaCustomCardDTO>
                 {
                     Data = [],
                     Page = 1,
@@ -318,13 +319,14 @@ namespace Repository.Service
             }
         }
 
-        public async Task<PaginatedResponseDTO<BevandaCustomDTO>> GetAllOrderedByPersonalizzazioneAsync(int page = 1, int pageSize = 10)
+        public async Task<PaginatedResponseDTO<BevandaCustomCardDTO>> GetAllOrderedByPersonalizzazioneAsync(int page = 1, int pageSize = 10)
         {
             try
             {
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
+                // Usiamo BevandaCustomCardDTO per avere informazioni sulla personalizzazione
                 var query = _context.BevandaCustom
                     .AsNoTracking()
                     .OrderBy(bc => bc.PersCustomId)
@@ -337,7 +339,7 @@ namespace Repository.Service
                     .Take(safePageSize)
                     .ToListAsync();
 
-                var result = MapToDTOList(bevandeCustom);
+                var result = await MapToCardDTOList(bevandeCustom);
 
                 string message = totalCount switch
                 {
@@ -346,7 +348,7 @@ namespace Repository.Service
                     _ => $"Trovate {totalCount} bevande custom per personalizzazione"
                 };
 
-                return new PaginatedResponseDTO<BevandaCustomDTO>
+                return new PaginatedResponseDTO<BevandaCustomCardDTO>
                 {
                     Data = result,
                     Page = safePage,
@@ -358,7 +360,7 @@ namespace Repository.Service
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Errore in GetAllOrderedByPersonalizzazioneAsync");
-                return new PaginatedResponseDTO<BevandaCustomDTO>
+                return new PaginatedResponseDTO<BevandaCustomCardDTO>
                 {
                     Data = [],
                     Page = 1,
@@ -368,6 +370,7 @@ namespace Repository.Service
                 };
             }
         }
+        
 
         public async Task<SingleResponseDTO<BevandaCustomDTO>> AddAsync(BevandaCustomDTO bevandaCustomDto)
         {
@@ -779,11 +782,11 @@ namespace Repository.Service
             }
         }
 
-        public async Task<PaginatedResponseDTO<BevandaCustomCardDTO>> GetCardDimensioneBicchiereAsync(string descrizionBicchiere, int page = 1, int pageSize = 10)
+        public async Task<PaginatedResponseDTO<BevandaCustomCardDTO>> GetCardDimensioneBicchiereAsync(string descrizioneBicchiere, int page = 1, int pageSize = 10)
         {
             try
             {
-                if (!SecurityHelper.IsValidInput(descrizionBicchiere, 100))
+                if (!SecurityHelper.IsValidInput(descrizioneBicchiere, 100))
                     return new PaginatedResponseDTO<BevandaCustomCardDTO>
                     {
                         Data = [],
@@ -796,8 +799,9 @@ namespace Repository.Service
                 var (safePage, safePageSize) = SecurityHelper.ValidatePagination(page, pageSize);
                 var skip = (safePage - 1) * safePageSize;
 
-                var normalizedSearch = StringHelper.NormalizeSearchTerm(descrizionBicchiere);
+                var normalizedSearch = StringHelper.NormalizeSearchTerm(descrizioneBicchiere);
 
+                // ✅ CERCA NELLE DIMENSIONI BICCHIERE PER DESCRIZIONE
                 var dimensioneIds = await _context.DimensioneBicchiere
                     .AsNoTracking()
                     .Where(d => StringHelper.ContainsCaseInsensitive(d.Descrizione, normalizedSearch))
@@ -811,9 +815,10 @@ namespace Repository.Service
                         Page = safePage,
                         PageSize = safePageSize,
                         TotalCount = 0,
-                        Message = $"Nessuna dimensione trovata con descrizione: {descrizionBicchiere}"
+                        Message = $"Nessuna dimensione trovata con descrizione: {descrizioneBicchiere}"
                     };
 
+                // ✅ CERCA LE PERSONALIZZAZIONI CHE USANO QUESTE DIMENSIONI
                 var persCustomIds = await _context.PersonalizzazioneCustom
                     .AsNoTracking()
                     .Where(pc => dimensioneIds.Contains(pc.DimensioneBicchiereId))
@@ -836,9 +841,9 @@ namespace Repository.Service
 
                 string message = totalCount switch
                 {
-                    0 => $"Nessuna card prodotto custom trovata per dimensione: {descrizionBicchiere}",
-                    1 => $"Trovata 1 card prodotto custom per dimensione: {descrizionBicchiere}",
-                    _ => $"Trovate {totalCount} card prodotti custom per dimensione: {descrizionBicchiere}"
+                    0 => $"Nessuna card prodotto custom trovata per dimensione: {descrizioneBicchiere}",
+                    1 => $"Trovata 1 card prodotto custom per dimensione: {descrizioneBicchiere}",
+                    _ => $"Trovate {totalCount} card prodotti custom per dimensione: {descrizioneBicchiere}"
                 };
 
                 return new PaginatedResponseDTO<BevandaCustomCardDTO>
@@ -852,7 +857,7 @@ namespace Repository.Service
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Errore in GetCardDimensioneBicchiereAsync per descrizione: {Descrizione}", descrizionBicchiere);
+                _logger.LogError(ex, "Errore in GetCardDimensioneBicchiereAsync per descrizione: {Descrizione}", descrizioneBicchiere);
                 return new PaginatedResponseDTO<BevandaCustomCardDTO>
                 {
                     Data = [],

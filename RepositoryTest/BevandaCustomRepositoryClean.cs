@@ -1,5 +1,6 @@
 ﻿using BBltZen;
 using DTO;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Repository.Service;
 using Xunit;
@@ -72,8 +73,9 @@ namespace RepositoryTest
 
         #region GetByIdAsync Tests
 
+        // Modifica il test GetById
         [Fact]
-        public async Task GetByIdAsync_WithValidId_ReturnsBevandaCustom()
+        public async Task GetByIdAsync_WithValidId_ReturnsSuccessResponse()
         {
             // Arrange
             var bevandaCustom = await CreateTestBevandaCustomAsync();
@@ -83,32 +85,45 @@ namespace RepositoryTest
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(bevandaCustom.ArticoloId, result.ArticoloId);
-            Assert.Equal(bevandaCustom.PersCustomId, result.PersCustomId);
-            Assert.Equal(bevandaCustom.Prezzo, result.Prezzo);
+            Assert.True(result.Success);
+            Assert.NotNull(result.Data);
+            Assert.Equal(bevandaCustom.ArticoloId, result.Data.ArticoloId);
+            Assert.Equal(bevandaCustom.PersCustomId, result.Data.PersCustomId);
+            Assert.NotNull(result.Data.PrezzoDimensione);
+            Assert.Contains("trovata", result.Message);
         }
 
         [Fact]
-        public async Task GetByIdAsync_WithNonExistentId_ThrowsKeyNotFoundException()
+        public async Task GetByIdAsync_WithNonExistentId_ReturnsNotFoundResponse()
         {
             // Arrange
             var nonExistentId = 9999;
 
-            // Act & Assert
-            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-                _repository.GetByIdAsync(nonExistentId));
+            // Act
+            var result = await _repository.GetByIdAsync(nonExistentId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.False(result.Success);
+            Assert.Null(result.Data);
+            Assert.Contains("non trovata", result.Message);
         }
 
         [Fact]
-        public async Task GetByIdAsync_WithInvalidId_ThrowsArgumentException()
+        public async Task GetByIdAsync_WithInvalidId_ReturnsErrorResponse()
         {
             // Arrange
             var invalidId = 0;
 
-            // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() =>
-                _repository.GetByIdAsync(invalidId));
-        }
+            // Act
+            var result = await _repository.GetByIdAsync(invalidId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.False(result.Success);
+            Assert.Null(result.Data);
+            Assert.Contains("non valido", result.Message);
+        }        
 
         #endregion
 
@@ -319,9 +334,11 @@ namespace RepositoryTest
             Assert.True(result.Data);
             Assert.Contains("aggiornata con successo", result.Message);
 
-            // Verify the update
-            var updated = await _repository.GetByIdAsync(existing.ArticoloId);
-            Assert.Equal(6.50m, updated.Prezzo);
+            // ✅ MODIFICA: Verifica l'aggiornamento direttamente dal database
+            var updatedFromDb = await _context.BevandaCustom
+                .FirstOrDefaultAsync(bc => bc.ArticoloId == existing.ArticoloId);
+            Assert.NotNull(updatedFromDb);
+            Assert.Equal(6.50m, updatedFromDb.Prezzo);
         }
 
         [Fact]
@@ -570,7 +587,7 @@ namespace RepositoryTest
             Assert.NotNull(result.Data.NomePersonalizzazione);
             Assert.NotNull(result.Data.PrezzoDimensione);
             Assert.NotNull(result.Data.Ingredienti);
-        }
+        }        
 
         [Fact]
         public async Task GetCardProdottoByIdAsync_WithNonExistentId_ReturnsNotFound()
@@ -652,19 +669,22 @@ namespace RepositoryTest
             // Arrange
             await ResetDatabaseAsync();
 
-            // Crea bevande con personalizzazioni che puntano a dimensioni specifiche
-            // La ricerca è sulla DESCRIZIONE del bicchiere, non sul nome della personalizzazione
+            // Crea bevande con dimensioni specifiche
+            // Dimensione ID 1 = "Medium", ID 2 = "Large" (dal seed in BaseTestClean)
             await CreateCompleteBevandaCustomCardDataAsync(
-                nomePersonalizzazione: "Bevanda 1", dimensioneBicchiereId: 1); // Medium
-            await CreateCompleteBevandaCustomCardDataAsync(
-                nomePersonalizzazione: "Bevanda 2", dimensioneBicchiereId: 2); // Large
+                nomePersonalizzazione: "Bevanda 1",
+                dimensioneBicchiereId: 1); // Medium
 
-            // Act - Cerca per descrizione del bicchiere, non per nome personalizzazione
+            await CreateCompleteBevandaCustomCardDataAsync(
+                nomePersonalizzazione: "Bevanda 2",
+                dimensioneBicchiereId: 2); // Large
+
+            // Act - Cerca per descrizione del bicchiere (Medium)
             var result = await _repository.GetCardDimensioneBicchiereAsync("Medium", pageSize: 10);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(1, result.TotalCount); // ✅ Solo una bevanda con dimensione "Medium"
+            Assert.Equal(1, result.TotalCount); // Solo una bevanda con dimensione "Medium"
             Assert.Contains("Medium", result.Message);
         }
 
@@ -676,18 +696,23 @@ namespace RepositoryTest
             await ResetDatabaseAsync();
 
             await CreateCompleteBevandaCustomCardDataAsync(
-                nomePersonalizzazione: "Bevanda 1", dimensioneBicchiereId: 1);
-            await CreateCompleteBevandaCustomCardDataAsync(
-                nomePersonalizzazione: "Bevanda 2", dimensioneBicchiereId: 2);
-            await CreateCompleteBevandaCustomCardDataAsync(
-                nomePersonalizzazione: "Bevanda 3", dimensioneBicchiereId: 2);
+                nomePersonalizzazione: "Bevanda 1",
+                dimensioneBicchiereId: 1);
 
-            // Act
+            await CreateCompleteBevandaCustomCardDataAsync(
+                nomePersonalizzazione: "Bevanda 2",
+                dimensioneBicchiereId: 2); // Large
+
+            await CreateCompleteBevandaCustomCardDataAsync(
+                nomePersonalizzazione: "Bevanda 3",
+                dimensioneBicchiereId: 2); // Large
+
+            // Act - Cerca per descrizione del bicchiere (Large)
             var result = await _repository.GetCardDimensioneBicchiereAsync("Large", pageSize: 10);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(2, result.TotalCount); // ✅ Due bevande con dimensione "Large"
+            Assert.Equal(2, result.TotalCount); // Due bevande con dimensione "Large"
             Assert.Contains("Large", result.Message);
         }
 

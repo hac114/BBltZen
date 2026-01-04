@@ -179,10 +179,13 @@ namespace Repository.Service
                         prezzoBase = await CalculateBevandaStandardPrice(item.ArticoloId);
                         break;
                     case "BC": // Bevanda Custom
-                        var bevandaCustom = await _bevandaCustomRepo.GetByIdAsync(item.ArticoloId);
-                        if (bevandaCustom != null)
+                               // ✅ CORREZIONE: Ora GetByIdAsync restituisce SingleResponseDTO<BevandaCustomCardDTO>
+                        var bevandaCustomResponse = await _bevandaCustomRepo.GetByIdAsync(item.ArticoloId);
+
+                        if (bevandaCustomResponse.Success && bevandaCustomResponse.Data != null)
                         {
-                            prezzoBase = await CalculateBevandaCustomPrice(bevandaCustom.PersCustomId);
+                            // ✅ Accedi al PersCustomId dal Data (BevandaCustomCardDTO)
+                            prezzoBase = await CalculateBevandaCustomPrice(bevandaCustomResponse.Data.PersCustomId);
                         }
                         else
                         {
