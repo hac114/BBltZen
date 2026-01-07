@@ -8,76 +8,38 @@ namespace Database.Configurations
     {
         public void Configure(EntityTypeBuilder<Dolce> builder)
         {
-            // ✅ CHIAVE PRIMARIA E FOREIGN KEY
             builder.HasKey(d => d.ArticoloId);
 
-            // ✅ PROPRIETÀ OBBLIGATORIE
-            builder.Property(d => d.Nome)
-                .IsRequired()
-                .HasMaxLength(100);
-
-            builder.Property(d => d.Prezzo)
-                .IsRequired()
-                .HasColumnType("decimal(10,2)"); // ✅ Formato prezzo
-
-            builder.Property(d => d.Disponibile)
-                .IsRequired()
-                .HasDefaultValue(true); // ✅ Default disponibile
-
-            builder.Property(d => d.Priorita)
-                .IsRequired()
-                .HasDefaultValue(1); // ✅ Priorità default
-
-            builder.Property(d => d.DataCreazione)
-                .IsRequired();
-
-            builder.Property(d => d.DataAggiornamento)
-                .IsRequired();
-
-            // ✅ PROPRIETÀ OPZIONALI CON LUNGHEZZA
-            builder.Property(d => d.Descrizione)
-                .HasMaxLength(500); // ✅ Descrizione opzionale
-
-            builder.Property(d => d.ImmagineUrl)
-                .HasMaxLength(500); // ✅ URL immagine opzionale
-
-            // ✅ VALORI DEFAULT
-            builder.Property(d => d.DataCreazione)
-                .HasDefaultValueSql("GETDATE()");
-
-            builder.Property(d => d.DataAggiornamento)
-                .HasDefaultValueSql("GETDATE()");
-
-            // ✅ INDICI PER PERFORMANCE
-            builder.HasIndex(d => d.Nome)
-                .IsUnique(); // ✅ Nome univoco per dolce
-
-            builder.HasIndex(d => d.Disponibile); // ✅ Ricerche per disponibilità
-
-            builder.HasIndex(d => d.Priorita); // ✅ Ordinamento per priorità
-
-            builder.HasIndex(d => d.Prezzo); // ✅ Ricerche per prezzo
-
-            builder.HasIndex(d => d.DataCreazione); // ✅ Storico
-
-            // ✅ RELAZIONE CON ARTICOLO (TPH - Table Per Hierarchy)
             builder.HasOne(d => d.Articolo)
-                .WithOne() // ✅ Relazione 1:1 con Articolo
+                .WithOne()
                 .HasForeignKey<Dolce>(d => d.ArticoloId)
-                .OnDelete(DeleteBehavior.Cascade); // ✅ Elimina dolce se articolo viene eliminato
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // ✅ CHECK CONSTRAINTS
+            builder.Property(d => d.Nome).IsRequired().HasMaxLength(100);
+            builder.Property(d => d.Prezzo).IsRequired().HasColumnType("decimal(4,2)").HasPrecision(4, 2);
+            builder.Property(d => d.Disponibile).IsRequired().HasDefaultValue(true);
+            builder.Property(d => d.Priorita).IsRequired().HasDefaultValue(1);
+            builder.Property(d => d.DataCreazione).IsRequired().HasDefaultValueSql("GETDATE()");
+            builder.Property(d => d.DataAggiornamento).IsRequired().HasDefaultValueSql("GETDATE()");
+            builder.Property(d => d.Descrizione).HasMaxLength(255);
+            builder.Property(d => d.ImmagineUrl).HasMaxLength(500);
+
+            // Indici
+            builder.HasIndex(d => d.Nome).IsUnique();
+            builder.HasIndex(d => d.Disponibile);
+            builder.HasIndex(d => d.Priorita);
+            builder.HasIndex(d => d.Prezzo);
+            builder.HasIndex(d => d.DataCreazione);
+
+            // Vincoli CHECK (solo quelli presenti nel DB)
             builder.ToTable(tb =>
             {
-                tb.HasCheckConstraint("CK_Dolce_Prezzo",
-                    "[Prezzo] >= 0 AND [Prezzo] <= 100"); // ✅ Prezzo tra 0 e 100
-
-                tb.HasCheckConstraint("CK_Dolce_Priorita",
-                    "[Priorita] BETWEEN 1 AND 10"); // ✅ Priorità tra 1 e 10
+                tb.HasCheckConstraint("CHK_Dolce_Prezzo", "[Prezzo] >= 0");
+                tb.HasCheckConstraint("CHK_Dolce_Priorita_Range", "[Priorita] >= 1 AND [Priorita] <= 10");
+                tb.HasCheckConstraint("CHK_Dolce_Date", "[DataAggiornamento] >= [DataCreazione]");
             });
 
-            // ✅ CONFIGURAZIONE NOME TABELLA
-            builder.ToTable("Dolce");
+            builder.ToTable("DOLCE");
 
             // ✅ COMMENTI PER DOCUMENTAZIONE (opzionale)
             // builder.HasComment("Tabella per la gestione dei dolci nel menu");

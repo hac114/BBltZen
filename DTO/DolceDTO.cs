@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace DTO
 {
@@ -16,7 +11,7 @@ namespace DTO
         public string Nome { get; set; } = null!;
 
         [Required(ErrorMessage = "Il prezzo è obbligatorio")]
-        [Range(0.01, 50, ErrorMessage = "Il prezzo deve essere tra 0.01 e 50")]
+        [Range(0.01, 99.99, ErrorMessage = "Il prezzo deve essere tra 0.01 e 99.99")]
         public decimal Prezzo { get; set; }
 
         [StringLength(255, ErrorMessage = "La descrizione non può superare 255 caratteri")]
@@ -29,7 +24,7 @@ namespace DTO
         public bool Disponibile { get; set; }
 
         [Required(ErrorMessage = "La priorità è obbligatoria")]
-        [Range(0, 10, ErrorMessage = "La priorità deve essere tra 0 e 10")]
+        [Range(1, 10, ErrorMessage = "La priorità deve essere tra 1 e 10")]
         public int Priorita { get; set; }
 
         public DateTime DataCreazione { get; set; }

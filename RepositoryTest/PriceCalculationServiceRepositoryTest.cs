@@ -82,10 +82,10 @@ namespace RepositoryTest
         {
             return new PriceCalculationServiceRepository(
                 _memoryCache,
-                _mockLogger.Object,
+                _mockLogger.Object,               
                 new BevandaStandardRepository(_context, NullLogger<BevandaStandardRepository>.Instance),
                 new BevandaCustomRepository(_context, NullLogger<BevandaCustomRepository>.Instance),
-                new DolceRepository(context),
+                new DolceRepository(_context, NullLogger<DolceRepository>.Instance),
                 new PersonalizzazioneCustomRepository(_context, NullLogger<PersonalizzazioneCustomRepository>.Instance),
                 new IngredienteRepository(context, NullLogger<IngredienteRepository>.Instance),
                 new IngredientiPersonalizzazioneRepository(_context, NullLogger<IngredientiPersonalizzazioneRepository>.Instance),

@@ -381,6 +381,16 @@ public partial class BubbleTeaContext : DbContext
                     tb.HasTrigger("trg_UpdateDolce");
                 });
 
+            entity.HasIndex(e => e.DataCreazione, "IX_Dolce_DataCreazione");
+
+            entity.HasIndex(e => e.Disponibile, "IX_Dolce_Disponibile");
+
+            entity.HasIndex(e => e.Nome, "IX_Dolce_Nome").IsUnique();
+
+            entity.HasIndex(e => e.Prezzo, "IX_Dolce_Prezzo");
+
+            entity.HasIndex(e => e.Priorita, "IX_Dolce_Priorita");
+
             entity.Property(e => e.ArticoloId)
                 .ValueGeneratedNever()
                 .HasColumnName("articolo_id");

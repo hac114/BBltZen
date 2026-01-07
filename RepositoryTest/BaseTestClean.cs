@@ -513,6 +513,7 @@ namespace RepositoryTest
         protected async Task ResetDatabaseAsync()
         {
             // Pulisce tutte le tabelle in ordine inverso di dipendenza
+            await CleanTableAsync<Dolce>();
             await CleanTableAsync<BevandaCustom>();
             await CleanTableAsync<BevandaStandard>();
             await CleanTableAsync<IngredientiPersonalizzazione>();
@@ -3605,6 +3606,443 @@ namespace RepositoryTest
                 articoloId: articoloId,
                 persCustomId: persCustomId,
                 prezzo: prezzo);
+        }
+
+        #endregion
+
+        #region Dolce Helpers       
+
+        protected async Task<Dolce> CreateTestDolceAsync(
+            int? articoloId = null,
+            string? nome = null,
+            decimal? prezzo = null,
+            string? descrizione = null,
+            string? immagineUrl = null,
+            bool? disponibile = null,
+            int? priorita = null,
+            DateTime? dataCreazione = null,
+            DateTime? dataAggiornamento = null)
+        {
+            // ✅ Verifica/crea l'Articolo correlato (tipo "D" per Dolce)
+            await EnsureArticoloExistsForDolceAsync(articoloId);
+
+            // Se non viene specificato un ArticoloId, cercane uno disponibile di tipo "D"
+            if (!articoloId.HasValue)
+            {
+                var articoliUsati = await _context.Dolce
+                    .Select(d => d.ArticoloId)
+                    .ToListAsync();
+
+                var articoloLibero = await _context.Articolo
+                    .Where(a => a.Tipo == "D" && !articoliUsati.Contains(a.ArticoloId))
+                    .FirstOrDefaultAsync();
+
+                if (articoloLibero == null)
+                {
+                    var nuovoArticolo = new Articolo
+                    {
+                        Tipo = "D",
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+
+                    _context.Articolo.Add(nuovoArticolo);
+                    await _context.SaveChangesAsync();
+                    articoloId = nuovoArticolo.ArticoloId;
+                }
+                else
+                {
+                    articoloId = articoloLibero.ArticoloId;
+                }
+            }
+
+            // ✅ Validazione vincoli database
+            string nomeFinale = string.IsNullOrWhiteSpace(nome) ?
+                $"Dolce Test {Guid.NewGuid().ToString()[..8]}" :
+                nome.Trim();
+
+            // Controllo unicità nome (vincolo UNIQUE)
+            var nomeEsiste = await _context.Dolce
+                .AnyAsync(d => d.Nome.ToLower() == nomeFinale.ToLower());
+
+            if (nomeEsiste)
+            {
+                nomeFinale = $"{nomeFinale}_{Guid.NewGuid().ToString()[..4]}";
+            }
+
+            decimal prezzoFinale = prezzo.HasValue ?
+                Math.Clamp(prezzo.Value, 0.01m, 99.99m) :
+                5.50m;
+            prezzoFinale = Math.Round(prezzoFinale, 2);
+
+            int prioritaFinale = priorita.HasValue ?
+                Math.Clamp(priorita.Value, 1, 10) :
+                1;
+
+            bool disponibileFinale = disponibile ?? true;
+
+            // ✅ Validazione lunghezze stringhe
+            string? descrizioneFinale = descrizione?.Trim();
+            if (descrizioneFinale != null && descrizioneFinale.Length > 255)
+            {
+                descrizioneFinale = descrizioneFinale[..255];
+            }
+
+            string? immagineUrlFinale = immagineUrl?.Trim();
+            if (immagineUrlFinale != null && immagineUrlFinale.Length > 500)
+            {
+                immagineUrlFinale = immagineUrlFinale[..500];
+            }
+
+            var now = DateTime.UtcNow;
+            var dolce = new Dolce
+            {
+                ArticoloId = articoloId.Value,
+                Nome = nomeFinale,
+                Prezzo = prezzoFinale,
+                Descrizione = descrizioneFinale,
+                ImmagineUrl = immagineUrlFinale,
+                Disponibile = disponibileFinale,
+                Priorita = prioritaFinale,
+                DataCreazione = dataCreazione ?? now,
+                DataAggiornamento = dataAggiornamento ?? now
+            };
+
+            _context.Dolce.Add(dolce);
+            await _context.SaveChangesAsync();
+            return dolce;
+        }
+
+        protected async Task<List<Dolce>> CreateMultipleDolceAsync(int count = 3)
+        {
+            var dolci = new List<Dolce>();
+            var now = DateTime.UtcNow;
+
+            // ✅ Crea articoli aggiuntivi se necessario
+            var articoliEsistenti = await _context.Articolo
+                .Where(a => a.Tipo == "D")
+                .CountAsync();
+
+            for (int i = articoliEsistenti; i < count; i++)
+            {
+                var articolo = new Articolo
+                {
+                    Tipo = "D",
+                    DataCreazione = now,
+                    DataAggiornamento = now
+                };
+                _context.Articolo.Add(articolo);
+            }
+            await _context.SaveChangesAsync();
+
+            // ✅ Recupera gli articoli disponibili di tipo "D"
+            var articoli = await _context.Articolo
+                .Where(a => a.Tipo == "D")
+                .Take(count)
+                .ToListAsync();
+
+            // ✅ Crea dolci con dati variati per test
+            for (int i = 0; i < count; i++)
+            {
+                var nomeUnivoco = $"Dolce Test {i + 1}_{Guid.NewGuid().ToString()[..4]}";
+                var disponibile = i % 2 == 0; // Alterna disponibilità
+                var priorita = (i % 10) + 1; // Priorità da 1 a 10
+                var prezzo = Math.Round(3.50m + (i * 1.50m), 2);
+
+                var dolce = new Dolce
+                {
+                    ArticoloId = articoli[i].ArticoloId,
+                    Nome = nomeUnivoco,
+                    Prezzo = prezzo,
+                    Descrizione = i % 2 == 0 ? $"Descrizione del dolce test {i + 1}" : null,
+                    ImmagineUrl = i % 2 == 0 ? $"https://example.com/dolce{i + 1}.jpg" : null,
+                    Disponibile = disponibile,
+                    Priorita = priorita,
+                    DataCreazione = now.AddHours(-i * 2), // Data diversa per ogni dolce
+                    DataAggiornamento = now.AddHours(-i * 2)
+                };
+
+                dolci.Add(dolce);
+            }
+
+            _context.Dolce.AddRange(dolci);
+            await _context.SaveChangesAsync();
+            return dolci;
+        }
+
+        protected async Task<Dolce> GetSeedDolceAsync()
+        {
+            var dolce = await _context.Dolce
+                .FirstOrDefaultAsync();
+
+            if (dolce != null)
+                return dolce;
+
+            return await CreateTestDolceAsync();
+        }
+
+        protected async Task EnsureDolceExistsAsync(int articoloId)
+        {
+            var existing = await _context.Dolce
+                .AnyAsync(d => d.ArticoloId == articoloId);
+
+            if (!existing)
+            {
+                await CreateTestDolceAsync(articoloId: articoloId);
+            }
+        }
+
+        protected async Task EnsureArticoloExistsForDolceAsync(int? articoloId = null)
+        {
+            if (articoloId.HasValue)
+            {
+                var existing = await _context.Articolo
+                    .AnyAsync(a => a.ArticoloId == articoloId.Value);
+
+                if (!existing)
+                {
+                    var articolo = new Articolo
+                    {
+                        ArticoloId = articoloId.Value,
+                        Tipo = "D",
+                        DataCreazione = DateTime.UtcNow,
+                        DataAggiornamento = DateTime.UtcNow
+                    };
+
+                    _context.Articolo.Add(articolo);
+                    await _context.SaveChangesAsync();
+                }
+            }
+        }
+
+        // ✅ Assert con tolleranza per date
+        protected void AssertDolceEqual(Dolce expected, Dolce actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.ArticoloId, actual.ArticoloId);
+            }
+
+            Assert.Equal(expected.Nome, actual.Nome);
+            Assert.Equal(expected.Prezzo, actual.Prezzo);
+            Assert.Equal(expected.Descrizione, actual.Descrizione);
+            Assert.Equal(expected.ImmagineUrl, actual.ImmagineUrl);
+            Assert.Equal(expected.Disponibile, actual.Disponibile);
+            Assert.Equal(expected.Priorita, actual.Priorita);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Assert per DTO con tolleranza date
+        protected void AssertDolceDTOEqual(DolceDTO expected, DolceDTO actual, bool ignoreId = false)
+        {
+            if (!ignoreId)
+            {
+                Assert.Equal(expected.ArticoloId, actual.ArticoloId);
+            }
+
+            Assert.Equal(expected.Nome, actual.Nome);
+            Assert.Equal(expected.Prezzo, actual.Prezzo);
+            Assert.Equal(expected.Descrizione, actual.Descrizione);
+            Assert.Equal(expected.ImmagineUrl, actual.ImmagineUrl);
+            Assert.Equal(expected.Disponibile, actual.Disponibile);
+            Assert.Equal(expected.Priorita, actual.Priorita);
+            Assert.Equal(expected.DataCreazione, actual.DataCreazione, TimeSpan.FromSeconds(1));
+            Assert.Equal(expected.DataAggiornamento, actual.DataAggiornamento, TimeSpan.FromSeconds(1));
+        }
+
+        // ✅ Crea DTO di test senza dipendenze InMemory
+        protected DolceDTO CreateTestDolceDTO(
+            int articoloId = 1,
+            string? nome = null,
+            decimal? prezzo = null,
+            string? descrizione = null,
+            string? immagineUrl = null,
+            bool disponibile = true,
+            int priorita = 1)
+        {
+            var now = DateTime.UtcNow;
+            string nomeFinale = string.IsNullOrWhiteSpace(nome) ?
+                $"Dolce DTO Test {Guid.NewGuid().ToString()[..8]}" :
+                nome.Trim();
+
+            decimal prezzoFinale = prezzo.HasValue ?
+                Math.Clamp(prezzo.Value, 0.01m, 99.99m) :
+                5.50m;
+            prezzoFinale = Math.Round(prezzoFinale, 2);
+
+            int prioritaFinale = Math.Clamp(priorita, 1, 10);
+
+            return new DolceDTO
+            {
+                ArticoloId = articoloId,
+                Nome = nomeFinale,
+                Prezzo = prezzoFinale,
+                Descrizione = descrizione?.Trim(),
+                ImmagineUrl = immagineUrl?.Trim(),
+                Disponibile = disponibile,
+                Priorita = prioritaFinale,
+                DataCreazione = now,
+                DataAggiornamento = now
+            };
+        }
+
+        // ✅ Crea un set di dati per test di paginazione/filtri
+        protected async Task<List<Dolce>> CreateDolciForPaginationTestsAsync(int totalCount = 15)
+        {
+            // Pulisci i dolci esistenti per test puliti
+            await CleanTableAsync<Dolce>();
+
+            var dolci = new List<Dolce>();
+            var now = DateTime.UtcNow;
+
+            // ✅ Crea articoli sufficienti
+            var articoliEsistenti = await _context.Articolo
+                .Where(a => a.Tipo == "D")
+                .CountAsync();
+
+            for (int i = articoliEsistenti; i < totalCount; i++)
+            {
+                var articolo = new Articolo
+                {
+                    Tipo = "D",
+                    DataCreazione = now,
+                    DataAggiornamento = now
+                };
+                _context.Articolo.Add(articolo);
+            }
+            await _context.SaveChangesAsync();
+
+            // ✅ Recupera tutti gli articoli di tipo "D"
+            var articoli = await _context.Articolo
+                .Where(a => a.Tipo == "D")
+                .Take(totalCount)
+                .ToListAsync();
+
+            // ✅ Crea dolci con caratteristiche variate
+            for (int i = 0; i < totalCount; i++)
+            {
+                var nomeUnivoco = $"Dolce Pag {i + 1}_{Guid.NewGuid().ToString()[..4]}";
+                var disponibile = i % 3 != 0; // 2/3 disponibili, 1/3 non disponibili
+                var priorita = (i % 10) + 1; // Priorità da 1 a 10
+                var prezzo = Math.Round(2.50m + (i * 0.75m), 2);
+
+                // Pattern per test di ordinamento: alcuni con date diverse
+                var dataOffset = i * 2; // Ogni dolce ha 2 ore di differenza
+
+                var dolce = new Dolce
+                {
+                    ArticoloId = articoli[i].ArticoloId,
+                    Nome = nomeUnivoco,
+                    Prezzo = prezzo,
+                    Descrizione = i % 2 == 0 ? $"Descrizione per dolce {i + 1}" : null,
+                    ImmagineUrl = i % 3 == 0 ? $"https://example.com/dolce{i + 1}.jpg" : null,
+                    Disponibile = disponibile,
+                    Priorita = priorita,
+                    DataCreazione = now.AddHours(-dataOffset),
+                    DataAggiornamento = now.AddHours(-dataOffset)
+                };
+
+                dolci.Add(dolce);
+            }
+
+            _context.Dolce.AddRange(dolci);
+            await _context.SaveChangesAsync();
+            return dolci;
+        }
+
+        // ✅ Helper per test di disponibilità
+        protected async Task<Dolce> CreateDolceDisponibileAsync(int? articoloId = null)
+        {
+            return await CreateTestDolceAsync(
+                articoloId: articoloId,
+                disponibile: true,
+                nome: $"Dolce Disponibile {Guid.NewGuid().ToString()[..6]}"
+            );
+        }
+
+        protected async Task<Dolce> CreateDolceNonDisponibileAsync(int? articoloId = null)
+        {
+            return await CreateTestDolceAsync(
+                articoloId: articoloId,
+                disponibile: false,
+                nome: $"Dolce Non Disponibile {Guid.NewGuid().ToString()[..6]}"
+            );
+        }
+
+        // ✅ Helper per test di priorità
+        protected async Task<List<Dolce>> CreateDolciConPrioritaVariataAsync(int[]? prioritaArray = null)
+        {
+            prioritaArray ??= [1, 5, 10, 3, 7, 2, 8, 4, 6, 9];
+            var dolci = new List<Dolce>();
+
+            foreach (var priorita in prioritaArray)
+            {
+                var dolce = await CreateTestDolceAsync(
+                    nome: $"Dolce Priorità {priorita}",
+                    priorita: priorita
+                );
+                dolci.Add(dolce);
+            }
+
+            return dolci;
+        }
+
+        // ✅ Verifica vincoli del database
+        protected void AssertDolceConstraints(Dolce dolce)
+        {
+            // Vincolo CHECK Prezzo >= 0
+            Assert.True(dolce.Prezzo >= 0, $"Prezzo {dolce.Prezzo} deve essere >= 0");
+
+            // Vincolo CHECK Priorita tra 1 e 10
+            Assert.InRange(dolce.Priorita, 1, 10);
+
+            // Vincolo CHECK Disponibile IN (0,1) - implicitamente garantito dal tipo bool
+            Assert.IsType<bool>(dolce.Disponibile);
+
+            // Vincolo CHECK DataAggiornamento >= DataCreazione
+            Assert.True(dolce.DataAggiornamento >= dolce.DataCreazione,
+                $"DataAggiornamento {dolce.DataAggiornamento} deve essere >= DataCreazione {dolce.DataCreazione}");
+
+            // Vincolo UNIQUE su Nome - verifica esternamente
+
+            // Lunghezze stringhe
+            if (dolce.Nome != null) Assert.True(dolce.Nome.Length <= 100);
+            if (dolce.Descrizione != null) Assert.True(dolce.Descrizione.Length <= 255);
+            if (dolce.ImmagineUrl != null) Assert.True(dolce.ImmagineUrl.Length <= 500);
+        }
+
+        protected async Task CreateMultipleDolceAsync(List<(string nome, decimal prezzo, string? descrizione, string? immagineUrl, bool disponibile, int priorita)> dolceData)
+        {
+            foreach (var data in dolceData)
+            {
+                await CreateTestDolceAsync(
+                    nome: data.nome,
+                    prezzo: data.prezzo,
+                    descrizione: data.descrizione,
+                    immagineUrl: data.immagineUrl,
+                    disponibile: data.disponibile,
+                    priorita: data.priorita
+                );
+            }
+        }
+
+        protected async Task SetupDolceTestDataAsync()
+        {
+            // Pulisce la tabella
+            await CleanTableAsync<Dolce>();
+
+            // Crea 5 ingredienti di test con categorie diverse
+            var dolceData = new List<(string, decimal, string?, string?, bool, int)>
+            {
+                ("Tiramisù Classico", 5.50m, "Dolce al cucchiaio classico", "", true, 2),
+                ("Mochi al BubbleTea", 4.50m, "Piccoli dolcetti giapponesi", "", true, 2),
+                ("Bubble Waffle (Gai daan jai)", 4.50m, "Waffle forma a bolle tonde", "", true, 1),
+                ("Taiwanese Castella", 6.50m, "Soffice pan di spagna giapponese", "", false, 1),
+                ("Pancake Soufflé", 6.50m, "Pancake morbidissimi e soffici", "", false, 3),
+            };
+
+            await CreateMultipleDolceAsync(dolceData);
         }
 
         #endregion

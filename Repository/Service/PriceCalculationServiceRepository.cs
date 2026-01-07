@@ -142,11 +142,12 @@ namespace Repository.Service
             try
             {
                 // ✅ CERCA PER ARTICOLO_ID - coerenza con la struttura del DB
-                var dolce = await _dolceRepo.GetByIdAsync(articoloId);
-                if (dolce == null)
+                var response = await _dolceRepo.GetByIdAsync(articoloId);
+
+                if (!response.Success || response.Data == null)
                     throw new ArgumentException($"Dolce non trovato per articolo: {articoloId}");
 
-                return dolce.Prezzo;
+                return response.Data.Prezzo; // ✅ Ora accediamo alla proprietà Prezzo del Data
             }
             catch (Exception ex)
             {
