@@ -1359,5 +1359,104 @@ namespace Repository.Service
                 return SingleResponseDTO<int>.ErrorResponse("Errore nel conteggio delle bevande standard non sempre disponibili");
             }
         }
+
+        // ✅ TOGGLE DISPONIBILITÀ
+        public async Task<SingleResponseDTO<bool>> ToggleDisponibileAsync(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID articolo non valido");
+
+                var bevandaStandard = await _context.BevandaStandard.FindAsync(articoloId);
+
+                if (bevandaStandard == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse($"BevandaStandard con ID {articoloId} non trovata");
+
+                var nuovoStato = !bevandaStandard.Disponibile;
+                bevandaStandard.Disponibile = nuovoStato;
+
+                // ✅ AGGIORNA LA DATA DI AGGIORNAMENTO
+                bevandaStandard.DataAggiornamento = DateTime.UtcNow;
+
+                // ✅ Aggiorna anche l'articolo associato
+                var articoloAssociato = await _context.Articolo.FindAsync(articoloId);
+                if (articoloAssociato != null)
+                {
+                    articoloAssociato.DataAggiornamento = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+
+                string stato = nuovoStato ? "disponibile" : "non disponibile";
+                return SingleResponseDTO<bool>.SuccessResponse(nuovoStato,
+                    $"Bevanda standard {bevandaStandard.Personalizzazione.Nome} (ID: {articoloId}) impostato come {stato}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ToggleDisponibilitaAsync per articoloId: {articoloId}", articoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante il cambio di disponibilità per il campo 'disponibile'");
+            }
+        }
+
+        public async Task<SingleResponseDTO<bool>> ToggleSempreDisponibileAsync(int articoloId)
+        {
+            try
+            {
+                if (articoloId <= 0)
+                    return SingleResponseDTO<bool>.ErrorResponse("ID articolo non valido");
+
+                // ✅ QUERY SENZA INCLUDE - Compatibile con InMemory
+                var bevandaStandard = await _context.BevandaStandard
+                    .FirstOrDefaultAsync(bs => bs.ArticoloId == articoloId);
+
+                if (bevandaStandard == null)
+                    return SingleResponseDTO<bool>.NotFoundResponse($"BevandaStandard con ID {articoloId} non trovata");
+
+                // ✅ CARICA LA PERSONALIZZAZIONE SEPARATAMENTE (se necessario per il nome)
+                var personalizzazione = await _context.Personalizzazione
+                    .FirstOrDefaultAsync(p => p.PersonalizzazioneId == bevandaStandard.PersonalizzazioneId);
+
+                var nuovoStatoSempreDisponibile = !bevandaStandard.SempreDisponibile;
+                bevandaStandard.SempreDisponibile = nuovoStatoSempreDisponibile;
+
+                // ✅ LOGICA DI BUSINESS: Se SempreDisponibile diventa false e Disponibile è true, forza Disponibile a false
+                bool disponibileModificata = false;
+                if (nuovoStatoSempreDisponibile == false && bevandaStandard.Disponibile == true)
+                {
+                    bevandaStandard.Disponibile = false;
+                    disponibileModificata = true;
+                }
+
+                // ✅ AGGIORNA LA DATA DI AGGIORNAMENTO
+                bevandaStandard.DataAggiornamento = DateTime.UtcNow;
+
+                // ✅ Aggiorna anche l'articolo associato
+                var articoloAssociato = await _context.Articolo.FindAsync(articoloId);
+                if (articoloAssociato != null)
+                {
+                    articoloAssociato.DataAggiornamento = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+
+                // ✅ Costruisci il messaggio appropriato
+                string nomePersonalizzazione = personalizzazione?.Nome ?? $"Bevanda ID {articoloId}";
+                string stato = nuovoStatoSempreDisponibile ? "sempre disponibile" : "non sempre disponibile";
+                string messaggio = $"Bevanda standard {nomePersonalizzazione} (ID: {articoloId}) impostato come {stato}";
+
+                if (disponibileModificata)
+                {
+                    messaggio += ". Poiché non è più sempre disponibile, è stata automaticamente impostata come non disponibile.";
+                }
+
+                return SingleResponseDTO<bool>.SuccessResponse(nuovoStatoSempreDisponibile, messaggio);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Errore in ToggleSempreDisponibileAsync per articoloId: {articoloId}", articoloId);
+                return SingleResponseDTO<bool>.ErrorResponse("Errore interno durante il cambio di disponibilità per il campo 'SempreDisponibile'");
+            }
+        }
     }
 }

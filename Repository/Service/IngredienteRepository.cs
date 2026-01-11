@@ -665,6 +665,13 @@ namespace Repository.Service
 
                 var nuovoStato = !ingrediente.Disponibile;
                 ingrediente.Disponibile = nuovoStato;
+
+                // ✅ AGGIORNA LA DATA DI AGGIORNAMENTO
+                ingrediente.DataAggiornamento = DateTime.UtcNow;
+
+                // NOTA: Non c'è un'entità Articolo associata per Ingrediente
+                // quindi non abbiamo bisogno di aggiornare timestamp aggiuntivi
+
                 await _context.SaveChangesAsync();
 
                 string stato = nuovoStato ? "disponibile" : "non disponibile";

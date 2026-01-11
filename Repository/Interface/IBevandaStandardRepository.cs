@@ -31,5 +31,8 @@ namespace Repository.Interface
         Task<SingleResponseDTO<int>> CountSecondoPianoAsync();
         Task<SingleResponseDTO<int>> CountDisponibiliAsync();
         Task<SingleResponseDTO<int>> CountNonDisponibiliAsync();
+
+        Task<SingleResponseDTO<bool>> ToggleDisponibileAsync(int articoloId);
+        Task<SingleResponseDTO<bool>> ToggleSempreDisponibileAsync(int articoloId);
     }
 }

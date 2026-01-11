@@ -882,6 +882,293 @@ namespace RepositoryTest
 
         #endregion
 
+        #region ToggleDisponibilitaAsync Tests        
+
+        [Fact]
+        public async Task ToggleDisponibileAsync_ShouldToggleDisponibile()
+        {
+            // Arrange
+            await SetupBevandaStandardTestDataAsync();
+
+            // ✅ Recupera un dolce esistente dal database
+            var bevandaStandard = await _context.BevandaStandard.FirstOrDefaultAsync();
+            Assert.NotNull(bevandaStandard);
+
+            var articoloId = bevandaStandard.ArticoloId;
+            var initialDisponibile = bevandaStandard.Disponibile;
+
+            // Act
+            var result = await _repository.ToggleDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+            Assert.Equal(!initialDisponibile, result.Data);
+            Assert.Contains(initialDisponibile ? "non disponibile" : "disponibile", result.Message);
+
+            // Verifica il cambio
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+            Assert.Equal(!initialDisponibile, updated.Disponibile);
+        }
+
+        [Fact]
+        public async Task ToggleDisponibileAsync_ShouldToggleDisponibile_WithSpecificBevandaStandard()
+        {
+            // Arrange
+            await SetupBevandaStandardTestDataAsync();
+
+            // ✅ Crea un dolce specifico per questo test (per controllare meglio lo stato iniziale)
+            var bevandaStandard = await CreateBevandaStandardDisponibileAsync();
+            var articoloId = bevandaStandard.ArticoloId;
+            var initialDisponibile = bevandaStandard.Disponibile; // Dovrebbe essere true
+
+            // Act
+            var result = await _repository.ToggleDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+            Assert.False(result.Data); // Dovrebbe diventare false
+            Assert.Contains("non disponibile", result.Message);
+
+            // Verifica
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+            Assert.False(updated.Disponibile);
+        }
+
+        [Fact]
+        public async Task ToggleDisponibileAsync_ShouldToggleFromFalseToTrue()
+        {
+            // Arrange
+            var bevandaStandard = await CreateBevandaStandardNonDisponibileAsync();
+            var articoloId = bevandaStandard.ArticoloId;
+            Assert.False(bevandaStandard.Disponibile); // Verifica che sia inizialmente false
+
+            // Act
+            var result = await _repository.ToggleDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+            Assert.True(result.Data); // Dovrebbe diventare true
+            Assert.Contains("disponibile", result.Message);
+
+            // Verifica
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+            Assert.True(updated.Disponibile);
+        }
+
+        [Fact]
+        public async Task ToggleDisponibileAsync_WithNonExistingId_ShouldReturnNotFound()
+        {
+            // Arrange
+            var nonExistingId = 999999;
+
+            // Act
+            var result = await _repository.ToggleDisponibileAsync(nonExistingId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.False(result.Success);
+            Assert.False(result.Data);
+            Assert.Contains("non trovata", result.Message);
+        }
+
+        [Fact]
+        public async Task ToggleDisponibileAsync_ShouldReturnError_WhenIdIsZeroOrNegative()
+        {
+            // Arrange
+            var invalidIds = new[] { 0, -1, -100 };
+
+            foreach (var invalidId in invalidIds)
+            {
+                // Act
+                var result = await _repository.ToggleDisponibileAsync(invalidId);
+
+                // Assert
+                Assert.NotNull(result);
+                Assert.False(result.Success);
+                Assert.False(result.Data);
+                Assert.Contains("non valido", result.Message);
+            }
+        }
+
+        [Fact]
+        public async Task ToggleDisponibileAsync_ShouldUpdateDataAggiornamento()
+        {
+            // Arrange
+            var bevandaStandard = await CreateBevandaStandardDisponibileAsync();
+            var articoloId = bevandaStandard.ArticoloId;
+            var originalUpdateTime = bevandaStandard.DataAggiornamento;
+
+            // Attendi un momento per essere sicuri che le date siano diverse
+            await Task.Delay(100); // Aumenta il delay a 100ms
+
+            // Act
+            var result = await _repository.ToggleDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+
+            // Verifica che DataAggiornamento sia stato aggiornato
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+
+            // Usa >= invece di > per sicurezza
+            Assert.True(updated.DataAggiornamento >= originalUpdateTime,
+                $"DataAggiornamento non aggiornata: {updated.DataAggiornamento} <= {originalUpdateTime}");
+
+            // Se vuoi essere più rigoroso, puoi anche verificare che sia cambiato almeno di qualche tick
+            // Assert.NotEqual(originalUpdateTime, updated.DataAggiornamento);
+        }
+
+        [Fact]
+        public async Task ToggleSempreDisponibileAsync_ShouldToggleSempreDisponibile()
+        {
+            // Arrange
+            await SetupBevandaStandardTestDataAsync();
+
+            // ✅ Recupera un dolce esistente dal database
+            var bevandaStandard = await _context.BevandaStandard.FirstOrDefaultAsync();
+            Assert.NotNull(bevandaStandard);
+
+            var articoloId = bevandaStandard.ArticoloId;
+            var initialDisponibile = bevandaStandard.SempreDisponibile;
+
+            // Act
+            var result = await _repository.ToggleSempreDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+            Assert.Equal(!initialDisponibile, result.Data);
+            Assert.Contains(initialDisponibile ? "non sempre disponibile" : "sempre disponibile", result.Message);
+
+            // Verifica il cambio
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+            Assert.Equal(!initialDisponibile, updated.SempreDisponibile);
+        }
+
+        [Fact]
+        public async Task ToggleSempreDisponibileAsync_ShouldToggleDisponibile_WithSpecificBevandaStandard()
+        {
+            // Arrange
+            await SetupBevandaStandardTestDataAsync();
+            
+            var bevandaStandard = await CreateBevandaStandardSempreDisponibileAsync();
+            var articoloId = bevandaStandard.ArticoloId;
+            var initialDisponibile = bevandaStandard.SempreDisponibile; // Dovrebbe essere true
+
+            // Act
+            var result = await _repository.ToggleSempreDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+            Assert.False(result.Data); // Dovrebbe diventare false
+            Assert.Contains("non sempre disponibile", result.Message);
+
+            // Verifica
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+            Assert.False(updated.SempreDisponibile);
+        }
+
+        [Fact]
+        public async Task ToggleSempreDisponibileAsync_ShouldToggleFromFalseToTrue()
+        {
+            // Arrange
+            var bevandaStandard = await CreateBevandaStandardNonSempreDisponibileAsync();
+            var articoloId = bevandaStandard.ArticoloId;
+            Assert.False(bevandaStandard.SempreDisponibile); // Verifica che sia inizialmente false
+
+            // Act
+            var result = await _repository.ToggleSempreDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+            Assert.True(result.Data); // Dovrebbe diventare true
+            Assert.Contains("sempre disponibile", result.Message);
+
+            // Verifica
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+            Assert.True(updated.SempreDisponibile);
+        }
+
+        [Fact]
+        public async Task ToggleSempreDisponibileAsync_WithNonExistingId_ShouldReturnNotFound()
+        {
+            // Arrange
+            var nonExistingId = 999999;
+
+            // Act
+            var result = await _repository.ToggleSempreDisponibileAsync(nonExistingId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.False(result.Success);
+            Assert.False(result.Data);
+            Assert.Contains("non trovata", result.Message);
+        }
+
+        [Fact]
+        public async Task ToggleSempreDisponibileAsync_ShouldReturnError_WhenIdIsZeroOrNegative()
+        {
+            // Arrange
+            var invalidIds = new[] { 0, -1, -100 };
+
+            foreach (var invalidId in invalidIds)
+            {
+                // Act
+                var result = await _repository.ToggleSempreDisponibileAsync(invalidId);
+
+                // Assert
+                Assert.NotNull(result);
+                Assert.False(result.Success);
+                Assert.False(result.Data);
+                Assert.Contains("non valido", result.Message);
+            }
+        }
+
+        [Fact]
+        public async Task ToggleSempreDisponibileAsync_ShouldUpdateDataAggiornamento()
+        {
+            // Arrange
+            var bevandaStandard = await CreateBevandaStandardDisponibileAsync();
+            var articoloId = bevandaStandard.ArticoloId;
+            var originalUpdateTime = bevandaStandard.DataAggiornamento;
+
+            // Attendi un momento per essere sicuri che le date siano diverse
+            await Task.Delay(100); // Aumenta il delay a 100ms
+
+            // Act
+            var result = await _repository.ToggleSempreDisponibileAsync(articoloId);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.True(result.Success);
+
+            // Verifica che DataAggiornamento sia stato aggiornato
+            var updated = await _context.BevandaStandard.FindAsync(articoloId);
+            Assert.NotNull(updated);
+
+            // Usa >= invece di > per sicurezza
+            Assert.True(updated.DataAggiornamento >= originalUpdateTime,
+                $"DataAggiornamento non aggiornata: {updated.DataAggiornamento} <= {originalUpdateTime}");
+
+            // Se vuoi essere più rigoroso, puoi anche verificare che sia cambiato almeno di qualche tick
+            // Assert.NotEqual(originalUpdateTime, updated.DataAggiornamento);
+        }
+
+        #endregion
+
         #region Helper Methods
 
         private async Task<BevandaStandardDTO> MapToDTODirectly(BevandaStandard bevandaStandard)

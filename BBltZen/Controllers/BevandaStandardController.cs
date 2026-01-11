@@ -416,5 +416,39 @@ namespace BBltZen.Controllers
                 return StatusCode(500, "Errore server");
             }
         }
+
+        // PATCH: api/dolce/{id}/toggle-disponibile
+        [HttpPatch("{id:int}/toggle-disponibile")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> ToggleDisponibile(int id)
+        {
+            try
+            {
+                var result = await _repository.ToggleDisponibileAsync(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ToggleDisponibile articolo {Id} errore", id);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        // PATCH: api/dolce/{id}/toggle-SempreDisponibile
+        [HttpPatch("{id:int}/toggle-SempreDisponibile")]
+        // [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<SingleResponseDTO<bool>>> ToggleSempreDisponibile(int id)
+        {
+            try
+            {
+                var result = await _repository.ToggleSempreDisponibileAsync(id);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ToggleSempreDisponibile articolo {Id} errore", id);
+                return StatusCode(500, "Errore server");
+            }
+        }
     }
 }

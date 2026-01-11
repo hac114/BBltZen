@@ -3153,6 +3153,91 @@ namespace RepositoryTest
             }
         }
 
+        // ✅ Helper per test di disponibilità - VERSIONE CORRETTA
+        protected async Task<BevandaStandard> CreateBevandaStandardDisponibileAsync(int? articoloId = null, string? nomePersonalizzazione = null)
+        {
+            // Crea una personalizzazione con nome specifico o generato
+            var nome = nomePersonalizzazione ?? $"Bevanda standard Disponibile {Guid.NewGuid().ToString()[..6]}";
+            var personalizzazione = await CreateTestPersonalizzazioneAsync(nome: nome);
+
+            return await CreateTestBevandaStandardAsync(
+                articoloId: articoloId,
+                personalizzazioneId: personalizzazione.PersonalizzazioneId,
+                disponibile: true
+            );
+        }
+
+        protected async Task<BevandaStandard> CreateBevandaStandardNonDisponibileAsync(int? articoloId = null, string? nomePersonalizzazione = null)
+        {
+            // Crea una personalizzazione con nome specifico o generato
+            var nome = nomePersonalizzazione ?? $"Bevanda standard Non Disponibile {Guid.NewGuid().ToString()[..6]}";
+            var personalizzazione = await CreateTestPersonalizzazioneAsync(nome: nome);
+
+            return await CreateTestBevandaStandardAsync(
+                articoloId: articoloId,
+                personalizzazioneId: personalizzazione.PersonalizzazioneId,
+                disponibile: false
+            );
+        }
+
+        protected async Task<BevandaStandard> CreateBevandaStandardSempreDisponibileAsync(int? articoloId = null, string? nomePersonalizzazione = null)
+        {
+            // Crea una personalizzazione con nome specifico o generato
+            var nome = nomePersonalizzazione ?? $"Bevanda standard Sempre disponibile {Guid.NewGuid().ToString()[..6]}";
+            var personalizzazione = await CreateTestPersonalizzazioneAsync(nome: nome);
+
+            return await CreateTestBevandaStandardAsync(
+                articoloId: articoloId,
+                personalizzazioneId: personalizzazione.PersonalizzazioneId,
+                sempreDisponibile: true
+            );
+        }
+
+        protected async Task<BevandaStandard> CreateBevandaStandardNonSempreDisponibileAsync(int? articoloId = null, string? nomePersonalizzazione = null)
+        {
+            // Crea una personalizzazione con nome specifico o generato
+            var nome = nomePersonalizzazione ?? $"Bevanda standard Non sempre disponibile {Guid.NewGuid().ToString()[..6]}";
+            var personalizzazione = await CreateTestPersonalizzazioneAsync(nome: nome);
+
+            return await CreateTestBevandaStandardAsync(
+                articoloId: articoloId,
+                personalizzazioneId: personalizzazione.PersonalizzazioneId,
+                sempreDisponibile: false
+            );
+        }
+
+        protected async Task SetupBevandaStandardTestDataAsync()
+        {
+            // Pulisce la tabella
+            await CleanTableAsync<BevandaStandard>();
+            
+            var bevandaStandardData = new List<(int, int, decimal, string?, bool, bool, int)>
+            {
+                (1, 1, 3.50m, "", true, true, 2),
+                (1, 2, 5.00m, "", false, false, 1),
+                (2, 1, 4.50m, "", false, true, 1),
+                (2, 2, 6.50m, "", true, true, 2)                
+            };
+
+            await CreateMultipleBevandaStandardAsync(bevandaStandardData);
+        }
+
+        protected async Task CreateMultipleBevandaStandardAsync(List<(int persId, int bicchiereId, decimal prezzo, string? immagineUrl, bool disponibile, bool sempreDisponibile, int priorita)> bevandaStandardData)
+        {
+            foreach (var data in bevandaStandardData)
+            {
+                await CreateTestBevandaStandardAsync(
+                    personalizzazioneId: data.persId,
+                    dimensioneBicchiereId: data.bicchiereId,
+                    prezzo: data.prezzo,                    
+                    immagineUrl: data.immagineUrl,
+                    disponibile: data.disponibile,
+                    sempreDisponibile: data.sempreDisponibile,
+                    priorita: data.priorita
+                );
+            }
+        }
+
         // ✅ Crea DTO di test senza dipendenze InMemory
         protected BevandaStandardDTO CreateTestBevandaStandardDTO(
             int articoloId = 1,
@@ -4031,8 +4116,7 @@ namespace RepositoryTest
         {
             // Pulisce la tabella
             await CleanTableAsync<Dolce>();
-
-            // Crea 5 ingredienti di test con categorie diverse
+            
             var dolceData = new List<(string, decimal, string?, string?, bool, int)>
             {
                 ("Tiramisù Classico", 5.50m, "Dolce al cucchiaio classico", "", true, 2),
